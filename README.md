@@ -1,11 +1,10 @@
 # 🤖 Plia — Pocket Local Intelligent Assistant
-A private, offline AI assistant that lives on your computer and handles voice commands, chat, tasks, and smart home control, and more
 
 <p align="center">
   <img src="gui/assets/logo.png" alt="Plia Logo" width="120" height="120">
 </p>
 
-**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI assistant** for Windows. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
+**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI assistant** for Windows and Linux. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
 
 > 🔒 **Your data stays on your machine.** No API keys required for core functionality. No subscriptions. No data collection.
 
@@ -38,13 +37,11 @@ Before you begin, make sure you have:
 
 ### Required Software
 
-|-------------------------------|-----------------------------|------------------------------------------------------|
 |       Software                |           Purpose           |                     Download                         |
 |-------------------------------|-----------------------------|------------------------------------------------------|
 | **Miniconda**                 | Python environment manager  | [miniconda.io](https://docs.anaconda.com/miniconda/) |
 | **Ollama**                    | Local AI model server       | [ollama.com](https://ollama.com/download)            |
 | **NVIDIA GPU** (Recommended)  | Faster AI inference         | GPU with 4GB+ VRAM                                   |
-|-------------------------------|-----------------------------|------------------------------------------------------|
 
 ### Hardware Recommendations
 
@@ -357,7 +354,8 @@ Plia supports **TP-Link Kasa** smart devices:
 
 ### Common Issues
 
-❌ Ollama connection refused
+<details>
+<summary><strong>❌ Ollama connection refused</strong></summary>
 
 **Problem**: The app can't connect to Ollama.
 
@@ -366,8 +364,8 @@ Plia supports **TP-Link Kasa** smart devices:
 2. Check if the model is downloaded: `ollama list`
 3. Verify the URL in `config.py` matches your setup
 
-
-❌ CUDA/GPU not detected
+<details>
+<summary><strong>❌ CUDA/GPU not detected</strong></summary>
 
 **Problem**: PyTorch is running on CPU instead of GPU.
 
@@ -378,8 +376,8 @@ Plia supports **TP-Link Kasa** smart devices:
    ```
 2. Verify CUDA: `python -c "import torch; print(torch.cuda.is_available())"`
 
-
-❌ Voice assistant not working
+<details>
+<summary><strong>❌ Voice assistant not working</strong></summary>
 
 **Problem**: Wake word isn't being detected.
 
@@ -388,8 +386,8 @@ Plia supports **TP-Link Kasa** smart devices:
 2. Ensure `realtimestt` is installed: `pip install realtimestt`
 3. Try lowering `WAKE_WORD_SENSITIVITY` in `config.py`
 
-
-❌ Smart devices not found</strong></summary>
+<details>
+<summary><strong>❌ Smart devices not found</strong></summary>
 
 **Problem**: Kasa devices don't appear in the app.
 
