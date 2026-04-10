@@ -1,0 +1,130 @@
+# =====================================================
+# Plia (Pocket Local Intelligent Assistant) - Python Dependencies
+# =====================================================
+#
+# Install all dependencies with:
+#   pip install -r requirements.txt
+#
+# IMPORTANT: This project requires Python 3.11 or higher
+#
+# IMPORTANT: After installing, run the following to install
+#   Playwright browser binaries (required for web agent):
+#   playwright install
+#
+# IMPORTANT: PyTorch is installed below with CUDA 12.4 support via
+#   the --extra-index-url directive. If you are on a CPU-only machine,
+#   remove the torch/torchvision/torchaudio lines and the index URL —
+#   a CPU-only build will be pulled in automatically by transformers.
+# =====================================================
+
+# -----------------------------------------------------
+# PyTorch Index — CUDA 12.4 Builds
+# -----------------------------------------------------
+# Tells pip to also look at the PyTorch CUDA wheel server when
+# resolving torch, torchvision, and torchaudio below.
+# Remove this line if you are on a CPU-only machine.
+--extra-index-url https://download.pytorch.org/whl/cu124
+
+# -----------------------------------------------------
+# Core GUI Framework
+# -----------------------------------------------------
+PySide6>=6.10.0                # Qt GUI framework for Python
+PySide6-Fluent-Widgets>=1.10.0 # Fluent Design UI components (PySide6 version)
+darkdetect>=0.8.0              # Detect system dark/light mode
+markdown>=3.4.0                # Markdown rendering for chat messages
+pygments>=2.15.0               # Syntax highlighting for code blocks
+
+# -----------------------------------------------------
+# AI & Machine Learning
+# -----------------------------------------------------
+# PyTorch is installed here with CUDA 12.4 support using the index
+# URL declared above. On an NVIDIA GPU this gives significantly faster
+# inference for the router model, Whisper STT, and Ollama offloading.
+# Verify CUDA is working after install with:
+#   python -c "import torch; print(torch.cuda.is_available())"
+torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
+torchvision>=0.21.0            # Image/vision utilities companion to PyTorch
+torchaudio>=2.6.0              # Audio processing utilities companion to PyTorch
+transformers>=4.57.0           # Hugging Face transformers for router model
+accelerate>=1.12.0             # Optimised model loading and inference
+safetensors>=0.7.0             # Fast, safe model weight loading
+
+# -----------------------------------------------------
+# Speech & Audio
+# -----------------------------------------------------
+piper-tts>=1.4.0               # Local text-to-speech engine (Piper TTS)
+sounddevice>=0.5.0             # Audio playback interface
+soundfile>=0.13.0              # Audio file I/O
+numpy>=2.0.0                   # Numerical computing (audio processing)
+realtimestt>=0.3.0             # Real-time speech-to-text with wake word detection
+PyAudio>=0.2.14                # Audio I/O for microphone access
+
+# -----------------------------------------------------
+# Browser Automation
+# -----------------------------------------------------
+# NOTE: After running pip install, you must also run:
+#   playwright install
+# This downloads the browser binaries (Chromium, Firefox, WebKit)
+# that Playwright controls. The pip package alone is not sufficient.
+playwright>=1.57.0             # Browser automation for web agent
+playwright-stealth>=2.0.0      # Stealth mode to avoid bot detection
+
+# -----------------------------------------------------
+# Smart Home Control
+# -----------------------------------------------------
+python-kasa>=0.10.0            # TP-Link Kasa smart device control
+
+# -----------------------------------------------------
+# Web & API Integrations
+# -----------------------------------------------------
+requests>=2.32.0               # HTTP requests for API calls
+feedparser>=6.0.0              # RSS feed parsing (news briefing)
+duckduckgo-search>=8.0.0       # DuckDuckGo search API (web search voice command only)
+httpx>=0.28.0                  # Async HTTP client
+ddgs>=9.13.0				   # A metasearch library,aggregates results from diverse web search swevices.
+
+# -----------------------------------------------------
+# System Utilities
+# -----------------------------------------------------
+psutil>=7.0.0                  # System and process monitoring
+pynvml>=13.0.0                 # NVIDIA GPU monitoring (VRAM display)
+huggingface-hub>=0.36.0        # Download models from Hugging Face
+
+# -----------------------------------------------------
+# Desktop Agent (full screen AI control)
+# -----------------------------------------------------
+# mss captures full-screen screenshots on Windows with no admin rights.
+# pyautogui controls the mouse and keyboard across any application.
+# Pillow handles image resizing before sending screenshots to the VLM.
+# After installing, no further setup is required — the desktop agent
+# works immediately using the existing Qwen VL model in Ollama.
+mss>=9.0.0                     # Fast multi-monitor screenshot capture
+pyautogui>=0.9.54              # Cross-application mouse and keyboard control
+Pillow>=10.0.0                 # Image processing (resize screenshots for VLM)
+pywin32>=306                   # Windows API access: win32gui for window focusing
+                               # (brings launched apps to foreground after open)
+pyperclip>=1.8.0               # Clipboard paste for reliable Unicode text input
+
+# -----------------------------------------------------
+# Calendar Sync (Optional — only needed for Google / Outlook integration)
+# -----------------------------------------------------
+# These are NOT required for core functionality. Only install if you want
+# to sync events from Google Calendar or Microsoft Outlook (via Settings tab).
+# Uncomment the lines you need and run: pip install -r requirements.txt again.
+#
+# google-auth>=2.29.0                   # Google OAuth2 authentication
+# google-auth-oauthlib>=1.2.0           # OAuth2 flow for installed apps
+# google-auth-httplib2>=0.2.0           # httplib2 transport for Google auth
+# google-api-python-client>=2.130.0     # Google Calendar API client
+# msal>=1.28.0                          # Microsoft Authentication Library (Outlook)
+
+# -----------------------------------------------------
+# Local Data Storage
+# -----------------------------------------------------
+# SQLite is included with Python — no additional packages needed
+
+# -----------------------------------------------------
+# Development (Optional)
+# -----------------------------------------------------
+# pytest>=7.0.0                 # Testing framework
+# black>=23.0.0                 # Code formatting
