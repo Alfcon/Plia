@@ -224,12 +224,11 @@ OLLAMA_URL = "http://localhost:11434/api"
 ```
 
 **Model Comparison:**
-|--------------------|----------|-----------|---------------------------------|
+
 | Model              | Speed    | Reasoning | Best For                        |
 |--------------------|----------|-----------|---------------------------------|
 | `qwen3:1.7b`       | ⚡ Fast  | Good      | Daily use, quick responses      |
 | `deepseek-r1:1.5b` | Moderate | Excellent | Math, coding, complex questions |
-|--------------------|----------|-----------|---------------------------------|
 
 ### Text-to-Speech
 
