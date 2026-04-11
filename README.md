@@ -4,7 +4,7 @@
   <img src="gui/assets/logo.png" alt="Plia Logo" width="120" height="120">
 </p>
 
-**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI assistant** for Windows and Linux. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
+**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI assistant** for Windows. It combines a beautiful modern GUI with powerful voice control capabilities—all running entirely on YOUR computer with no cloud dependency.
 
 > 🔒 **Your data stays on your machine.** No API keys required for core functionality. No subscriptions. No data collection.
 
@@ -37,17 +37,17 @@ Before you begin, make sure you have:
 
 ### Required Software
 
-|       Software                |           Purpose           |                     Download                         |
-|-------------------------------|-----------------------------|------------------------------------------------------|
-| **Miniconda**                 | Python environment manager  | [miniconda.io](https://docs.anaconda.com/miniconda/) |
-| **Ollama**                    | Local AI model server       | [ollama.com](https://ollama.com/download)            |
-| **NVIDIA GPU** (Recommended)  | Faster AI inference         | GPU with 4GB+ VRAM                                   |
+| Software | Purpose | Download |
+|----------|---------|----------|
+| **Miniconda** | Python environment manager | [miniconda.io](https://docs.anaconda.com/miniconda/) |
+| **Ollama** | Local AI model server | [ollama.com](https://ollama.com/download) |
+| **NVIDIA GPU** (Recommended) | Faster AI inference | GPU with 4GB+ VRAM |
 
 ### Hardware Recommendations
 
-- **Minimum**:      8GB RAM, any modern CPU
-- **Recommended**:  16GB RAM, NVIDIA GPU with 6GB+ VRAM
-- **Storage**:      ~5GB for models and voice data
+- **Minimum**: 8GB RAM, any modern CPU
+- **Recommended**: 16GB RAM, NVIDIA GPU with 6GB+ VRAM
+- **Storage**: ~5GB for models and voice data
 
 ---
 
@@ -56,17 +56,20 @@ Before you begin, make sure you have:
 Follow these steps to get Plia running on your system.
 
 ### Step 1: Install Miniconda
-1. Download from [anaconda.com](https://docs.anaconda.com/miniconda/)
+
+1. Download from [miniconda.io](https://docs.anaconda.com/miniconda/)
 2. Run the installer (use default options)
 3. Open **Anaconda Prompt** (Windows) or your terminal (macOS/Linux)
 
 ### Step 2: Install Ollama
+
 1. Download and install from [ollama.com/download](https://ollama.com/download)
 2. Run the installer (Ollama will start automatically as a background service)
 
 > ✅ **Ollama runs in the background** - no need to start it manually after installation.
 
 ### Step 3: Download an AI Model
+
 Open a terminal and pull your preferred model. You can choose from:
 
 **🔹 Option A: Qwen3 (Recommended for most users)**
@@ -82,12 +85,14 @@ ollama pull deepseek-r1:1.5b
 ```
 
 > 💡 **Tip**: You can switch models anytime in `config.py` by changing `RESPONDER_MODEL`.
+
 Verify your model is installed:
 ```bash
 ollama list
 ```
 
 ### Step 4: Clone & Set Up the Project
+
 ```bash
 # Clone the repository
 git clone https://github.com/your-username/Plia.git
@@ -204,6 +209,7 @@ WAKE_WORD_SENSITIVITY = 0.4
 # Enable/disable voice assistant
 VOICE_ASSISTANT_ENABLED = True
 ```
+
 ---
 
 ## ⚙️ Configuration
@@ -225,9 +231,9 @@ OLLAMA_URL = "http://localhost:11434/api"
 
 **Model Comparison:**
 
-| Model              | Speed    | Reasoning | Best For                        |
-|--------------------|----------|-----------|---------------------------------|
-| `qwen3:1.7b`       | ⚡ Fast  | Good      | Daily use, quick responses      |
+| Model | Speed | Reasoning | Best For |
+|-------|-------|-----------|----------|
+| `qwen3:1.7b` | ⚡ Fast | Good | Daily use, quick responses |
 | `deepseek-r1:1.5b` | Moderate | Excellent | Math, coding, complex questions |
 
 ### Text-to-Speech
@@ -288,10 +294,10 @@ Plia/
 ### How It Works
 
 ```
-┌───────────────┐     ┌──────────────────┐     ┌───────────┐
-│  User Input   │────▶│  FunctionGemma   │────▶│  Function │
-│  (Voice/Text) │     │   Router         │     │  Executor │
-└───────────────┘     └──────────────────┘     └────┬──────┘
+┌─────────────┐     ┌──────────────────┐     ┌─────────────┐
+│  User Input │────▶│ FunctionGemma   │────▶│  Function   │
+│  (Voice/Text)  │     │   Router         │     │  Executor   │
+└─────────────┘     └──────────────────┘     └──────┬──────┘
                                                     │
        ┌────────────────────────────────────────────┼────────────────┐
        │                                            │                │
@@ -363,6 +369,8 @@ Plia supports **TP-Link Kasa** smart devices:
 2. Check if the model is downloaded: `ollama list`
 3. Verify the URL in `config.py` matches your setup
 
+</details>
+
 <details>
 <summary><strong>❌ CUDA/GPU not detected</strong></summary>
 
@@ -375,6 +383,8 @@ Plia supports **TP-Link Kasa** smart devices:
    ```
 2. Verify CUDA: `python -c "import torch; print(torch.cuda.is_available())"`
 
+</details>
+
 <details>
 <summary><strong>❌ Voice assistant not working</strong></summary>
 
@@ -385,6 +395,8 @@ Plia supports **TP-Link Kasa** smart devices:
 2. Ensure `realtimestt` is installed: `pip install realtimestt`
 3. Try lowering `WAKE_WORD_SENSITIVITY` in `config.py`
 
+</details>
+
 <details>
 <summary><strong>❌ Smart devices not found</strong></summary>
 
@@ -394,6 +406,8 @@ Plia supports **TP-Link Kasa** smart devices:
 1. Ensure devices are on the same WiFi network
 2. Try the Kasa app first to verify devices work
 3. Check firewall isn't blocking device discovery (UDP port 9999)
+
+</details>
 
 ---
 
@@ -416,14 +430,15 @@ This project is open source. See [LICENSE](LICENSE) for details.
 ---
 
 ## 🙏 Acknowledgments
-- [Naz Louis] (https://github.com/nazirlouis/ada_local) Original files and insparation for this project
+
 - [Ollama](https://ollama.com/) - Local LLM inference
 - [QFluentWidgets](https://github.com/zhiyiYo/PyQt-Fluent-Widgets) - Beautiful UI components
 - [Piper TTS](https://github.com/rhasspy/piper) - Lightweight text-to-speech
 - [python-kasa](https://github.com/python-kasa/python-kasa) - Kasa device control
 - [RealTimeSTT](https://github.com/KoljaB/RealtimeSTT) - Speech recognition
-- [Alexs Jones] (https://github.com/AlexsJones/llmfit) Hundreds of models & providers. One command to find what runs on your hardware
 
 ---
 
-Made with ❤️ for local AI enthusiasts
+<p align="center">
+  Made with ❤️ for local AI enthusiasts
+</p>

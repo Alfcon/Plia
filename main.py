@@ -7,7 +7,15 @@ import sys
 import os
 import time
 import subprocess
+import multiprocessing
 import requests
+
+# On Windows the default multiprocessing start method is 'spawn', which means
+# each worker process re-imports this module.  freeze_support() must be called
+# before any Qt or multiprocessing objects are created so that spawned workers
+# (e.g. RealtimeSTT's audio subprocess) exit immediately instead of re-running
+# the full application.  Safe to call on all platforms — it's a no-op on Linux/macOS.
+multiprocessing.freeze_support()
 
 # Suppress ALL warnings globally before any other imports
 warnings.simplefilter("ignore")
