@@ -1,0 +1,371 @@
+import json
+import re
+import requests
+from typing import List, Dict, Any, Generator
+
+from core.settings_store import settings as app_settings
+
+class VLMClient:
+    """
+    Client for interacting with Qwen3-VL (or similar) models via Ollama.
+    Handles the specific prompt engineering for 'computer use'.
+    """
+    def __init__(self, model_name: str = None, base_url: str = None,
+                 model_params: Dict[str, Any] = None, mode: str = "browser"):
+        # Read from settings store, with fallbacks
+        self.model_name   = model_name or app_settings.get("models.web_agent", "qwen2.5vl:7b")
+        self.base_url     = base_url or app_settings.get("ollama_url", "http://localhost:11434")
+        self.model_params = model_params or app_settings.get("web_agent_params", {})
+        self.mode         = mode  # "browser" or "desktop"
+
+    def construct_system_prompt(self) -> str:
+        """Return the system prompt for the current mode (browser or desktop)."""
+        if self.mode == "desktop":
+            return self._desktop_system_prompt()
+        return self._browser_system_prompt()
+
+    def _browser_system_prompt(self) -> str:
+        """Original browser-control system prompt."""
+        return """You are a helpful assistant.
+
+            # Tools
+
+            You may call one or more functions to assist with the user query.
+
+            You are provided with function signatures within <tools></tools> XML tags:
+            <tools>
+            {
+                "type": "function", 
+                "function": {
+                    "name": "computer_use", 
+                    "description": "Interact with a browser by navigating, clicking, typing, or scrolling.", 
+                    "parameters": {
+                        "properties": {
+                            "action": {
+                                "description": "The action to perform.", 
+                                "enum": ["navigate", "left_click", "type", "scroll", "terminate"], 
+                                "type": "string"
+                            }, 
+                            "url": {
+                                "description": "The URL to navigate to. Required for `action=navigate`.", 
+                                "type": "string"
+                            },
+                            "coordinate": {
+                                "description": "The (x, y) coordinate to click. Required for `action=left_click`. IMPORTANT: Use the 1000x1000 coordinate system.",
+                                "type": "array",
+                                "items": {"type": "integer"}
+                            },
+                            "text": {
+                                "description": "The text to type. Required for `action=type`.",
+                                "type": "string"
+                            },
+                            "pixels": {
+                                "description": "Amount to scroll. Positive scrolls down (content up). Required for `action=scroll`.",
+                                "type": "integer"
+                            },
+                            "status": {
+                                "description": "The completion status. Required for `action=terminate`.",
+                                "enum": ["success", "failure"],
+                                "type": "string"
+                            }
+                        }, 
+                        "required": ["action"], 
+                        "type": "object"
+                    }
+                }
+            }
+            </tools>
+
+            For each function call, return a json object with function name and arguments within <tool_call></tool_call> XML tags.
+            
+            CRITICAL: You MUST ALWAYS output a <tool_call> block. 
+            - If the task is finished, use the 'computer_use' function with action='terminate'.
+            - If you need to act, use 'computer_use' with action='navigate'.
+            - NEVER provides a text-only response.
+
+            <tool_call>
+            {"name": <function-name>, "arguments": <args-json-object>}
+            </tool_call>
+
+            # Example
+            User: Go to google.com
+            Assistant: <tool_call>
+            {"name": "computer_use", "arguments": {"action": "navigate", "url": "https://google.com"}}
+            </tool_call>
+            """
+
+    def _desktop_system_prompt(self) -> str:
+        """
+        System prompt for full Windows desktop control.
+        The VLM uses this to understand it can click anything on screen,
+        type into any field, open applications, scroll, and read content.
+        """
+        return """You are an AI assistant that controls a Windows computer by
+seeing screenshots and issuing precise mouse/keyboard actions.
+
+# Tools
+
+You may call one or more functions to assist with the user query.
+
+You are provided with function signatures within <tools></tools> XML tags:
+<tools>
+{
+    "type": "function",
+    "function": {
+        "name": "computer_use",
+        "description": "Control the Windows desktop by clicking, typing, scrolling, or launching apps.",
+        "parameters": {
+            "properties": {
+                "action": {
+                    "description": "The action to perform.",
+                    "enum": [
+                        "left_click", "right_click", "double_click", "triple_click",
+                        "middle_click", "mouse_move", "left_click_drag",
+                        "type", "key",
+                        "scroll", "hscroll",
+                        "launch", "wait",
+                        "terminate"
+                    ],
+                    "type": "string"
+                },
+                "coordinate": {
+                    "description": "The (x, y) coordinate for click/move actions. IMPORTANT: Use the 1000x1000 coordinate system where (0,0) is top-left and (1000,1000) is bottom-right of the screen.",
+                    "type": "array",
+                    "items": {"type": "integer"}
+                },
+                "text": {
+                    "description": "Text to type into the focused element. Required for action=type.",
+                    "type": "string"
+                },
+                "keys": {
+                    "description": "Key or keyboard shortcut to press. Examples: 'enter', 'escape', 'ctrl+c', ['ctrl','a']. Required for action=key.",
+                    "type": ["string", "array"]
+                },
+                "pixels": {
+                    "description": "Scroll amount in pixels. Positive = scroll down, negative = scroll up. Required for action=scroll or action=hscroll.",
+                    "type": "integer"
+                },
+                "app": {
+                    "description": "Application name or executable to launch. Examples: 'discord', 'notepad', 'chrome'. Required for action=launch.",
+                    "type": "string"
+                },
+                "time": {
+                    "description": "Seconds to wait. Required for action=wait.",
+                    "type": "number"
+                },
+                "status": {
+                    "description": "Completion status. Required for action=terminate.",
+                    "enum": ["success", "failure"],
+                    "type": "string"
+                }
+            },
+            "required": ["action"],
+            "type": "object"
+        }
+    }
+}
+</tools>
+
+For each function call, return a json object with function name and arguments
+within <tool_call></tool_call> XML tags.
+
+RULES:
+- ALWAYS output a <tool_call> block — never a text-only response.
+- Study the screenshot carefully before acting. Read ALL visible text.
+- If you need to open an application, use action=launch with the app name.
+- After launching an app, wait for it to load before clicking.
+- To read text content on screen (e.g. Discord messages), scroll through it
+  methodically and use action=terminate with status=success once you have
+  gathered enough information. Include a summary in your final message.
+- If the task is finished or impossible, use action=terminate.
+- Coordinates must be in the 1000x1000 space. Look carefully at the screenshot
+  to estimate where UI elements are.
+
+<tool_call>
+{"name": "computer_use", "arguments": {"action": "..."}}
+</tool_call>"""
+
+    def generate_action(self, messages: List[Dict[str, Any]]) -> Generator[Dict[str, Any], None, None]:
+        """
+        Sends the messages to the model and yields chunks/result.
+        Yields:
+            Dict: {"type": "thinking", "content": str} for streaming thought
+            Dict: {"type": "text", "content": str} for streaming text response
+            Dict: {"type": "action", "content": dict} for final parsed action
+        """
+        try:
+            response = requests.post(
+                f"{self.base_url}/api/chat",
+                json={
+                    "model": self.model_name,
+                    "messages": messages,
+                    "stream": True,
+                    "think": True,
+                    "options": self.model_params
+                },
+                stream=True
+            )
+            
+            full_response = ""
+            full_thinking = ""
+            
+            for line in response.iter_lines():
+                if line:
+                    data = json.loads(line.decode('utf-8'))
+                    msg = data.get("message", {})
+                    
+                    # 1. Handle "thinking" field (Qwen/DeepSeek reasoning models)
+                    if "thinking" in msg and msg["thinking"]:
+                        yield {"type": "thinking", "content": msg["thinking"]}
+                        full_thinking += msg["thinking"]
+                    
+                    # 2. Handle "content" field
+                    chunk = msg.get("content", "")
+                    if chunk:
+                        full_response += chunk
+                        yield {"type": "text", "content": chunk}
+                        
+                    if data.get("done"):
+                        break
+            
+            print(f"\n[DEBUG] Full Thinking:\n{full_thinking}\n")
+            print(f"[DEBUG] Full Model Response (No Thinking):\n{full_response}\n[DEBUG] End Response\n")
+
+            # Parse the final complete response
+            action = self._parse_action(full_response)
+            if not action and full_thinking:
+                print("[DEBUG] Content empty or no action, trying to parse from Thinking...")
+                # Fallback 1: model may have embedded tool call in thinking
+                action = self._parse_action(full_thinking + "\n" + full_response)
+            if not action and full_thinking:
+                print("[DEBUG] Trying natural-language extraction from Thinking...")
+                # Fallback 2: model described the action in plain English instead of JSON
+                action = self._parse_from_natural_language(full_thinking + "\n" + full_response)
+            
+            if action:
+                yield {"type": "action", "content": action}
+            else:
+                # Debugging: Inform user/logs that no tool call was found
+                debug_msg = f"[DEBUG] NO TOOL CALL FOUND.\nFull Text: {full_response}\nFull Thinking: {full_thinking}"
+                yield {"type": "text", "content": debug_msg}
+
+        except Exception as e:
+            print(f"VLM Error: {e}")
+            yield {"type": "error", "content": str(e)}
+
+    def _parse_from_natural_language(self, text: str) -> Dict[str, Any]:
+        """
+        Last-resort parser: extract an action from natural-language descriptions
+        that appear in thinking blocks when the model forgets to emit a <tool_call>.
+
+        Handles phrases like:
+          - 'action="launch" and app="discord"'
+          - 'use computer_use with action=launch, app=notepad'
+          - 'I should launch discord'
+          - 'open discord using the launch action'
+        """
+        text_lower = text.lower()
+
+        # Pattern A: explicit action=launch ... app=<name>
+        m = re.search(
+            r'action\s*[=:]\s*["\']?launch["\']?.*?app\s*[=:]\s*["\']?([\w][\w\s\-]{0,30}?)["\']?[\s,.\n]',
+            text, re.IGNORECASE | re.DOTALL
+        )
+        if m:
+            return {"action": "launch", "app": m.group(1).strip()}
+
+        # Pattern B: "launch <app>" or "open <app>" in plain English
+        m = re.search(
+            r'\b(?:launch|open)\s+(?:the\s+)?([A-Za-z][\w\s\-]{1,25}?)(?:\s+app(?:lication)?)?[.,\s\n]',
+            text, re.IGNORECASE
+        )
+        if m:
+            app_name = m.group(1).strip().rstrip(".,")
+            skip = {"a", "the", "an", "it", "this", "that", "app", "application", "something", "file"}
+            if app_name.lower() not in skip:
+                return {"action": "launch", "app": app_name}
+
+        # terminate
+        if re.search(r'\bterminate\b.*\bsuccess\b', text_lower):
+            return {"action": "terminate", "status": "success"}
+        if re.search(r'\bterminate\b.*\bfailure\b', text_lower):
+            return {"action": "terminate", "status": "failure"}
+
+        # key press
+        m = re.search(r'action\s*[=:]\s*["\']?key["\']?.*?keys?\s*[=:]\s*["\']([^"\']+)["\']', text, re.IGNORECASE)
+        if m:
+            return {"action": "key", "keys": m.group(1)}
+
+        # type text
+        m = re.search(r'action\s*[=:]\s*["\']?type["\']?.*?text\s*[=:]\s*["\']([^"\']+)["\']', text, re.IGNORECASE)
+        if m:
+            return {"action": "type", "text": m.group(1)}
+
+        return None
+
+    def _extract_json_candidates(self, text: str) -> List[str]:
+        """
+        Extracts all top-level text blocks wrapped in {} that might be JSON.
+        Handles nested braces and strings to avoid false positives.
+        """
+        candidates = []
+        brace_level = 0
+        start_index = -1
+        in_string = False
+        escape = False
+        
+        for i, char in enumerate(text):
+            if in_string:
+                if escape:
+                    escape = False
+                elif char == '\\':
+                    escape = True
+                elif char == '"':
+                    in_string = False
+                continue
+            
+            if char == '"':
+                in_string = True
+                continue
+                
+            if char == '{':
+                if brace_level == 0:
+                    start_index = i
+                brace_level += 1
+            elif char == '}':
+                if brace_level > 0:
+                    brace_level -= 1
+                    if brace_level == 0:
+                        candidates.append(text[start_index:i+1])
+                        
+        return candidates
+
+    def _parse_action(self, response_text: str) -> Dict[str, Any]:
+        """
+        Robustly extracts the JSON action from <tool_call> tags or raw text.
+        """
+        # 1. Try to find <tool_call> tags
+        pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
+        match = re.search(pattern, response_text, re.DOTALL)
+        
+        candidates = []
+        if match:
+            candidates.append(match.group(1))
+        
+        # 2. Extract all top-level JSON-like objects from the full text
+        candidates.extend(self._extract_json_candidates(response_text))
+        
+        for json_str in candidates:
+            json_str = json_str.replace("“", '"').replace("”", '"')
+            
+            try:
+                data = json.loads(json_str)
+                if isinstance(data, dict):
+                    if "name" in data and "arguments" in data:
+                        return data["arguments"]
+                    if "action" in data:
+                        return data
+            except json.JSONDecodeError:
+                continue
+                
+        return None
