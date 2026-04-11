@@ -95,7 +95,7 @@ ollama list
 
 ```bash
 # Clone the repository
-git clone https://github.com/your-username/Plia.git
+git clone https://github.com/Alfcon/Plia.git
 cd Plia
 
 # Create a conda environment
