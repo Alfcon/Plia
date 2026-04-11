@@ -1,0 +1,504 @@
+"""
+Main PySide6 application setup and layout using Fluent Widgets.
+"""
+
+import threading
+import sys
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QSizePolicy
+from PySide6.QtCore import Qt, QSize, QThread
+from PySide6.QtGui import QIcon
+
+from qfluentwidgets import (
+    FluentWindow, NavigationItemPosition, FluentIcon as FIF,
+    SplashScreen
+)
+
+from gui.handlers import ChatHandlers
+from core.model_manager import unload_all_models
+from core.voice_assistant import voice_assistant
+from core.tts import tts
+from config import VOICE_ASSISTANT_ENABLED, GREEN, RESET
+
+from gui.styles import AURA_STYLESHEET 
+
+from gui.tabs.dashboard import DashboardView
+from gui.tabs.chat import ChatTab
+from gui.tabs.planner import PlannerTab
+from gui.tabs.settings import SettingsTab
+from gui.tabs.briefing import BriefingView
+from gui.tabs.browser import BrowserTab
+from gui.tabs.home_automation import HomeAutomationTab
+from gui.tabs.agents import AgentsTab
+from gui.tabs.model_browser import ModelBrowserTab
+from gui.components.system_monitor import SystemMonitor
+from gui.components.voice_indicator import VoiceIndicator
+from gui.components.weather_window import WeatherWindow
+from core.llm import preload_models
+
+
+class ModelPreloaderThread(QThread):
+    """Background thread to preload models at startup."""
+    def run(self):
+        preload_models()
+
+
+class LazyTab(QWidget):
+    """Placeholder widget that loads the actual tab on demand."""
+    def __init__(self, factory, object_name):
+        super().__init__()
+        self.setObjectName(object_name)
+        self.factory = factory
+        self.layout = QVBoxLayout(self)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self.actual_widget = None
+
+    def initialize(self):
+        if not self.actual_widget:
+            self.actual_widget = self.factory()
+            self.layout.addWidget(self.actual_widget)
+            return self.actual_widget
+        return self.actual_widget
+
+    def get_widget(self):
+        """Return the actual widget if it has been initialised, else None."""
+        return self.actual_widget
+
+class MainWindow(FluentWindow):
+    """Main application window using Fluent Design."""
+    
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Plia")
+        self.setMinimumSize(1100, 750)
+        self.resize(1200, 800)
+        
+        self.setStyleSheet(AURA_STYLESHEET)
+        
+        # Initialize handlers
+        self.handlers = ChatHandlers(self)
+        
+        # Add system monitor to title bar
+        self._init_system_monitor()
+        
+        # Voice indicator is now in system monitor (removed overlay)
+        
+        # Initialize sub-interfaces pointers
+        self.chat_tab = None
+        self.planner_tab = None
+        self.briefing_view = None
+        self.home_tab = None
+        self._weather_window = None  # Floating weather window
+        
+        # Flag to prevent duplicate signal connections
+        self._chat_signals_connected = False
+        self._plia_indicator = None  # Logo overlay indicator
+
+        self._init_window()
+        self._connect_signals()
+        self._init_background()
+        self._preload_models()
+        self._init_voice_assistant()
+        self._init_plia_indicator()
+        
+    def _preload_models(self):
+        """Start the background thread to preload models."""
+        self.preloader_thread = ModelPreloaderThread()
+        self.preloader_thread.start()
+    
+    def _init_voice_assistant(self):
+        """Initialize and start voice assistant if enabled."""
+        print(f"[App] Initializing voice assistant (enabled={VOICE_ASSISTANT_ENABLED})...")
+        if VOICE_ASSISTANT_ENABLED:
+            # Connect voice assistant signals to UI
+            print(f"[App] Connecting voice assistant signals...")
+            voice_assistant.wake_word_detected.connect(self._on_wake_word_detected)
+            voice_assistant.speech_recognized.connect(self._on_speech_recognized)
+            voice_assistant.processing_finished.connect(self._on_processing_finished)
+            # Connect GUI update signals
+            voice_assistant.timer_set.connect(self._on_voice_timer_set)
+            voice_assistant.alarm_added.connect(self._on_voice_alarm_added)
+            voice_assistant.calendar_updated.connect(self._on_voice_calendar_updated)
+            voice_assistant.task_added.connect(self._on_voice_task_added)
+            voice_assistant.weather_requested.connect(self._on_voice_weather_requested)
+            voice_assistant.close_weather_requested.connect(self._on_voice_close_weather)
+            # Desktop agent and Discord reader signals
+            voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
+            voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
+            voice_assistant.browser_task_requested.connect(self._on_voice_browser_task)
+            print(f"[App] ✓ Signals connected")
+            
+            # Initialize in background thread to avoid blocking UI
+            def init_va():
+                print(f"[App] Background thread: Initializing voice assistant...")
+                if voice_assistant.initialize():
+                    print(f"[App] Background thread: ✓ Voice assistant initialized")
+                    # Enable TTS for voice assistant
+                    tts.toggle(True)
+                    print(f"[App] Background thread: TTS enabled")
+                    # Start listening
+                    print(f"[App] Background thread: Starting voice assistant...")
+                    voice_assistant.start()
+                    print(f"[App] Background thread: ✓ Voice assistant started")
+                else:
+                    print(f"[App] Background thread: ✗ Failed to initialize voice assistant")
+            
+            threading.Thread(target=init_va, daemon=True).start()
+        else:
+            print(f"[App] Voice assistant disabled in config")
+    
+    def _init_plia_indicator(self):
+        """Create the Plia logo overlay voice indicator."""
+        from gui.components.voice_indicator import VoiceIndicator
+        self._plia_indicator = VoiceIndicator(self)
+
+    def _dashboard_voice_widget(self):
+        """Return the embedded voice widget from the dashboard header, or None."""
+        try:
+            return self.dashboard_view.header.voice_widget
+        except AttributeError:
+            return None
+
+    def _on_wake_word_detected(self):
+        """Wake word detected — show pulsing Plia logo overlay."""
+        print(f"{GREEN}[App] ✓ Wake word detected — showing Plia indicator{RESET}")
+        if VOICE_ASSISTANT_ENABLED:
+            self.system_monitor.show_listening()
+            if self._plia_indicator:
+                self._plia_indicator.show_listening()
+            dw = self._dashboard_voice_widget()
+            if dw:
+                dw.show_listening()
+
+    def _on_speech_recognized(self, text: str):
+        """Speech received — switch logo to speaking animation."""
+        if VOICE_ASSISTANT_ENABLED:
+            if self._plia_indicator:
+                self._plia_indicator.show_speaking()
+            dw = self._dashboard_voice_widget()
+            if dw:
+                dw.show_speaking()
+
+    def _on_processing_finished(self):
+        """AI finished responding — hide the indicator, return dashboard to idle."""
+        if VOICE_ASSISTANT_ENABLED:
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(800, lambda: self.system_monitor.hide_listening())
+            if self._plia_indicator:
+                QTimer.singleShot(800, lambda: self._plia_indicator.hide_listening())
+            dw = self._dashboard_voice_widget()
+            if dw:
+                QTimer.singleShot(800, lambda: dw.show_idle())
+    
+    def _on_voice_timer_set(self, seconds: int, label: str):
+        """Handle timer set via voice - update GUI."""
+        # Ensure planner tab is loaded
+        if not self.planner_tab:
+            # Try to initialize if lazy
+            if hasattr(self, 'planner_lazy'):
+                self.planner_tab = self.planner_lazy.initialize()
+        
+        if self.planner_tab and hasattr(self.planner_tab, 'timer_component'):
+            self.planner_tab.timer_component.set_and_start(seconds, label)
+            print(f"[App] Timer updated via voice: {seconds}s, {label}")
+    
+    def _on_voice_alarm_added(self):
+        """Handle alarm added via voice - update GUI."""
+        # Ensure planner tab is loaded
+        if not self.planner_tab:
+            if hasattr(self, 'planner_lazy'):
+                self.planner_tab = self.planner_lazy.initialize()
+        
+        if self.planner_tab and hasattr(self.planner_tab, 'alarm_component'):
+            self.planner_tab.alarm_component.reload()
+            print(f"[App] Alarms refreshed via voice")
+    
+    def _on_voice_calendar_updated(self):
+        """Handle calendar event added via voice - refresh calendar."""
+        # Ensure planner tab is loaded
+        if not self.planner_tab:
+            if hasattr(self, 'planner_lazy'):
+                self.planner_tab = self.planner_lazy.initialize()
+        
+        if self.planner_tab and hasattr(self.planner_tab, 'schedule_component'):
+            self.planner_tab.schedule_component.refresh_events()
+            print(f"[App] Calendar refreshed via voice")
+    
+    def _on_voice_task_added(self):
+        """Handle task added via voice - refresh task list."""
+        # Ensure planner tab is loaded
+        if not self.planner_tab:
+            if hasattr(self, 'planner_lazy'):
+                self.planner_tab = self.planner_lazy.initialize()
+        
+        if self.planner_tab and hasattr(self.planner_tab, '_load_tasks'):
+            self.planner_tab._load_tasks()
+            print(f"[App] Tasks refreshed via voice")
+
+    def _on_voice_weather_requested(self, data: dict):
+        """Show the floating weather window with fresh data."""
+        if self._weather_window is None:
+            self._weather_window = WeatherWindow(self)
+        self._weather_window.show_weather(data)
+
+    def _on_voice_close_weather(self):
+        """Hide the floating weather window."""
+        if self._weather_window is not None:
+            self._weather_window.close_weather()
+        
+    def _init_window(self):
+        # Dashboard is loaded immediately as it's the home screen
+        self.dashboard_view = DashboardView()
+        self.dashboard_view.setObjectName("dashboardInterface")
+        self.dashboard_view.navigate_to.connect(self._navigate_to_tab)
+        self.addSubInterface(self.dashboard_view, FIF.LAYOUT, "Dashboard")
+
+        # Lazy load other tabs
+        self.chat_lazy = LazyTab(ChatTab, "chatInterface")
+        self.planner_lazy = LazyTab(PlannerTab, "plannerInterface")
+        # Eager load briefing for startup fetch
+        self.briefing_view = BriefingView()
+        self.briefing_view.setObjectName("briefingInterface")
+
+        self.home_lazy = LazyTab(HomeAutomationTab, "homeInterface")
+        self.browser_lazy = LazyTab(BrowserTab, "browserInterface")
+        self.agents_lazy = LazyTab(AgentsTab, "agentsInterface")
+        self.model_browser_lazy = LazyTab(ModelBrowserTab, "modelBrowserInterface")
+
+        self.addSubInterface(self.chat_lazy, FIF.CHAT, "Chat")
+        self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
+        self.addSubInterface(self.briefing_view, FIF.DATE_TIME, "Briefing")
+        self.addSubInterface(self.home_lazy, FIF.HOME, "Home Auto")
+        self.addSubInterface(self.browser_lazy, FIF.GLOBE, "Web Agent")
+        self.addSubInterface(self.agents_lazy, FIF.ROBOT, "Active Agents")
+        self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
+        
+        # Settings at bottom
+        self.settings_lazy = LazyTab(SettingsTab, "settingsInterface")
+        self.addSubInterface(
+            self.settings_lazy, FIF.SETTING, "Settings",
+            NavigationItemPosition.BOTTOM
+        )
+        
+    def _connect_signals(self):
+        """Connect signals. Signals for lazy tabs are connected upon initialization."""
+        self.stackedWidget.currentChanged.connect(self._on_tab_changed)
+
+    def _connect_chat_signals(self):
+        """Connect ChatTab signals (called when ChatTab is initialized)."""
+        if not self.chat_tab or self._chat_signals_connected:
+            return
+        self._chat_signals_connected = True
+        self.chat_tab.new_chat_requested.connect(self.handlers.clear_chat)
+        self.chat_tab.send_message_requested.connect(self._on_send)
+        self.chat_tab.stop_generation_requested.connect(self.handlers.stop_generation)
+        self.chat_tab.tts_toggled.connect(self.handlers.toggle_tts)
+        self.chat_tab.session_selected.connect(self._on_session_clicked)
+        
+        self.chat_tab.session_pin_requested.connect(self.handlers.pin_session)
+        self.chat_tab.session_rename_requested.connect(self.handlers.rename_session)
+        self.chat_tab.session_delete_requested.connect(self.handlers.delete_session)
+        
+        # Initial sidebar refresh
+        self.chat_tab.refresh_sidebar()
+
+    def _on_send(self, text):
+        """Forward send request to handlers."""
+        self.handlers.send_message(text)
+        
+    def _on_session_clicked(self, session_id):
+        """Load session."""
+        self.handlers.load_session(session_id)
+    
+    def _init_background(self):
+        """Initialize app status."""
+        self.set_status("Ready")
+    
+    def _init_system_monitor(self):
+        """Add system monitor widget to the title bar. Also replaces title text with logo."""
+        self.system_monitor = SystemMonitor()
+
+        # Replace 'Plia' text with logo image
+        self._replace_title_with_logo()
+
+        # Get the title bar layout
+        layout = self.titleBar.hBoxLayout
+
+        # dynamic search for min button index to ensure we insert BEFORE the window controls
+        min_btn_index = layout.indexOf(self.titleBar.minBtn)
+
+        # Insert a stretch to push monitor toward center (after title/icon, before buttons)
+        layout.insertStretch(min_btn_index, 1)
+        # Insert the system monitor
+        layout.insertWidget(min_btn_index + 1, self.system_monitor, 0, Qt.AlignmentFlag.AlignCenter)
+        # Insert another stretch after monitor to balance centering
+        layout.insertStretch(min_btn_index + 2, 1)
+
+    def _replace_title_with_logo(self):
+        """
+        Hide the Plia title text and show the logo image in the title bar.
+        Uses flexible sizing so the logo auto-adjusts when the window is resized
+        instead of being clipped.
+        """
+        from PySide6.QtWidgets import QLabel, QSizePolicy as _QSP
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtCore import Qt as _Qt
+        import os
+
+        # Hide the default text title label
+        if hasattr(self.titleBar, "titleLabel"):
+            self.titleBar.titleLabel.hide()
+
+        # Hide the small default icon label (logo replaces both)
+        if hasattr(self.titleBar, "iconLabel"):
+            self.titleBar.iconLabel.hide()
+
+        # Locate logo — prefer logo_64 for sharpness at small size
+        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
+        for name in ("logo_64.png", "logo.png", "logo_128.png"):
+            logo_path = os.path.join(assets_dir, name)
+            if os.path.exists(logo_path):
+                break
+        else:
+            return  # No logo file found
+
+        # Pre-scale the pixmap to the desired height once
+        pixmap = QPixmap(logo_path)
+        scaled_pixmap = pixmap.scaledToHeight(28, _Qt.TransformationMode.SmoothTransformation)
+
+        # Create logo label — flexible width so it auto-adjusts, fixed height
+        logo_label = QLabel()
+        logo_label.setPixmap(scaled_pixmap)
+        # Allow the label to shrink horizontally if the title bar is narrow,
+        # but never taller than 28 px.  This prevents the logo being clipped.
+        logo_label.setMaximumHeight(28)
+        logo_label.setMinimumWidth(20)          # always show at least a sliver
+        logo_label.setSizePolicy(
+            _QSP.Policy.Preferred,              # horizontal: flexible
+            _QSP.Policy.Fixed                   # vertical: locked to 28 px
+        )
+        logo_label.setStyleSheet("background: transparent; margin-left: 6px;")
+        logo_label.setScaledContents(True)      # Qt will scale the pixmap as the label resizes
+
+        # Insert at position 0 (far left of title bar)
+        self.titleBar.hBoxLayout.insertWidget(
+            0, logo_label, 0, _Qt.AlignmentFlag.AlignVCenter
+        )
+    
+    def _on_tab_changed(self, index):
+        """Handle lazy loading when switching tabs."""
+        widget = self.stackedWidget.widget(index)
+        
+        if isinstance(widget, LazyTab):
+            real_widget = widget.initialize()
+            obj_name = widget.objectName()
+            
+            # Map lazy widget to attribute
+            if obj_name == "chatInterface":
+                self.chat_tab = real_widget
+                self._connect_chat_signals()
+            elif obj_name == "plannerInterface":
+                self.planner_tab = real_widget
+            elif obj_name == "briefingInterface":
+                self.briefing_view = real_widget
+            elif obj_name == "homeInterface":
+                self.home_tab = real_widget
+            elif obj_name == "browserInterface":
+                # No signals to connect for browser yet
+                pass
+            elif obj_name == "agentsInterface":
+                pass  # AgentsTab self-initialises
+            elif obj_name == "modelBrowserInterface":
+                pass  # ModelBrowserTab self-initialises
+                
+        self.set_status("Ready")
+    
+    def _navigate_to_tab(self, route_key: str):
+        """Navigate to a tab by its object name (route key)."""
+        for i in range(self.stackedWidget.count()):
+            widget = self.stackedWidget.widget(i)
+            if widget.objectName() == route_key:
+                self.switchTo(widget)
+                return
+    
+    # --- Public Methods for Handlers (Proxy/Facade) ---
+    # These now check if the tab exists before calling
+    
+    def set_status(self, text: str):
+        if self.chat_tab: self.chat_tab.set_status(text)
+    
+    def clear_input(self):
+        if self.chat_tab: self.chat_tab.clear_input()
+    
+    def set_generating_state(self, is_generating: bool):
+        if self.chat_tab: self.chat_tab.set_generating_state(is_generating)
+    
+    def add_message_bubble(self, role: str, text: str, is_thinking: bool = False):
+        if self.chat_tab: self.chat_tab.add_message_bubble(role, text, is_thinking)
+    
+    def add_streaming_widgets(self, thinking_ui, search_indicator, response_bubble):
+        if self.chat_tab: self.chat_tab.add_streaming_widgets(thinking_ui, search_indicator, response_bubble)
+    
+    def clear_chat_display(self):
+        if self.chat_tab: self.chat_tab.clear_chat_display()
+    
+    def refresh_sidebar(self, current_session_id: str = None):
+        if self.chat_tab: self.chat_tab.refresh_sidebar(current_session_id)
+    
+    def scroll_to_bottom(self):
+        if self.chat_tab: self.chat_tab.scroll_to_bottom()
+
+    def _on_voice_desktop_started(self, task: str):
+        """Show status bar message when the desktop agent begins a task."""
+        self.set_status(f"Desktop agent: {task[:60]}…")
+
+    def _on_voice_desktop_finished(self, result: str):
+        """Show a toast notification when the desktop agent finishes."""
+        try:
+            from gui.components.toast import ToastNotification
+            # Treat as failure if the result starts with a known error prefix
+            is_error = any(result.lower().startswith(p) for p in
+                           ("error", "desktop agent error", "windows-use"))
+            ToastNotification.show_toast(self, result[:120], not is_error)
+        except Exception:
+            pass
+        self.set_status("Ready")
+
+    def _on_voice_browser_task(self, task: str):
+        """
+        Route a voice-triggered browser task to the VLM Browser Agent tab.
+        Forces the BrowserTab to load (if lazy) then emits the task via run_signal.
+        """
+        try:
+            # Ensure the BrowserTab is instantiated (lazy tabs load on first navigation)
+            browser_tab = self.browser_lazy.get_widget()
+            if browser_tab is None:
+                # Force instantiate by switching to the tab
+                self.switchTo(self.browser_lazy)
+                browser_tab = self.browser_lazy.get_widget()
+
+            if browser_tab is not None:
+                self.set_status(f"Browser agent: {task[:60]}…")
+                browser_tab.run_signal.emit(task)
+            else:
+                self.set_status("Browser tab could not be loaded.")
+        except Exception as e:
+            print(f"[App] Browser task routing error: {e}")
+            self.set_status("Browser agent error — check logs.")
+
+
+    def closeEvent(self, event):
+        """Handle application close event."""
+        print("[App] Closing application, unloading models...")
+        self.set_status("Closing...")
+        
+        # Stop voice assistant
+        if VOICE_ASSISTANT_ENABLED:
+            voice_assistant.stop()
+        
+        unload_all_models(sync=True)
+        event.accept()
+
+
+def create_app():
+    """Create and return the main window."""
+    return MainWindow()
