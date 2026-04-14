@@ -896,17 +896,103 @@ class DashboardView(QWidget):
         self.navigate_to.emit("plannerInterface")
 
     def _cmd_help(self) -> None:
-        help_text = (
-            "Available commands:\n"
-            "  status       — Show system resource stats\n"
-            "  notes/tasks  — Open Planner tab\n"
-            "  remind       — Open Planner tab (alarms)\n"
-            "  settings     — Open Settings tab\n"
-            "  help         — Show this help text\n"
-            "Voice: Wake word 'Plia' activates voice mode."
-        )
-        for line in help_text.splitlines():
-            self.log.append_message(line, "plia")
+        """Display comprehensive help across all program features in the communication log."""
+        sections = [
+            ("═══════════════════════════════════════════════", "system"),
+            ("  P.L.I.A. — HELP & COMMAND REFERENCE", "plia"),
+            ("═══════════════════════════════════════════════", "system"),
+            ("", "system"),
+            ("▶ VOICE ACTIVATION", "success"),
+            ("  Say 'Jarvis' to wake the assistant, then speak naturally.", "plia"),
+            ("  The wake word can be changed in the Settings tab.", "plia"),
+            ("", "system"),
+            ("▶ DASHBOARD", "success"),
+            ("  Status  — Show live CPU / RAM / Disk / GPU readings", "plia"),
+            ("  Notes   — Jump to Planner (tasks and notes)", "plia"),
+            ("  Remind  — Jump to Planner (alarms and timers)", "plia"),
+            ("  Help    — Show this help panel", "plia"),
+            ("  Type a command in the input box below and press SEND.", "plia"),
+            ("", "system"),
+            ("▶ CHAT TAB", "success"),
+            ("  Ask any question or give any task in plain English.", "plia"),
+            ("  Streaming responses powered by your local Ollama model.", "plia"),
+            ("  Thinking / reasoning steps collapse inline automatically.", "plia"),
+            ("  Voice: 'Jarvis, <any question or task>'", "plia"),
+            ("", "system"),
+            ("▶ WEB SEARCH  (DuckDuckGo)", "success"),
+            ("  Type : 'search for Python tutorials'", "plia"),
+            ("  Voice: 'Jarvis, internet search on <topic>'", "plia"),
+            ("  Voice: 'Jarvis, search the web for <topic>'", "plia"),
+            ("  A floating results panel opens with numbered links.", "plia"),
+            ("  Navigate : 'Jarvis, next search page'", "plia"),
+            ("  Open link: 'Jarvis, open search result 3'", "plia"),
+            ("  Close    : 'Jarvis, close search'", "plia"),
+            ("", "system"),
+            ("▶ WEATHER", "success"),
+            ("  Voice: 'Jarvis, what is the weather today?'", "plia"),
+            ("  Voice: 'Jarvis, will it rain?'", "plia"),
+            ("  A weather overlay appears; close with 'Jarvis, close weather'.", "plia"),
+            ("  Set your location in Settings (latitude / longitude).", "plia"),
+            ("", "system"),
+            ("▶ PLANNER  (Calendar, Tasks, Alarms, Timers)", "success"),
+            ("  Voice: 'Jarvis, add buy groceries to my to-do list'", "plia"),
+            ("  Voice: 'Jarvis, set a timer for 10 minutes'", "plia"),
+            ("  Voice: 'Jarvis, set an alarm for 7 AM'", "plia"),
+            ("  Voice: 'Jarvis, add meeting with team on Friday at 2 PM'", "plia"),
+            ("  Voice: 'Jarvis, what is on my schedule today?'", "plia"),
+            ("  GUI:   Use the Planner tab to manage events manually.", "plia"),
+            ("  Sync:  Connect Google or Outlook in the Settings tab.", "plia"),
+            ("", "system"),
+            ("▶ SMART HOME  (TP-Link Kasa)", "success"),
+            ("  Voice: 'Jarvis, turn on the office lights'", "plia"),
+            ("  Voice: 'Jarvis, dim the lounge to 40 percent'", "plia"),
+            ("  Voice: 'Jarvis, turn off all lights'", "plia"),
+            ("  GUI:   Home Automation tab — Refresh to discover devices.", "plia"),
+            ("  Setup: Devices must be on the same Wi-Fi network.", "plia"),
+            ("", "system"),
+            ("▶ ACTIVE AGENTS", "success"),
+            ("  Chat : 'Create an agent that monitors my email'", "plia"),
+            ("  Chat : 'Run the Python tutor agent'", "plia"),
+            ("  Voice: 'Jarvis, refresh active agents'", "plia"),
+            ("  Agents tab: Create / Run / Delete custom agents.", "plia"),
+            ("  Saved to: %USERPROFILE%\\.plia_ai\\agents\\", "plia"),
+            ("  Agents can use OpenAI (key in Settings) or local Ollama.", "plia"),
+            ("", "system"),
+            ("▶ DESKTOP AGENT  (Windows automation)", "success"),
+            ("  Voice: 'Jarvis, open Notepad'", "plia"),
+            ("  Voice: 'Jarvis, open Spotify'", "plia"),
+            ("  Voice: 'Jarvis, close Discord'", "plia"),
+            ("  Supports: launch, close, switch, minimise, maximise apps.", "plia"),
+            ("", "system"),
+            ("▶ DAILY BRIEFING", "success"),
+            ("  Open the Briefing tab for AI-curated news.", "plia"),
+            ("  Categories: Technology, Science, Top Stories.", "plia"),
+            ("  Fetched via DuckDuckGo — no API key required.", "plia"),
+            ("", "system"),
+            ("▶ MODEL BROWSER", "success"),
+            ("  Browse, download and switch Ollama models from the GUI.", "plia"),
+            ("  Set the active model in Settings or config.py.", "plia"),
+            ("", "system"),
+            ("▶ SETTINGS", "success"),
+            ("  Wake word / sensitivity  — change the trigger phrase", "plia"),
+            ("  TTS voice               — switch Piper voice model", "plia"),
+            ("  Weather location        — set latitude and longitude", "plia"),
+            ("  Auto-start voice        — enable or disable on launch", "plia"),
+            ("  OpenAI API key          — used by the Agent Builder", "plia"),
+            ("  Calendar sync           — connect Google or Outlook", "plia"),
+            ("", "system"),
+            ("▶ SYSTEM MONITOR", "success"),
+            ("  Title bar: live CPU / RAM / GPU VRAM percentages.", "plia"),
+            ("  Dashboard panel: detailed bar graphs (left side).", "plia"),
+            ("", "system"),
+            ("▶ GETTING MORE HELP", "success"),
+            ("  Voice       : 'Jarvis, help' or 'Jarvis, what can you do?'", "plia"),
+            ("  Dashboard   : type 'help' and press SEND", "plia"),
+            ("  README.md   : full documentation in the project folder.", "plia"),
+            ("═══════════════════════════════════════════════", "system"),
+        ]
+        for text, tag in sections:
+            self.log.append_message(text, tag)
 
     def _cmd_settings(self) -> None:
         self.log.append_message("► Navigating to Settings…", "plia")

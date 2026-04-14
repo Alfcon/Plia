@@ -4,7 +4,7 @@
   <img src="gui/assets/logo.png" alt="Plia Logo" width="120" height="120">
 </p>
 
-**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI desktop assistant** for Windows. It combines a modern Fluent Design GUI with voice control, smart home integration, a daily briefing, and a desktop AI agent — all running entirely on your machine with no cloud dependency and no subscription.
+**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI desktop assistant** for Windows. It combines a modern Fluent Design GUI with voice control, smart home integration, a daily briefing, autonomous AI agents, and a desktop automation agent — all running on your machine with no cloud dependency and no subscription required for core features.
 
 > 🔒 **Your data stays on your machine.** No API keys required for core functionality. No subscriptions. No data collection.
 
@@ -16,15 +16,16 @@
 |---------|-------------|
 | 🎤 **Voice Control** | Wake word detection ("Jarvis") with natural language commands |
 | 💬 **AI Chat** | Streaming chat with local LLMs via Ollama |
-| 🤖 **Active Agents** | Build and run autonomous AI agents from the GUI |
-| 🖥️ **Desktop Agent** | Control Windows applications using natural language |
+| 🤖 **Active Agents** | Build and run autonomous AI agents from chat or GUI |
+| 🖥️ **Desktop Agent** | Control Windows applications with natural language |
 | 🏠 **Smart Home** | Control TP-Link Kasa smart lights and plugs |
 | 📅 **Planner** | Calendar events, alarms, and timers with Google/Outlook sync (optional) |
 | 📰 **Daily Briefing** | AI-curated news from Technology, Science, and Top Stories |
-| 🌤️ **Weather** | Current weather and hourly forecast on your dashboard |
+| 🌤️ **Weather** | Current weather and hourly forecast with floating overlay |
 | 🔍 **Web Search** | Voice or chat-triggered DuckDuckGo search with results browser |
 | 🧠 **Model Browser** | Download and manage Ollama models directly from the app |
-| 🖥️ **System Monitor** | Real-time CPU, RAM, and GPU VRAM usage in the title bar |
+| 🖥️ **System Monitor** | Real-time CPU, RAM, Disk, and GPU VRAM in the title bar |
+| ❓ **Help System** | Voice or button-triggered help panel covering all commands |
 
 ---
 
@@ -114,7 +115,30 @@ pip install -r requirements.txt
 
 > ⏱️ First install may take 5–15 minutes — PyTorch and AI packages are large downloads.
 
-### Step 5 — NVIDIA GPU Setup (Optional but Recommended)
+### Step 5 — Install the OpenAI Python Library (Required for Agent Builder)
+
+The Agent Builder uses the OpenAI API to power custom agents with internet search capability.
+Install it separately:
+
+```bash
+pip install openai>=2.0.0
+```
+
+> ℹ️ An OpenAI API key is required for agents that use the GPT-4o model.
+> Set your key in the Plia **Settings** tab under "OpenAI API Key".
+> The core Plia assistant (chat, voice, weather, etc.) does **not** require an OpenAI key.
+
+### Step 6 — Install the DuckDuckGo Search Library
+
+Plia uses the `ddgs` package (the current maintained version of DuckDuckGo search):
+
+```bash
+pip install ddgs>=9.13.0
+```
+
+> ⚠️ The older `duckduckgo-search` package is deprecated and broken. Always use `ddgs`.
+
+### Step 7 — NVIDIA GPU Setup (Optional but Recommended)
 
 If you have an NVIDIA GPU, install PyTorch with CUDA for significantly faster inference:
 
@@ -130,7 +154,7 @@ python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
 > 💡 **CPU-only users**: Skip this step. The `requirements.txt` torch lines are commented out by default, so CPU PyTorch will be installed automatically via the `transformers` dependency.
 
-### Step 6 — Install Playwright Browser Binaries
+### Step 8 — Install Playwright Browser Binaries
 
 Playwright is used for the web search results browser panel. After pip install, run:
 
@@ -140,13 +164,63 @@ playwright install
 
 > You only need to do this once. It downloads ~300 MB of browser binaries.
 
-### Step 7 — Run Plia
+### Step 9 — Run Plia
 
 ```bash
 python main.py
 ```
 
 🎉 **That's it!** Plia will launch with a splash screen while models preload in the background.
+
+---
+
+## 📦 Complete Dependencies Reference
+
+The full `requirements.txt` installs these packages. This table shows what each is for:
+
+| Package | Purpose |
+|---------|---------|
+| `PySide6>=6.10.0` | Qt GUI framework |
+| `PySide6-Fluent-Widgets>=1.10.0` | Windows 11 Fluent Design UI components |
+| `transformers>=4.57.0` | Hugging Face — router model inference |
+| `accelerate>=1.12.0` | Optimised model loading |
+| `safetensors>=0.7.0` | Fast model weight loading |
+| `piper-tts>=1.4.0` | Local text-to-speech (Piper) |
+| `sounddevice>=0.5.0` | Audio playback |
+| `soundfile>=0.13.0` | Audio file I/O |
+| `numpy>=2.0.0` | Numerical computing / audio processing |
+| `realtimestt>=0.3.0` | Real-time speech-to-text + wake word |
+| `PyAudio>=0.2.14` | Microphone access |
+| `playwright>=1.57.0` | Browser automation for web agent |
+| `python-kasa>=0.10.0` | TP-Link Kasa smart device control |
+| `requests>=2.32.0` | HTTP API calls |
+| `feedparser>=6.0.0` | RSS news feed parsing |
+| `ddgs>=9.13.0` | DuckDuckGo web search (current package) |
+| `httpx>=0.28.0` | Async HTTP client |
+| `psutil>=7.0.0` | System and process monitoring |
+| `pynvml>=13.0.0` | NVIDIA GPU VRAM monitoring |
+| `huggingface-hub>=0.36.0` | Download models from Hugging Face |
+| `mss>=9.0.0` | Multi-monitor screenshot capture |
+| `pyautogui>=0.9.54` | Mouse and keyboard automation |
+| `Pillow>=10.0.0` | Image processing |
+| `pywin32>=306` | Windows API (window focus) |
+| `pyperclip>=1.8.0` | Clipboard access |
+| `openai>=2.0.0` | **OpenAI API — used by Agent Builder** |
+| `markdown>=3.4.0` | Markdown rendering in chat |
+| `pygments>=2.15.0` | Syntax highlighting |
+| `darkdetect>=0.8.0` | System dark/light mode detection |
+
+### Optional (Calendar Sync)
+
+Uncomment in `requirements.txt` and re-run `pip install -r requirements.txt`:
+
+```text
+google-auth>=2.29.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.130.0    # Google Calendar
+msal>=1.28.0                         # Microsoft Outlook
+```
 
 ---
 
@@ -179,14 +253,20 @@ Plia includes Alexa-style voice control with customisable wake word detection.
 ### Example Voice Commands
 
 | Voice Command | What Happens |
-|--------------|--------------|
+|--------------|--------------| 
 | *"Jarvis, turn on the office lights"* | Controls TP-Link Kasa smart lights |
 | *"Jarvis, set a timer for 10 minutes"* | Creates a countdown timer in the Planner |
 | *"Jarvis, what's the weather today?"* | Shows current weather from Open-Meteo |
-| *"Jarvis, search the web for Python tutorials"* | Opens DuckDuckGo results in the browser panel |
+| *"Jarvis, internet search on Python tutorials"* | Opens DuckDuckGo results in the browser panel |
+| *"Jarvis, next search page"* | Paginates to the next results page |
+| *"Jarvis, open search result 3"* | Opens result #3 in your default browser |
+| *"Jarvis, close search"* | Closes the search results panel |
 | *"Jarvis, add buy groceries to my to-do list"* | Creates a task in the Planner |
 | *"Jarvis, what's on my schedule today?"* | Reads your calendar events |
 | *"Jarvis, open Notepad"* | Desktop Agent launches the application |
+| *"Jarvis, refresh active agents"* | Refreshes the Active Agents tab |
+| *"Jarvis, help"* | Opens the full help guide on the Dashboard |
+| *"Jarvis, what can you do?"* | Opens the full help guide on the Dashboard |
 
 ### Voice Configuration (`config.py`)
 
@@ -203,6 +283,56 @@ VOICE_ASSISTANT_ENABLED = True
 # Whisper model size: "tiny", "base", "small", "medium", "large"
 # Larger = more accurate but slower and more VRAM
 REALTIMESTT_MODEL = "base"
+```
+
+---
+
+## ❓ Help System
+
+### Accessing Help
+
+There are three ways to open the full help guide:
+
+1. **Voice** — Say *"Jarvis, help"* or *"Jarvis, what can you do?"*
+2. **Dashboard button** — Click the **🔍 Help** button in the left panel
+3. **Dashboard input** — Type `help` in the input box and press SEND
+
+The help panel opens in the Dashboard Communication Log and covers every feature and command in Plia.
+
+---
+
+## 🤖 Active Agents & Agent Builder
+
+Plia can dynamically create, save, and run autonomous AI agents.
+
+### Creating an Agent
+
+Say or type any of:
+- *"Create an agent that searches for Python tutorials"*
+- *"Create an agent that monitors my email"*
+- *"Create a programme that allows full control of Wi-Fi connected devices"*
+
+Plia will:
+1. Generate a complete Python script for the agent
+2. Save it to `C:\Users\<YourName>\.plia_ai\agents\<agent_name>.py`
+3. Register it in the Agents tab
+
+### Running an Agent
+
+- Open the **Active Agents** tab and click **Run** next to the agent name
+- Or say *"Jarvis, run the <agent name> agent"*
+- Standalone: `python "%USERPROFILE%\.plia_ai\agents\<agent_name>.py"`
+
+### Agent Builder Requirements
+
+Custom agents that perform internet search use:
+- `openai>=2.0.0` — AI reasoning (set your API key in Settings)
+- `ddgs>=9.13.0` — DuckDuckGo internet search
+- `requests>=2.32.0` — File downloading (for download agents)
+
+Install these if not already present:
+```bash
+pip install openai ddgs requests
 ```
 
 ---
@@ -275,14 +405,13 @@ Plia/
 │   ├── history.py             # SQLite chat history
 │   ├── model_manager.py       # Ollama model list management
 │   ├── model_persistence.py   # Keep-alive / unload manager for Qwen
-│   ├── agent_builder.py       # Dynamic AI agent creation
-│   ├── agent_registry.py      # Persistent agent store
+│   ├── agent_builder.py       # Dynamic AI agent creation (saves .py files)
+│   ├── agent_registry.py      # Persistent agent store (custom_agents.json)
 │   ├── settings_store.py      # JSON settings persistence
 │   ├── discord_reader.py      # Discord channel reading (optional)
 │   └── agent/
 │       ├── desktop_agent.py   # Windows-Use natural language desktop control
-│       ├── desktop_controller.py  # Low-level desktop automation
-│       └── vlm_client.py      # Vision-language model client
+│       └── desktop_controller.py  # Low-level desktop automation
 │
 ├── gui/                       # PySide6 + QFluentWidgets frontend
 │   ├── app.py                 # Main window, navigation, signal wiring
@@ -299,11 +428,12 @@ Plia/
 │   │   ├── search_browser.py  # Floating web search results panel
 │   │   ├── search_indicator.py
 │   │   ├── thinking_expander.py  # Collapsible reasoning block
+│   │   ├── schedule.py        # Schedule / calendar component
 │   │   ├── toggle_switch.py
 │   │   ├── weather_window.py  # Floating weather overlay
 │   │   └── voice_indicator.py # Voice activity indicator widget
 │   └── tabs/                  # Application screens
-│       ├── dashboard.py       # Home: weather + quick status
+│       ├── dashboard.py       # Home: HUD display + quick commands + help
 │       ├── chat.py            # AI chat interface
 │       ├── planner.py         # Calendar, tasks, alarms, timers
 │       ├── briefing.py        # AI-curated daily news
@@ -313,10 +443,9 @@ Plia/
 │       ├── model_browser.py   # Ollama model browser & downloader
 │       └── settings.py        # App settings screen
 │
-├── data/                      # Runtime data (auto-created, not in git)
-│   ├── chat_history.db
-│   ├── calendar.db
-│   └── tasks.db
+├── log/                       # Log files (auto-created)
+│   ├── plia.log               # Application warnings and errors
+│   └── realtimesst.log        # Speech-to-text engine log
 │
 └── merged_model/              # Router model (auto-downloaded, not in git)
     └── .gitkeep
@@ -429,12 +558,25 @@ msal>=1.28.0                         # Microsoft Outlook
 </details>
 
 <details>
+<summary><strong>❌ Responder model returns status 404</strong></summary>
+
+**Problem**: `[System] Responder model load returned status 404` in the console.
+
+**Solution**: The model named in `config.py` is not downloaded. Run:
+```bash
+ollama pull qwen3:1.7b
+```
+Then restart Plia. Replace `qwen3:1.7b` with whatever is set in `RESPONDER_MODEL`.
+
+</details>
+
+<details>
 <summary><strong>❌ Voice assistant / wake word not working</strong></summary>
 
 **Problem**: "Jarvis" is not being detected, or microphone is not responding.
 
 **Solutions**:
-1. Check microphone permissions in Windows Settings → Privacy → Microphone
+1. Check microphone permissions: Windows Settings → Privacy → Microphone
 2. Ensure `realtimestt` and `pyaudio` are installed:
    ```bash
    pip install realtimestt pyaudio
@@ -444,6 +586,7 @@ msal>=1.28.0                         # Microsoft Outlook
    WAKE_WORD_SENSITIVITY = 0.3  # try lower values
    ```
 4. Check your default recording device in Windows Sound settings
+5. Check `log/realtimesst.log` for detailed STT errors
 
 </details>
 
@@ -462,6 +605,51 @@ The TTS module pre-configures the wave writer before synthesis — this requires
 </details>
 
 <details>
+<summary><strong>❌ TTS error: PiperVoice.synthesize() unexpected keyword argument 'length_scale'</strong></summary>
+
+**Problem**: Old piper-tts API call mismatch.
+
+**Solution**: Update piper-tts to 1.4+:
+```bash
+pip install "piper-tts>=1.4.0" --upgrade
+```
+
+The `core/tts.py` file uses the new `synthesize_wav()` API with `SynthesisConfig` — this requires piper-tts 1.4 or later.
+
+</details>
+
+<details>
+<summary><strong>❌ Web search returns no results / DuckDuckGo error</strong></summary>
+
+**Problem**: Search fails or throws a `RuntimeWarning`.
+
+**Solution**: The old `duckduckgo-search` package is deprecated. Install the new one:
+```bash
+pip install ddgs>=9.13.0
+```
+
+The import in all agent scripts should be:
+```python
+from ddgs import DDGS   # correct
+# NOT: from duckduckgo_search import DDGS   (broken)
+```
+
+</details>
+
+<details>
+<summary><strong>❌ Agent Builder requires OpenAI key</strong></summary>
+
+**Problem**: Custom agents that use GPT-4o need an API key.
+
+**Solution**:
+1. Get an API key from [platform.openai.com](https://platform.openai.com)
+2. Open Plia → **Settings** tab → paste your key under "OpenAI API Key"
+
+Agents that only use local Ollama do not need an OpenAI key.
+
+</details>
+
+<details>
 <summary><strong>❌ Smart home devices not found</strong></summary>
 
 **Problem**: Kasa devices don't appear in the Home Automation tab.
@@ -471,21 +659,6 @@ The TTS module pre-configures the wave writer before synthesis — this requires
 2. Verify devices work in the official Kasa mobile app
 3. Check your Windows Firewall is not blocking **UDP port 9999**
 4. Run as Administrator if network discovery is restricted
-
-</details>
-
-<details>
-<summary><strong>❌ Router model download fails</strong></summary>
-
-**Problem**: The FunctionGemma router model can't be downloaded from Hugging Face.
-
-**Solutions**:
-1. Ensure `huggingface-hub` is installed: `pip install huggingface-hub`
-2. Check internet connectivity
-3. Try setting the `HF_ROUTER_REPO` in `config.py` and manually downloading with:
-   ```bash
-   python -c "from huggingface_hub import snapshot_download; snapshot_download('nlouis/pocket-ai-router', local_dir='merged_model')"
-   ```
 
 </details>
 
@@ -503,6 +676,53 @@ Or download the `.whl` directly from [Christoph Gohlke's wheels](https://www.lfd
 
 </details>
 
+<details>
+<summary><strong>❌ Router model download fails</strong></summary>
+
+**Problem**: The FunctionGemma router model can't be downloaded from Hugging Face.
+
+**Solutions**:
+1. Ensure `huggingface-hub` is installed: `pip install huggingface-hub`
+2. Check internet connectivity
+3. Try manually downloading with:
+   ```bash
+   python -c "from huggingface_hub import snapshot_download; snapshot_download('nlouis/pocket-ai-router', local_dir='merged_model')"
+   ```
+
+</details>
+
+<details>
+<summary><strong>❌ Torch ImportError / torchaudio WinError 127</strong></summary>
+
+**Problem**: `WinError 127` or `ImportError: cannot import name 'tqdm'` on startup.
+
+**Cause**: PyTorch and torchaudio built for different CUDA versions are installed.
+
+**Solution**: Reinstall both for the same CUDA version:
+```bash
+pip install torch==2.6.0+cu124 torchaudio==2.6.0+cu124 --index-url https://download.pytorch.org/whl/cu124
+```
+
+Verify:
+```bash
+python -c "import torch; import torchaudio; print(torch.__version__, torchaudio.__version__)"
+```
+
+</details>
+
+<details>
+<summary><strong>❌ Log files not appearing in Plia/log/</strong></summary>
+
+**Problem**: Log files are going to unexpected locations.
+
+**Note**: All log files are written to `Plia/log/`:
+- `Plia/log/plia.log` — application warnings and errors
+- `Plia/log/realtimesst.log` — RealtimeSTT speech engine log
+
+The `log/` directory is created automatically on first run.
+
+</details>
+
 ---
 
 ## 🖥️ GPU Acceleration Summary
@@ -515,6 +735,22 @@ Or download the `.whl` directly from [Christoph Gohlke's wheels](https://www.lfd
 | **Piper TTS** | CPU-only (no GPU needed) | Same |
 
 **CUDA Requirements**: NVIDIA GPU with Compute Capability 5.0+ (GTX 900 series or newer), VRAM 4 GB minimum.
+
+---
+
+## 🗂️ User Data Files
+
+All user data is stored in `C:\Users\<YourName>\.plia_ai\` and is never uploaded anywhere:
+
+| File / Folder | Contents |
+|---------------|---------|
+| `memory.json` | Conversation memory |
+| `notes.json` | Notes and reminders |
+| `reminders.json` | Scheduled reminders |
+| `settings.json` | App settings (wake word, location, API key, etc.) |
+| `custom_agents.json` | Agent registry (names, descriptions, file paths) |
+| `agents/` | Agent Python scripts (`<agent_name>.py`) |
+| `tts_models/` | Downloaded Piper voice models |
 
 ---
 
@@ -550,7 +786,8 @@ This project is open source. See [LICENSE](LICENSE) for details.
 - [python-kasa](https://github.com/python-kasa/python-kasa) — TP-Link Kasa device library
 - [RealtimeSTT](https://github.com/KoljaB/RealtimeSTT) — Real-time speech recognition with Whisper
 - [Open-Meteo](https://open-meteo.com/) — Free, open-source weather API
-- [DuckDuckGo Search](https://github.com/deedy5/duckduckgo_search) — Privacy-respecting web search
+- [ddgs](https://github.com/deedy5/duckduckgo_search) — DuckDuckGo search library (current maintained package)
+- [OpenAI Python Library](https://github.com/openai/openai-python) — GPT-4o for the Agent Builder
 
 ---
 

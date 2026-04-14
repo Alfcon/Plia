@@ -5,16 +5,22 @@
 # Install all dependencies with:
 #   pip install -r requirements.txt
 #
-# IMPORTANT: This project requires Python 3.10 or higher
+# IMPORTANT: This project requires Python 3.11 or higher
 #
 # IMPORTANT: After installing, run the following to install
-#   Playwright browser binaries (required for web agent):
+#   Playwright browser binaries (required for web search panel):
 #   playwright install
 #
 # IMPORTANT: PyTorch is installed below with CUDA 12.4 support via
 #   the --extra-index-url directive. If you are on a CPU-only machine,
 #   remove the torch/torchvision/torchaudio lines and the index URL —
 #   a CPU-only build will be pulled in automatically by transformers.
+#
+# IMPORTANT: The OpenAI package (see Web & API section below) is
+#   required for the Agent Builder feature. Get a key from
+#   platform.openai.com and set it in the Plia Settings tab.
+#   Core Plia functions (chat, voice, weather, search) do NOT
+#   need an OpenAI key — they run entirely on local Ollama models.
 # =====================================================
 
 # -----------------------------------------------------
@@ -58,6 +64,8 @@ soundfile>=0.13.0              # Audio file I/O
 numpy>=2.0.0                   # Numerical computing (audio processing)
 realtimestt>=0.3.0             # Real-time speech-to-text with wake word detection
 PyAudio>=0.2.14                # Audio I/O for microphone access
+                               # If PyAudio fails to install on Windows, run:
+                               #   pip install pipwin && pipwin install pyaudio
 
 # -----------------------------------------------------
 # Browser Automation
@@ -79,9 +87,15 @@ python-kasa>=0.10.0            # TP-Link Kasa smart device control
 # -----------------------------------------------------
 requests>=2.32.0               # HTTP requests for API calls
 feedparser>=6.0.0              # RSS feed parsing (news briefing)
-duckduckgo-search>=8.0.0       # DuckDuckGo search API (web search voice command only)
+ddgs>=9.13.0                   # DuckDuckGo web search (current maintained package)
+                               # NOTE: replaces the old duckduckgo-search package
+                               # which is deprecated and broken. Import as:
+                               #   from ddgs import DDGS
 httpx>=0.28.0                  # Async HTTP client
-ddgs>=9.13.0				   # A metasearch library,aggregates results from diverse web search swevices.
+openai>=2.0.0                  # OpenAI API — used by the Agent Builder feature
+                               # to power custom agents with GPT-4o and internet
+                               # search capability. Set your API key in the
+                               # Plia Settings tab. Not required for core features.
 
 # -----------------------------------------------------
 # System Utilities

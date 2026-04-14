@@ -54,6 +54,8 @@ class VoiceAssistant(QObject):
     desktop_task_finished = Signal(str)  # emits the result summary
     # Active Agents tab — voice-triggered refresh
     refresh_agents_requested = Signal()  # emits to AgentsTab.refresh()
+    # Dashboard help panel — voice-triggered
+    help_requested = Signal()            # emits to DashboardView._cmd_help()
     
     def __init__(self):
         super().__init__()
@@ -318,6 +320,27 @@ class VoiceAssistant(QObject):
                     results = data.get("results", [])
                     self.web_search_requested.emit(query, results)
                 self._generate_response_with_context("web_search", result, user_text)
+                return
+
+            # ── Help — show the help panel on the dashboard ──────────────
+            # Caught BEFORE the router so it always works even when the router
+            # misclassifies short phrases like "help" as nonthinking.
+            HELP_TRIGGERS = (
+                "help", "show help", "open help", "help me",
+                "what can you do", "what commands", "list commands",
+                "show commands", "available commands", "what are the commands",
+                "how do i use", "how to use", "instructions", "guide",
+                "show guide", "user guide",
+            )
+            if any(text_lower == t or text_lower.startswith(t + " ")
+                   or t in text_lower
+                   for t in HELP_TRIGGERS):
+                self.help_requested.emit()
+                self._speak(
+                    "Opening the help guide on your dashboard. "
+                    "All available commands are listed there."
+                )
+                self.processing_finished.emit()
                 return
 
             # ── Active Agents refresh — voice command ────────────────────

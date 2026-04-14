@@ -146,6 +146,7 @@ class MainWindow(FluentWindow):
         voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
         voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
         voice_assistant.refresh_agents_requested.connect(self._on_voice_refresh_agents)
+        voice_assistant.help_requested.connect(self._on_voice_help_requested)
         print(f"[App] ✓ Signals connected")
 
         # ── Load TTS + STT + start listening — all in one background thread
@@ -503,6 +504,16 @@ class MainWindow(FluentWindow):
                 widget.refresh()
         except Exception as e:
             print(f"[App] _on_voice_refresh_agents error: {e}")
+
+    def _on_voice_help_requested(self):
+        """Show the help panel on the dashboard when triggered by voice or text command."""
+        try:
+            # Navigate to Dashboard so the user can see the help output
+            self.switchTo(self.dashboard_view)
+            # Trigger the help display
+            self.dashboard_view._cmd_help()
+        except Exception as e:
+            print(f"[App] _on_voice_help_requested error: {e}")
 
 
     def closeEvent(self, event):
