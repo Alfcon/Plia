@@ -103,6 +103,7 @@ class AgentRegistry(QObject):
         prompt: str,
         icon: str = "",
         file_path: str = "",
+        agent_type: str = "custom",
     ) -> Dict[str, Any]:
         """
         Create and persist a new custom agent.
@@ -133,7 +134,8 @@ class AgentRegistry(QObject):
                 "created_at":   datetime.now().isoformat(),
                 "runs":         0,
                 "last_run":     None,
-                "file_path":    file_path,   # path to .py script, "" if LLM-only
+                "file_path":    file_path,    # path to .py script, "" if LLM-only
+                "agent_type":   agent_type,   # "custom" | "internet_search"
             }
             self._agents.append(agent)
             self._save()
@@ -211,10 +213,14 @@ class AgentRegistry(QObject):
         except Exception as e:
             return {"success": False, "message": f"Agent error: {e}", "data": None}
 
-    def run_agent_file(self, name: str) -> Dict[str, Any]:
+    def run_agent_file(self, name: str,
+                        extra_args: list | None = None) -> Dict[str, Any]:
         """
         Run an agent's saved .py script as a subprocess (non-blocking).
         Used when the agent has a file_path (was built by AgentBuilder).
+
+        extra_args: additional CLI arguments to pass to the script, e.g.
+                    ["--search", "Python news", "--task", "Summarise top 5"].
 
         Returns immediately — the script runs in a new console window so
         the user can see live output.
@@ -228,15 +234,18 @@ class AgentRegistry(QObject):
         if not fp or not Path(fp).exists():
             return {"success": False, "message": f"Agent script not found at: {fp or '(no path)'}"}
 
+        extra_args = extra_args or []
+
         try:
             # On Windows open a new console; on Linux/Mac run detached
             if sys.platform == "win32":
                 subprocess.Popen(
-                    ["cmd", "/c", "start", "cmd", "/k", sys.executable, fp],
+                    ["cmd", "/c", "start", "cmd", "/k",
+                     sys.executable, fp] + extra_args,
                     creationflags=subprocess.CREATE_NEW_CONSOLE,
                 )
             else:
-                subprocess.Popen([sys.executable, fp])
+                subprocess.Popen([sys.executable, fp] + extra_args)
             self.record_run(name)
             return {"success": True, "message": f"Agent '{agent['display_name']}' launched in a new window."}
         except Exception as e:
