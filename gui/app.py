@@ -145,6 +145,7 @@ class MainWindow(FluentWindow):
         voice_assistant.search_open_requested.connect(self._on_voice_search_open)
         voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
         voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
+        voice_assistant.refresh_agents_requested.connect(self._on_voice_refresh_agents)
         print(f"[App] ✓ Signals connected")
 
         # ── Load TTS + STT + start listening — all in one background thread
@@ -493,6 +494,15 @@ class MainWindow(FluentWindow):
         except Exception:
             pass
         self.set_status("Ready")
+
+    def _on_voice_refresh_agents(self):
+        """Refresh the Active Agents tab when triggered by voice command."""
+        try:
+            widget = self.agents_lazy.get_widget()
+            if widget is not None:
+                widget.refresh()
+        except Exception as e:
+            print(f"[App] _on_voice_refresh_agents error: {e}")
 
 
     def closeEvent(self, event):

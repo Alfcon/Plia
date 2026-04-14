@@ -197,29 +197,6 @@ def control_desktop(task: str) -> str:
     return "result"
 
 
-def browse_web(task: str) -> str:
-    """
-    Control a web browser to complete a multi-step task on the internet.
-    Use this when the user wants to navigate a website, fill a form,
-    click buttons, scroll, or perform any visual browser interaction
-    that goes beyond a simple search.
-
-    Examples of when to use:
-    - "Go to amazon.com and search for headphones"
-    - "Navigate to my bank and check the balance"
-    - "Browse to reddit.com and find the top post"
-    - "Open YouTube and play relaxing music"
-    - "Navigate to..."
-    - "Browse to..."
-
-    Do NOT use for simple factual lookups — use web_search instead.
-
-    Args:
-        task: A plain English description of the browser task to perform.
-    """
-    return "result"
-
-
 # Pre-compute tool schemas at module level (get_json_schema is torch-free)
 TOOLS = [
     get_json_schema(control_light),
@@ -232,7 +209,6 @@ TOOLS = [
     get_json_schema(thinking),
     get_json_schema(nonthinking),
     get_json_schema(control_desktop),
-    get_json_schema(browse_web),
 ]
 
 SYSTEM_MSG = "You are a model that can do function calling with the following functions"
@@ -241,7 +217,7 @@ SYSTEM_MSG = "You are a model that can do function calling with the following fu
 VALID_FUNCTIONS = {
     "control_light", "set_timer", "set_alarm", "create_calendar_event",
     "add_task", "web_search", "get_system_info", "thinking", "nonthinking",
-    "control_desktop", "browse_web",
+    "control_desktop",
 }
 
 
@@ -447,8 +423,6 @@ class FunctionGemmaRouter:
         elif func_name == "web_search":
             return {"query": user_prompt}
         elif func_name == "control_desktop":
-            return {"task": user_prompt}
-        elif func_name == "browse_web":
             return {"task": user_prompt}
 
         return {}

@@ -52,6 +52,8 @@ class VoiceAssistant(QObject):
     # Desktop / Discord agent signals
     desktop_task_started = Signal(str)   # emits the task description
     desktop_task_finished = Signal(str)  # emits the result summary
+    # Active Agents tab — voice-triggered refresh
+    refresh_agents_requested = Signal()  # emits to AgentsTab.refresh()
     
     def __init__(self):
         super().__init__()
@@ -316,6 +318,22 @@ class VoiceAssistant(QObject):
                     results = data.get("results", [])
                     self.web_search_requested.emit(query, results)
                 self._generate_response_with_context("web_search", result, user_text)
+                return
+
+            # ── Active Agents refresh — voice command ────────────────────
+            # Triggered by phrases like:
+            #   "refresh active agents"  /  "refresh the agents"
+            #   "update active agents"   /  "reload agents"
+            AGENTS_REFRESH_TRIGGERS = (
+                "refresh active agents", "refresh the active agents",
+                "refresh agents", "refresh the agents",
+                "update active agents", "update agents",
+                "reload active agents", "reload agents",
+            )
+            if any(text_lower.startswith(t) or t in text_lower
+                   for t in AGENTS_REFRESH_TRIGGERS):
+                self.refresh_agents_requested.emit()
+                self._speak("Refreshing active agents.")
                 return
 
             # ── Discord channel reading ──────────────────────────────────

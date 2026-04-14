@@ -22,7 +22,7 @@ from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QSizePolicy, QDialog, QLineEdit, QTextEdit, QMessageBox,
 )
-from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtCore import Qt, QThread, Signal
 from PySide6.QtGui import QColor
 
 from qfluentwidgets import (
@@ -99,13 +99,6 @@ class AgentStatusThread(QThread):
                 statuses["llm"] = ("active", f"{RESPONDER_MODEL} — in VRAM")
             else:
                 statuses["llm"] = ("idle", f"{RESPONDER_MODEL} — available, not loaded")
-
-        # ── VLM Browser Agent (qwen3-vl) ─────────────────────────────────
-        if not ollama_ok:
-            statuses["vlm"] = ("offline", "Ollama not reachable")
-        else:
-            vlm_loaded = any("qwen" in m.lower() and "vl" in m.lower() for m in running_models)
-            statuses["vlm"] = ("active", "In VRAM") if vlm_loaded else ("idle", "Available, not loaded")
 
         # ── Voice Assistant ──────────────────────────────────────────────
         if not VOICE_ASSISTANT_ENABLED:
@@ -862,9 +855,8 @@ class AgentsTab(QWidget):
         self._custom_layout: QVBoxLayout | None = None
         self._setup_ui()
         self.refresh()
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self.refresh)
-        self._timer.start(15_000)
+        # No auto-refresh timer — refresh only on Refresh button click
+        # or via voice command ("refresh active agents").
 
         # React to registry changes (agent created/deleted from chat)
         agent_registry.agents_changed.connect(self._rebuild_custom_section)
@@ -915,7 +907,6 @@ class AgentsTab(QWidget):
         card1, lay1 = _make_section("AI Models")
         self._add_row(lay1, "router", "Function Gemma Router", "Fine-tuned Gemma — routes all queries to functions")
         self._add_row(lay1, "llm",    "Responder LLM",         f"{RESPONDER_MODEL} via Ollama — generates replies")
-        self._add_row(lay1, "vlm",    "VLM Browser Agent",     "qwen3-vl:4b — vision model for web browsing")
         self._content.addWidget(card1)
 
         # ── Section 2: Core Services ─────────────────────────────────────
