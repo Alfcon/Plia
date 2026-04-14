@@ -33,6 +33,7 @@ from gui.components.system_monitor import SystemMonitor
 from gui.components.weather_window import WeatherWindow
 from gui.components.search_browser import SearchBrowserWindow
 from core.llm import preload_models
+from core.settings_store import settings as app_settings
 
 
 class ModelPreloaderThread(QThread):
@@ -104,49 +105,73 @@ class MainWindow(FluentWindow):
         self.preloader_thread.start()
     
     def _init_voice_assistant(self):
-        """Initialize and start voice assistant if enabled."""
-        print(f"[App] Initializing voice assistant (enabled={VOICE_ASSISTANT_ENABLED})...")
-        if VOICE_ASSISTANT_ENABLED:
-            # Connect voice assistant signals to UI
-            print(f"[App] Connecting voice assistant signals...")
-            voice_assistant.wake_word_detected.connect(self._on_wake_word_detected)
-            voice_assistant.speech_recognized.connect(self._on_speech_recognized)
-            voice_assistant.processing_finished.connect(self._on_processing_finished)
-            # Connect GUI update signals
-            voice_assistant.timer_set.connect(self._on_voice_timer_set)
-            voice_assistant.alarm_added.connect(self._on_voice_alarm_added)
-            voice_assistant.calendar_updated.connect(self._on_voice_calendar_updated)
-            voice_assistant.task_added.connect(self._on_voice_task_added)
-            voice_assistant.weather_requested.connect(self._on_voice_weather_requested)
-            voice_assistant.close_weather_requested.connect(self._on_voice_close_weather)
-            # Web search browser — voice triggers
-            voice_assistant.web_search_requested.connect(self._on_voice_web_search_requested)
-            voice_assistant.close_search_requested.connect(self._on_voice_close_search)
-            voice_assistant.search_nav_requested.connect(self._on_voice_search_nav)
-            voice_assistant.search_open_requested.connect(self._on_voice_search_open)
-            # Desktop agent and Discord reader signals
-            voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
-            voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
-            print(f"[App] ✓ Signals connected")
-            
-            # Initialize in background thread to avoid blocking UI
-            def init_va():
-                print(f"[App] Background thread: Initializing voice assistant...")
-                if voice_assistant.initialize():
-                    print(f"[App] Background thread: ✓ Voice assistant initialized")
-                    # Enable TTS for voice assistant
-                    tts.toggle(True)
-                    print(f"[App] Background thread: TTS enabled")
-                    # Start listening
-                    print(f"[App] Background thread: Starting voice assistant...")
-                    voice_assistant.start()
-                    print(f"[App] Background thread: ✓ Voice assistant started")
-                else:
-                    print(f"[App] Background thread: ✗ Failed to initialize voice assistant")
-            
-            threading.Thread(target=init_va, daemon=True).start()
-        else:
-            print(f"[App] Voice assistant disabled in config")
+        """Initialize and start voice assistant if enabled.
+
+        Voice activation is controlled by two flags that must both be True:
+          1. VOICE_ASSISTANT_ENABLED in config.py  (developer master switch)
+          2. voice.auto_start in settings.json     (user preference, defaults to True)
+
+        TTS is initialized in the same background thread so the Whisper model
+        and the Piper TTS model are both fully loaded before the first greeting.
+        """
+        auto_start = app_settings.get("voice.auto_start", True)
+        print(
+            f"[App] Initializing voice assistant "
+            f"(enabled={VOICE_ASSISTANT_ENABLED}, auto_start={auto_start})..."
+        )
+
+        if not VOICE_ASSISTANT_ENABLED:
+            print(f"[App] Voice assistant disabled in config.py")
+            return
+
+        if not auto_start:
+            print(f"[App] Voice auto-start disabled in settings — voice will not activate")
+            return
+
+        # ── Connect all VA signals to UI handlers ────────────────────────
+        print(f"[App] Connecting voice assistant signals...")
+        voice_assistant.wake_word_detected.connect(self._on_wake_word_detected)
+        voice_assistant.speech_recognized.connect(self._on_speech_recognized)
+        voice_assistant.processing_finished.connect(self._on_processing_finished)
+        voice_assistant.timer_set.connect(self._on_voice_timer_set)
+        voice_assistant.alarm_added.connect(self._on_voice_alarm_added)
+        voice_assistant.calendar_updated.connect(self._on_voice_calendar_updated)
+        voice_assistant.task_added.connect(self._on_voice_task_added)
+        voice_assistant.weather_requested.connect(self._on_voice_weather_requested)
+        voice_assistant.close_weather_requested.connect(self._on_voice_close_weather)
+        voice_assistant.web_search_requested.connect(self._on_voice_web_search_requested)
+        voice_assistant.close_search_requested.connect(self._on_voice_close_search)
+        voice_assistant.search_nav_requested.connect(self._on_voice_search_nav)
+        voice_assistant.search_open_requested.connect(self._on_voice_search_open)
+        voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
+        voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
+        print(f"[App] ✓ Signals connected")
+
+        # ── Load TTS + STT + start listening — all in one background thread
+        def init_va():
+            import time
+            print(f"[App] Background thread: Initializing TTS...")
+            # Initialise TTS first so the greeting can play as soon as STT is ready
+            tts.toggle(True)
+            print(f"[App] Background thread: ✓ TTS ready")
+
+            print(f"[App] Background thread: Initializing voice assistant (STT/wake-word)...")
+            if voice_assistant.initialize():
+                print(f"[App] Background thread: ✓ Voice assistant initialized")
+                voice_assistant.start()
+                print(f"[App] Background thread: ✓ Voice assistant started — listening for wake word")
+
+                # Speak a startup greeting so the user knows voice is active
+                if app_settings.get("voice.startup_greeting", True):
+                    wake = app_settings.get("voice.wake_word", "jarvis")
+                    time.sleep(1.5)   # brief pause so TTS worker settles
+                    tts.queue_sentence(
+                        f"Plia voice assistant is online. Say {wake} to activate."
+                    )
+            else:
+                print(f"[App] Background thread: ✗ Failed to initialize voice assistant")
+
+        threading.Thread(target=init_va, daemon=True, name="VA-Init").start()
     
     def _dashboard_voice_widget(self):
         """Return the embedded voice widget from the dashboard header, or None."""
@@ -475,8 +500,8 @@ class MainWindow(FluentWindow):
         print("[App] Closing application, unloading models...")
         self.set_status("Closing...")
         
-        # Stop voice assistant
-        if VOICE_ASSISTANT_ENABLED:
+        # Stop voice assistant if it was started
+        if VOICE_ASSISTANT_ENABLED and app_settings.get("voice.auto_start", True):
             voice_assistant.stop()
         
         unload_all_models(sync=True)

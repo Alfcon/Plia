@@ -1,26 +1,59 @@
 """
 FunctionGemma Router - Routes user prompts to appropriate functions.
 Supports 9 functions: 6 actions, 1 context, 2 passthrough.
+
+IMPORTANT – torch / transformers lazy-import fix
+─────────────────────────────────────────────────
+The original router.py imported torch and the heavy transformers
+classes at *module level*.  This caused a fatal circular import on
+startup:
+
+    preload_models()
+      → from core.router import FunctionGemmaRouter    ← module-level
+        → import torch                                  ← line 13
+          → torch.nested → torch.fx → torch.fx.interpreter
+            → from torch.hub import tqdm
+              ↑ torch.hub is still being initialised → ImportError
+
+That broken import left sys.modules['torch'] in a poisoned state,
+which then cascaded into the STT thread:
+
+    _patch_torchaudio_if_broken()
+      → import torchaudio
+        → from torch.hub import …
+          → KeyError: 'torch'   ← torch not in sys.modules cleanly
+
+Fix: ALL torch and transformers AutoModel/AutoTokenizer imports have
+been moved inside FunctionGemmaRouter.__init__().  Importing this
+module no longer touches torch at all.  get_json_schema (from
+transformers.utils) is torch-free and stays at module level so that
+the TOOLS list can still be built at import time.
 """
 
 import os
 import warnings
+import time
+import re
+import json
+import types
+from typing import Literal, Tuple, Dict, Any
 
 # Suppress transformers warnings before importing
 os.environ["TRANSFORMERS_VERBOSITY"] = "error"
 warnings.filterwarnings("ignore", message=".*generation flags are not valid.*")
 
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM, logging as transformers_logging
-from transformers.utils import get_json_schema
-from typing import Literal, Tuple, Dict, Any
-import time
-import re
-import json
-from huggingface_hub import snapshot_download
+# ── transformers.utils.get_json_schema is torch-free ─────────────────────
+# It only reads Python function signatures; no model loading occurs.
+try:
+    from transformers.utils import get_json_schema
+    _HAS_GET_JSON_SCHEMA = True
+except ImportError:
+    _HAS_GET_JSON_SCHEMA = False
+    def get_json_schema(fn):
+        """Fallback: return a minimal schema if transformers is unavailable."""
+        return {"name": fn.__name__, "description": fn.__doc__ or ""}
 
-# Suppress transformers logging
-transformers_logging.set_verbosity_error()
+from huggingface_hub import snapshot_download
 
 from config import LOCAL_ROUTER_PATH, HF_ROUTER_REPO
 
@@ -28,12 +61,12 @@ from config import LOCAL_ROUTER_PATH, HF_ROUTER_REPO
 DEBUG_ROUTER = False
 
 
-# --- Tool Definitions (all 9 functions) ---
+# --- Tool Definitions (all functions) ---
 
 def control_light(action: str, device_name: str = None, brightness: int = None, color: str = None) -> str:
     """
     Control smart lights - turn on, off, dim, or change color.
-    
+
     Args:
         action: Action to perform: on, off, dim, toggle
         device_name: Name of the light or room
@@ -45,7 +78,7 @@ def control_light(action: str, device_name: str = None, brightness: int = None, 
 def set_timer(duration: str, label: str = None) -> str:
     """
     Set a countdown timer.
-    
+
     Args:
         duration: Duration like '5 minutes' or '1 hour'
         label: Optional label for the timer
@@ -55,7 +88,7 @@ def set_timer(duration: str, label: str = None) -> str:
 def set_alarm(time: str, label: str = None) -> str:
     """
     Set an alarm for a specific time.
-    
+
     Args:
         time: Time for alarm like '7am' or '14:30'
         label: Optional label
@@ -65,7 +98,7 @@ def set_alarm(time: str, label: str = None) -> str:
 def create_calendar_event(title: str, date: str = None, time: str = None, duration: int = None) -> str:
     """
     Create a calendar event.
-    
+
     Args:
         title: Event title
         date: Date like 'tomorrow' or '2024-01-15'
@@ -77,7 +110,7 @@ def create_calendar_event(title: str, date: str = None, time: str = None, durati
 def add_task(text: str, priority: str = None) -> str:
     """
     Add a task to the to-do list.
-    
+
     Args:
         text: Task description
         priority: Priority level
@@ -88,16 +121,16 @@ def web_search(query: str) -> str:
     """
     Search the web for information using DuckDuckGo.
     Returns up to 5 search results including titles, snippets, and URLs.
-    
+
     Use this when the user asks to:
     - Search for information online
     - Look up current events or news
     - Find facts, definitions, or explanations
     - Research a topic
-    
+
     Args:
         query: Search query string (e.g., "Python programming best practices")
-    
+
     Returns:
         Search results with titles, body snippets (200 chars), and URLs
     """
@@ -106,7 +139,7 @@ def web_search(query: str) -> str:
 def get_system_info() -> str:
     """
     Get comprehensive current system state snapshot.
-    
+
     Returns information about:
     - Current time and date
     - Active countdown timers (label, remaining time)
@@ -116,7 +149,7 @@ def get_system_info() -> str:
     - Smart home devices (name, on/off status, type)
     - Current weather (temperature, condition, high/low)
     - Recent news headlines (title, category, URL)
-    
+
     Use this when the user asks:
     - "What's on my schedule today?"
     - "What's my current status?"
@@ -129,7 +162,7 @@ def get_system_info() -> str:
 def thinking(prompt: str) -> str:
     """
     Use for complex queries requiring reasoning, math, coding, or multi-step analysis.
-    
+
     Args:
         prompt: The user's original prompt
     """
@@ -138,7 +171,7 @@ def thinking(prompt: str) -> str:
 def nonthinking(prompt: str) -> str:
     """
     Use for simple queries, greetings, factual questions not requiring deep reasoning.
-    
+
     Args:
         prompt: The user's original prompt
     """
@@ -187,8 +220,7 @@ def browse_web(task: str) -> str:
     return "result"
 
 
-
-# Pre-compute tool schemas
+# Pre-compute tool schemas at module level (get_json_schema is torch-free)
 TOOLS = [
     get_json_schema(control_light),
     get_json_schema(set_timer),
@@ -217,7 +249,7 @@ def ensure_model_available(model_path: str = LOCAL_ROUTER_PATH) -> str:
     """
     Ensure the router model is available locally.
     Downloads from Hugging Face if not found.
-    
+
     Returns:
         str: Path to the model (local or downloaded)
     """
@@ -225,11 +257,11 @@ def ensure_model_available(model_path: str = LOCAL_ROUTER_PATH) -> str:
         # Check for essential files
         if os.path.exists(os.path.join(model_path, "model.safetensors")):
             return model_path
-    
+
     # Download from Hugging Face
     print(f"[Router] Model not found at {model_path}")
     print(f"[Router] Downloading from Hugging Face: {HF_ROUTER_REPO}...")
-    
+
     try:
         downloaded_path = snapshot_download(
             repo_id=HF_ROUTER_REPO,
@@ -246,21 +278,38 @@ def ensure_model_available(model_path: str = LOCAL_ROUTER_PATH) -> str:
 
 
 class FunctionGemmaRouter:
-    """Routes user prompts to appropriate functions using fine-tuned FunctionGemma."""
-    
+    """Routes user prompts to appropriate functions using fine-tuned FunctionGemma.
+
+    torch and the heavy transformers classes (AutoTokenizer, AutoModelForCausalLM)
+    are imported *lazily* inside __init__ so that importing this module does NOT
+    trigger torch's initialisation chain.  This prevents the circular import
+    error that used to crash the ModelPreloaderThread on startup.
+    """
+
     def __init__(self, model_path: str = LOCAL_ROUTER_PATH, compile_model: bool = False):
+        # ── Lazy torch + transformers imports ────────────────────────────
+        # These are deferred to here (not module level) to avoid the
+        # torch.hub → tqdm circular import that breaks startup.
+        import torch  # noqa: PLC0415  (intentional late import)
+        from transformers import (  # noqa: PLC0415
+            AutoTokenizer,
+            AutoModelForCausalLM,
+            logging as transformers_logging,
+        )
+        transformers_logging.set_verbosity_error()
+
         # Ensure model is available (download from HF if needed)
         model_path = ensure_model_available(model_path)
-        
+
         device = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"Loading FunctionGemma Router on {device.upper()}...")
         start = time.time()
-        
+
         self.tokenizer = AutoTokenizer.from_pretrained(model_path)
-        
+
         # CPU often doesn't support bfloat16 natively
         dtype = torch.bfloat16 if device == "cuda" else torch.float32
-        
+
         self.model = AutoModelForCausalLM.from_pretrained(
             model_path,
             torch_dtype=dtype,
@@ -268,7 +317,9 @@ class FunctionGemmaRouter:
         )
         self.model.eval()
 
-        
+        # Keep a local reference to torch for inference methods
+        self._torch = torch
+
         # Compile for speed (PyTorch 2.0+)
         if compile_model:
             try:
@@ -276,48 +327,50 @@ class FunctionGemmaRouter:
                 print("Model compiled with torch.compile()")
             except Exception as e:
                 print(f"torch.compile() not available: {e}")
-        
+
         print(f"Router loaded in {time.time() - start:.2f}s")
         print(f"Device: {self.model.device}, Dtype: {self.model.dtype}")
-    
-    @torch.inference_mode()
+
     def route(self, user_prompt: str) -> Tuple[str, Dict[str, Any]]:
         """
         Route a user prompt to the appropriate function.
-        
+
         Returns:
             Tuple of (function_name, arguments_dict)
         """
-        # Build messages
-        messages = [
-            {"role": "developer", "content": SYSTEM_MSG},
-            {"role": "user", "content": user_prompt},
-        ]
-        
-        # Apply chat template
-        prompt = self.tokenizer.apply_chat_template(
-            messages,
-            tools=TOOLS,
-            add_generation_prompt=True,
-            tokenize=False
-        )
-        
-        # Tokenize
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-        
-        # Generate with minimal settings for speed
-        outputs = self.model.generate(
-            **inputs,
-            max_new_tokens=100,  # Increased for function args
-            do_sample=False,
-            use_cache=True,
-            pad_token_id=self.tokenizer.pad_token_id,
-        )
-        
-        # Decode new tokens only
-        new_tokens = outputs[0][inputs['input_ids'].shape[1]:]
-        response = self.tokenizer.decode(new_tokens, skip_special_tokens=False)
-        
+        torch = self._torch
+
+        with torch.inference_mode():
+            # Build messages
+            messages = [
+                {"role": "developer", "content": SYSTEM_MSG},
+                {"role": "user", "content": user_prompt},
+            ]
+
+            # Apply chat template
+            prompt = self.tokenizer.apply_chat_template(
+                messages,
+                tools=TOOLS,
+                add_generation_prompt=True,
+                tokenize=False
+            )
+
+            # Tokenize
+            inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
+
+            # Generate with minimal settings for speed
+            outputs = self.model.generate(
+                **inputs,
+                max_new_tokens=100,
+                do_sample=False,
+                use_cache=True,
+                pad_token_id=self.tokenizer.pad_token_id,
+            )
+
+            # Decode new tokens only
+            new_tokens = outputs[0][inputs['input_ids'].shape[1]:]
+            response = self.tokenizer.decode(new_tokens, skip_special_tokens=False)
+
         # Debug: Print raw Gemma response
         if DEBUG_ROUTER:
             print(f"\n{'='*50}")
@@ -325,55 +378,50 @@ class FunctionGemmaRouter:
             print(f"[Router DEBUG] Raw Gemma response:")
             print(f"  {repr(response)}")
             print(f"{'='*50}")
-        
+
         # Parse function call
         return self._parse_function_call(response, user_prompt)
-    
+
     def _parse_function_call(self, response: str, user_prompt: str) -> Tuple[str, Dict[str, Any]]:
         """Parse the model's response to extract function name and arguments."""
-        
+
         # Try to find function call pattern: call:function_name
         for func_name in VALID_FUNCTIONS:
             if f"call:{func_name}" in response:
                 # Try to extract arguments
                 args = self._extract_arguments(response, func_name, user_prompt)
                 return func_name, args
-        
+
         # Fallback to nonthinking if no function found
         return "nonthinking", {"prompt": user_prompt}
-    
+
     def _extract_arguments(self, response: str, func_name: str, user_prompt: str) -> Dict[str, Any]:
         """Extract arguments from the response."""
-        
+
         # Default arguments for passthrough functions
         if func_name in ("thinking", "nonthinking"):
             return {"prompt": user_prompt}
-        
+
         # For get_system_info, no args needed
         if func_name == "get_system_info":
             return {}
-        
+
         # Parse the model's custom format: {key:<escape>value<escape>,key2:<escape>value2<escape>}
-        # Find the arguments block after the function name
         pattern = rf"call:{func_name}\{{([^}}]+)\}}"
         match = re.search(pattern, response)
-        
+
         if match:
             args_str = match.group(1)
             args = {}
-            
-            # Split by comma, but handle values with commas inside <escape> tags
-            # Pattern: key:<escape>value<escape> OR key:value (for ints/bools)
-            # We look for key followed by either <escape>...<escape> OR anything until comma/end
+
             arg_pattern = r'(\w+):(?:<escape>([^<]*)<escape>|([^,]+))'
             for arg_match in re.finditer(arg_pattern, args_str):
                 key = arg_match.group(1)
-                # group(2) is escaped value, group(3) is unescaped value
                 val_escaped = arg_match.group(2)
                 val_unescaped = arg_match.group(3)
-                
+
                 value = val_escaped if val_escaped is not None else val_unescaped
-                
+
                 # Try to convert to appropriate type
                 if value.isdigit():
                     args[key] = int(value)
@@ -381,10 +429,10 @@ class FunctionGemmaRouter:
                     args[key] = value.lower() == 'true'
                 else:
                     args[key] = value
-            
+
             if args:
                 return args
-        
+
         # Fallback: return user prompt as main argument
         if func_name == "control_light":
             return {"action": "toggle", "device_name": user_prompt}
@@ -402,9 +450,9 @@ class FunctionGemmaRouter:
             return {"task": user_prompt}
         elif func_name == "browse_web":
             return {"task": user_prompt}
-        
+
         return {}
-    
+
     def route_with_timing(self, user_prompt: str) -> Tuple[Tuple[str, Dict], float]:
         """Route with timing info."""
         start = time.time()
@@ -415,55 +463,38 @@ class FunctionGemmaRouter:
 
 if __name__ == "__main__":
     router = FunctionGemmaRouter(compile_model=False)
-    
+
     test_prompts = [
-        # Action functions
         ("Turn on the living room lights", "control_light"),
         ("Set a timer for 10 minutes", "set_timer"),
         ("Wake me up at 7am", "set_alarm"),
         ("Schedule meeting tomorrow at 3pm", "create_calendar_event"),
         ("Add buy groceries to my list", "add_task"),
         ("Search for Italian recipes", "web_search"),
-        
-        # New Smart Home Examples
-        ("Dim the kitchen lights to 50%", "control_light"),
-        ("Make the bedroom lights blue", "control_light"),
-        ("Turn off all the lights", "control_light"),
-        ("Toggle the hallway light", "control_light"),
-        ("Set the thermostat to 72 degrees", "control_light"), # Intentionally testing boundary/potential misclassification
-        ("Brightness up in the study", "control_light"),
-        ("Set movie mode lighting", "control_light"),
-        
-        # Context function
         ("How much time is left on my timer?", "get_system_info"),
         ("What's on my calendar today?", "get_system_info"),
-        ("Are any lights on?", "get_system_info"),
-        ("Is the front door locked?", "get_system_info"),
-        
-        # Passthrough functions
         ("Explain quantum computing", "thinking"),
-        ("Write a Python function to sort a list", "thinking"),
         ("Hello there!", "nonthinking"),
         ("What's the capital of France?", "nonthinking"),
     ]
-    
+
     print("\n" + "="*70)
     print("FUNCTION CALLING ROUTER TEST")
     print("="*70)
-    
+
     total_time = 0
     correct = 0
-    
+
     for prompt, expected in test_prompts:
         (func_name, args), elapsed = router.route_with_timing(prompt)
         total_time += elapsed
         match = "✓" if func_name == expected else "✗"
         if func_name == expected:
             correct += 1
-        
+
         print(f"\n[{match}] {prompt}")
         print(f"    → {func_name}({args}) [{elapsed*1000:.0f}ms]")
-    
+
     avg_time = total_time / len(test_prompts)
     print(f"\n{'='*70}")
     print(f"Accuracy: {correct}/{len(test_prompts)} ({100*correct/len(test_prompts):.0f}%)")

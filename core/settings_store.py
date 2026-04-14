@@ -50,6 +50,8 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "wake_word":              "jarvis",   # must be in SUPPORTED_WAKE_WORDS
         "sensitivity":            0.4,        # 0.0 – 1.0
         "enabled":                True,
+        "auto_start":             True,       # activate voice listening on app startup
+        "startup_greeting":       True,       # speak a greeting when voice goes active
         "stt_energy_threshold":   300,        # for SpeechEngine fallback (50-1000)
     },
     # ── General ──────────────────────────────────────────────────────────

@@ -2,9 +2,79 @@
 Plia - Main Entry Point
 """
 
+# ── Logging must be configured FIRST — before any other imports ───────────
+# This prevents RealtimeSTT (and other libraries) from creating stray log
+# files in the project root.  The root logger gets a NullHandler so that
+# logging.basicConfig() calls inside third-party libraries become no-ops.
+# The specific 'realtimestt' logger is also pre-configured here as a
+# belt-and-braces measure (stt.py does the same at module level, but
+# configuring it early in main.py ensures it is in place before any
+# background thread imports the library).
+import logging
+import os as _os
+
+def _configure_logging() -> None:
+    """
+    Set up Plia's logging before any library imports.
+
+    - Creates  Plia/log/  if it does not exist.
+    - Adds a NullHandler to the root logger so that third-party
+      logging.basicConfig() calls are suppressed (they are no-ops when
+      the root logger already has at least one handler).
+    - Redirects the 'realtimestt' logger to  Plia/log/realtimesst.log
+      so RealtimeSTT no longer creates a stray file in the project root.
+    - Creates  Plia/log/plia.log  for general WARNING+ application messages.
+    """
+    _proj_root = _os.path.dirname(_os.path.abspath(__file__))
+    _log_dir   = _os.path.join(_proj_root, "log")
+    _os.makedirs(_log_dir, exist_ok=True)
+
+    # ── Root logger: NullHandler to suppress spurious basicConfig calls ──
+    _root = logging.getLogger()
+    if not _root.handlers:
+        _root.addHandler(logging.NullHandler())
+        _root.setLevel(logging.WARNING)
+
+    _fmt = logging.Formatter(
+        "%(asctime)s.%(msecs)03d - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+
+    # ── realtimestt → log/realtimesst.log ────────────────────────────────
+    _rtstt = logging.getLogger("realtimestt")
+    if not any(isinstance(h, logging.FileHandler) for h in _rtstt.handlers):
+        _rtstt_fh = logging.FileHandler(
+            _os.path.join(_log_dir, "realtimesst.log"),
+            mode="a",
+            encoding="utf-8",
+        )
+        _rtstt_fh.setLevel(logging.DEBUG)
+        _rtstt_fh.setFormatter(_fmt)
+        _rtstt.addHandler(_rtstt_fh)
+        _rtstt.setLevel(logging.DEBUG)
+        _rtstt.propagate = False   # Stop propagation to root (no console spam)
+
+    # ── plia app logger → log/plia.log ────────────────────────────────────
+    _plia = logging.getLogger("plia")
+    if not any(isinstance(h, logging.FileHandler) for h in _plia.handlers):
+        _plia_fh = logging.FileHandler(
+            _os.path.join(_log_dir, "plia.log"),
+            mode="a",
+            encoding="utf-8",
+        )
+        _plia_fh.setLevel(logging.WARNING)
+        _plia_fh.setFormatter(_fmt)
+        _plia.addHandler(_plia_fh)
+        _plia.setLevel(logging.WARNING)
+        _plia.propagate = False
+
+
+_configure_logging()   # Must run before any other imports
+
+# ── Standard library + app imports (after logging is configured) ───────────
+import os   # public alias — _os above was used only during logging setup
 import warnings
 import sys
-import os
 import time
 import subprocess
 import multiprocessing

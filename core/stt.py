@@ -22,10 +22,42 @@ Wake word notes (Porcupine backend):
   These are the ONLY valid choices for the STTListener wake word
   setting. The WAKE_WORDS list below is used by SpeechEngine (plia2)
   and can include any prefix strings.
+
+Torchaudio note:
+  Silero VAD (used internally by RealtimeSTT) imports torchaudio at
+  module-load time.  On Windows, if torchaudio and torch were built for
+  different CUDA versions, this triggers:
+      OSError: [WinError 127] The specified procedure could not be found
+  Additionally, if torch itself failed to initialise in a parallel
+  thread (e.g. via the torch.hub/tqdm circular-import bug fixed in
+  router.py), the broken sys.modules state can produce:
+      KeyError: 'torch'
+
+  _patch_torchaudio_if_broken() below intercepts ALL of these failures
+  and injects a minimal stub so that silero_vad can import cleanly.
+  Silero inference itself runs on raw PyTorch tensors and does NOT need
+  the torchaudio native extension; WebRTC VAD handles all activity
+  detection when silero_sensitivity=0.0.
+
+  To permanently fix the environment (recommended):
+      conda activate plia
+      pip install torch==2.6.0+cu124 torchaudio==2.6.0+cu124 ^
+          --index-url https://download.pytorch.org/whl/cu124
+  Verify afterwards:
+      python -c "import torchaudio; print(torchaudio.__version__)"
+
+Log file location:
+  All RealTimeSTT log output is redirected to Plia/log/realtimesst.log
+  by configuring the 'realtimestt' Python logger here, before the
+  library is imported for the first time.
 """
 
+import sys
 import threading
 import time
+import types
+import logging
+import os
 from typing import Callable
 
 from config import (
@@ -34,6 +66,48 @@ from config import (
     GRAY, RESET, CYAN, YELLOW, GREEN,
 )
 from core.settings_store import settings as app_settings
+
+# ── Log directory setup ────────────────────────────────────────────────────
+# Redirect the RealTimeSTT logger to Plia/log/realtimesst.log BEFORE
+# the library is imported for the first time.  Python's logging.basicConfig
+# is a no-op if the root logger already has handlers, so we also add a
+# NullHandler to root to prevent the library from creating a stray
+# realtimestt.log in the project root.
+
+def _setup_stt_logging() -> None:
+    """Redirect the realtimestt logger to Plia/log/realtimesst.log."""
+    # Resolve the log directory relative to this file's package root
+    # core/stt.py  →  project root  →  log/
+    _core_dir   = os.path.dirname(os.path.abspath(__file__))
+    _proj_root  = os.path.dirname(_core_dir)
+    _log_dir    = os.path.join(_proj_root, "log")
+    os.makedirs(_log_dir, exist_ok=True)
+
+    _log_path = os.path.join(_log_dir, "realtimesst.log")
+
+    # Prevent Python logging.basicConfig (called inside RealtimeSTT) from
+    # creating its own realtimestt.log in the project root by ensuring the
+    # root logger already has a handler before the library is imported.
+    _root = logging.getLogger()
+    if not _root.handlers:
+        _root.addHandler(logging.NullHandler())
+
+    # Configure the specific realtimestt logger
+    _rtstt = logging.getLogger("realtimestt")
+    if not any(isinstance(h, logging.FileHandler) for h in _rtstt.handlers):
+        _fh = logging.FileHandler(_log_path, mode="a", encoding="utf-8")
+        _fh.setLevel(logging.DEBUG)
+        _fh.setFormatter(logging.Formatter(
+            "%(asctime)s.%(msecs)03d - RealTimeSTT: %(name)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S"
+        ))
+        _rtstt.addHandler(_fh)
+        _rtstt.setLevel(logging.DEBUG)
+        _rtstt.propagate = False   # Keep realtimestt logs out of the root logger
+
+
+_setup_stt_logging()   # Run immediately at module import
+
 
 # ── Wake words ────────────────────────────────────────────────────────────
 
@@ -67,6 +141,148 @@ WAKE_WORDS: list[str] = [
     "jarvis",
     "hey jarvis",
 ]
+
+
+# ── Torchaudio pre-flight patch ────────────────────────────────────────────
+
+def _patch_torchaudio_if_broken() -> bool:
+    """
+    Try importing torchaudio.  Three classes of failure are handled:
+
+    1. OSError [WinError 127]
+       torch and torchaudio DLLs were compiled for different CUDA versions.
+       Classic environment mismatch; inject stub.
+
+    2. KeyError('torch')
+       torch itself failed to initialise in a parallel thread (e.g. the
+       torch.hub/tqdm circular-import bug that was fixed in router.py by
+       making torch a lazy import).  The broken partial-load can leave
+       sys.modules in an inconsistent state where accessing 'torch'
+       raises KeyError inside the frozen importlib bootstrap.
+       Inject stub.
+
+    3. Any other Exception
+       Unexpected torchaudio import failure (missing DLL, broken install,
+       etc.).  Inject stub so the rest of Plia can still function.
+
+    When the stub is active, silero_sensitivity is forced to 0.0 in the
+    caller so that Silero's runtime code is never reached; WebRTC VAD
+    handles all activity detection instead.
+
+    Returns True  if torchaudio imported cleanly (no action taken).
+    Returns False if a stub was injected or torchaudio is absent.
+    """
+    try:
+        import torchaudio  # noqa: F401
+        return True
+
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 127 or "WinError 127" in str(exc):
+            print(
+                f"{YELLOW}[STT] ⚠  torchaudio DLL mismatch (WinError 127) detected.{RESET}"
+            )
+            print(
+                f"{YELLOW}[STT]    Injecting compatibility stub — "
+                f"Silero VAD bypassed, WebRTC VAD active.{RESET}"
+            )
+            print(
+                f"{YELLOW}[STT]    To fix permanently, run inside (plia):{RESET}"
+            )
+            print(
+                f"{YELLOW}[STT]      pip install torch==2.6.0+cu124 torchaudio==2.6.0+cu124 "
+                f"--index-url https://download.pytorch.org/whl/cu124{RESET}"
+            )
+            _inject_torchaudio_stub()
+            return False
+        # Any other OSError (e.g. missing DLL not related to WinError 127)
+        print(
+            f"{YELLOW}[STT] ⚠  torchaudio OSError ({exc}).{RESET}"
+        )
+        _inject_torchaudio_stub()
+        return False
+
+    except ImportError:
+        # torchaudio simply not installed
+        print(
+            f"{YELLOW}[STT] ⚠  torchaudio not installed. "
+            f"Silero VAD will be skipped; WebRTC VAD active.{RESET}"
+        )
+        _inject_torchaudio_stub()
+        return False
+
+    except KeyError as exc:
+        # KeyError('torch') — torch's module import failed in a parallel
+        # thread and the broken entry was removed from sys.modules, leaving
+        # torchaudio unable to resolve its torch dependency.
+        # Root cause is fixed in router.py; this clause is a belt-and-
+        # braces safety net.
+        print(
+            f"{YELLOW}[STT] ⚠  torchaudio raised KeyError({exc}) during import.{RESET}"
+        )
+        print(
+            f"{YELLOW}[STT]    This usually means torch's circular import failed "
+            f"in a parallel thread.{RESET}"
+        )
+        print(
+            f"{YELLOW}[STT]    Injecting compatibility stub — WebRTC VAD active.{RESET}"
+        )
+        _inject_torchaudio_stub()
+        return False
+
+    except Exception as exc:
+        # Catch-all: any other unexpected error during torchaudio import
+        print(
+            f"{YELLOW}[STT] ⚠  torchaudio import failed "
+            f"({type(exc).__name__}: {exc}).{RESET}"
+        )
+        print(
+            f"{YELLOW}[STT]    Injecting compatibility stub — WebRTC VAD active.{RESET}"
+        )
+        _inject_torchaudio_stub()
+        return False
+
+
+def _inject_torchaudio_stub() -> None:
+    """
+    Install a no-op torchaudio stub into sys.modules.
+
+    Submodule stubs are required because silero_vad's hubconf.py does:
+        from silero_vad.utils_vad import (init_jit_model, ...)
+    and utils_vad.py starts with:
+        import torchaudio
+    If the parent is stubbed but sub-packages are absent, a second
+    import of a sub-module would raise ImportError.
+    """
+    _STUB_SUBMODULES = [
+        "torchaudio._extension",
+        "torchaudio._extension.utils",
+        "torchaudio._internal",
+        "torchaudio._internal.fb",
+        "torchaudio.backend",
+        "torchaudio.backend.common",
+        "torchaudio.transforms",
+        "torchaudio.functional",
+        "torchaudio.io",
+    ]
+    # Only inject if not already stubbed
+    if sys.modules.get("torchaudio") is not None:
+        existing = sys.modules["torchaudio"]
+        if getattr(existing, "__version__", None) == "0.0.0+stub":
+            return   # Already stubbed
+
+    stub_root = types.ModuleType("torchaudio")
+    stub_root.__version__ = "0.0.0+stub"
+    stub_root.__path__ = []  # mark as package
+    sys.modules["torchaudio"] = stub_root
+
+    for name in _STUB_SUBMODULES:
+        sub = types.ModuleType(name)
+        sys.modules[name] = sub
+        # Attach as attribute on the parent (e.g. torchaudio._extension)
+        parts = name.split(".")
+        parent = sys.modules.get(".".join(parts[:-1]))
+        if parent is not None:
+            setattr(parent, parts[-1], sub)
 
 
 # ── Settings helpers ───────────────────────────────────────────────────────
@@ -104,6 +320,18 @@ class STTListener:
     No API key needed; works offline with SUPPORTED_WAKE_WORDS.
     Wake word is re-read from settings on each initialize() call so
     Settings → Apply & Refresh All picks up changes immediately.
+
+    Startup sequence
+    ----------------
+    1. _patch_torchaudio_if_broken() is called first.
+       • If torchaudio is healthy  → normal Silero + WebRTC VAD.
+       • If WinError 127 detected  → stub injected, WebRTC VAD only
+         (silero_sensitivity=0.0, silero_deactivity_detection=False).
+       • If KeyError('torch')      → stub injected, WebRTC VAD only.
+       • Any other Exception       → stub injected, WebRTC VAD only.
+       All paths produce a working recorder.
+    2. AudioToTextRecorder is created with Porcupine as the wake-word
+       backend.  Silero VAD is bypassed when the stub is active.
     """
 
     def __init__(self, wake_word_callback: Callable, speech_callback: Callable):
@@ -127,6 +355,13 @@ class STTListener:
         print(f"{CYAN}[STT] Wake word: '{self._wake_word}'  Sensitivity: {self._sensitivity}{RESET}")
 
         try:
+            # ── Step 1: torchaudio pre-flight ─────────────────────────────
+            # Must run BEFORE `from RealtimeSTT import AudioToTextRecorder`
+            # because RealtimeSTT imports torch.hub which triggers the Silero
+            # import chain (which imports torchaudio) during recorder init.
+            torchaudio_ok = _patch_torchaudio_if_broken()
+
+            # ── Step 2: import RealtimeSTT & torch ────────────────────────
             from RealtimeSTT import AudioToTextRecorder
             import torch
 
@@ -142,6 +377,17 @@ class STTListener:
             device = "cuda" if cuda_available else "cpu"
             print(f"{CYAN}[STT] Initializing AudioToTextRecorder on {device}…{RESET}")
 
+            # ── Step 3: choose VAD mode ────────────────────────────────────
+            if torchaudio_ok:
+                silero_sens   = self._sensitivity * 0.6
+                silero_deact  = False
+                print(f"{CYAN}[STT] VAD mode: Silero + WebRTC (torchaudio healthy){RESET}")
+            else:
+                silero_sens   = 0.0
+                silero_deact  = False
+                print(f"{YELLOW}[STT] VAD mode: WebRTC only (Silero bypassed — see fix above){RESET}")
+
+            # ── Step 4: create the recorder ───────────────────────────────
             self.recorder = AudioToTextRecorder(
                 model=REALTIMESTT_MODEL,
                 language="en",
@@ -151,14 +397,18 @@ class STTListener:
                 wake_words=self._wake_word,
                 wake_words_sensitivity=self._sensitivity,
                 on_wakeword_detected=self._on_wakeword_detected,
+                silero_sensitivity=silero_sens,
+                silero_deactivity_detection=silero_deact,
+                webrtc_sensitivity=3,
             )
 
             self.initialized = True
-            print(f"{CYAN}[STT] ✓ Ready — say '{self._wake_word}' to activate{RESET}")
+            vad_note = "" if torchaudio_ok else " (WebRTC VAD only)"
+            print(f"{CYAN}[STT] ✓ Ready{vad_note} — say '{self._wake_word}' to activate{RESET}")
             return True
 
-        except ImportError:
-            print(f"{GRAY}[STT] ✗ RealTimeSTT not installed. Run: pip install realtimestt{RESET}")
+        except ImportError as exc:
+            print(f"{GRAY}[STT] ✗ Missing dependency: {exc}. Run: pip install realtimestt{RESET}")
             return False
         except Exception as exc:
             print(f"{GRAY}[STT] ✗ Initialization error: {exc}{RESET}")
@@ -263,10 +513,12 @@ class SpeechEngine:
         self._listening = False
         self.recorder   = None
 
+        # Apply torchaudio patch before attempting RealtimeSTT import
+        _patch_torchaudio_if_broken()
+
         try:
             from RealtimeSTT import AudioToTextRecorder
             energy = int(s.get("stt_energy_threshold", 300))
-            # Map energy_threshold (50-1000) to WebRTC sensitivity (1-3)
             webrtc_sens = max(1, min(3, round(energy / 333)))
             self.recorder = AudioToTextRecorder(
                 model="tiny.en",

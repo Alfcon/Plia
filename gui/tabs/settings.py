@@ -399,6 +399,26 @@ class SettingsTab(ScrollArea):
         # ── Voice & Audio ────────────────────────────────────────────────────
         self.voice_group = SettingCardGroup("Voice & Audio", self.scrollWidget)
 
+        # Auto-start voice on launch (new) ──────────────────────────────────
+        self.auto_start_card = SwitchCard(
+            FIF.MICROPHONE,
+            "Auto-Start Voice on Launch",
+            "Automatically activate wake-word listening when Plia starts",
+            "voice.auto_start",
+            self.voice_group
+        )
+        self.voice_group.addSettingCard(self.auto_start_card)
+
+        # Startup greeting (new) ─────────────────────────────────────────────
+        self.startup_greeting_card = SwitchCard(
+            FIF.VOLUME,
+            "Startup Voice Greeting",
+            "Speak a confirmation message when voice assistant goes online at startup",
+            "voice.startup_greeting",
+            self.voice_group
+        )
+        self.voice_group.addSettingCard(self.startup_greeting_card)
+
         # Wake word — dropdown restricted to words supported by Porcupine
         from core.stt import SUPPORTED_WAKE_WORDS
         self.wake_word_card = ComboBoxCard(
@@ -420,7 +440,6 @@ class SettingsTab(ScrollArea):
             0, 100,
             self.voice_group
         )
-        self.voice_group.addSettingCard(self.wake_sensitivity_card)
         self.voice_group.addSettingCard(self.wake_sensitivity_card)
 
         piper_voices = [
