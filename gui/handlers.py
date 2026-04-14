@@ -788,4 +788,3 @@ class ChatHandlers(QObject):
                 self.main_window.navigate_to_agents()
         except Exception as exc:
             print(f"[ChatHandlers] agents_tab refresh failed: {exc}")
-
