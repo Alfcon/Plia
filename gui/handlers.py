@@ -309,7 +309,11 @@ class ChatWorker(QObject):
             "messages": self.messages,
             "stream": True,
             "think": enable_thinking,  # Enable thinking for web_search
-            "keep_alive": "5m"  # Longer keep-alive for voice assistant
+            "keep_alive": "5m",
+            "options": {
+                "num_predict": 2048,
+                "num_ctx": 4096,
+            }
         }
         
         sentence_buffer = SentenceBuffer()
@@ -379,7 +383,16 @@ class ChatWorker(QObject):
             "messages": self.messages,
             "stream": True,
             "think": enable_thinking,
-            "keep_alive": "5m"  # Longer keep-alive for voice assistant
+            "keep_alive": "5m",  # Longer keep-alive for voice assistant
+            "options": {
+                # Limit output tokens to prevent OOM on long generations.
+                # Qwen3 in thinking mode can generate thousands of tokens
+                # with no cap, pushing VRAM over limit on 6GB cards.
+                "num_predict": 2048,
+                # Cap context window to reduce VRAM/KV-cache pressure when
+                # two models (qwen3 + gemma router) are loaded simultaneously.
+                "num_ctx": 4096,
+            }
         }
         
         sentence_buffer = SentenceBuffer()

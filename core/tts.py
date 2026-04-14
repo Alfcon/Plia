@@ -160,7 +160,8 @@ class VoiceEngine:
         self.muted          = bool(s.get("tts_muted", False))
         self.volume         = float(s.get("tts_volume", 0.9))
         self.length_scale   = float(s.get("tts_length_scale", 1.0))
-        self._lock          = threading.Lock()
+        self._lock          = threading.Lock()   # synthesis lock (ONNX)
+        self._play_lock     = threading.Lock()   # playback lock (sounddevice)
         self._speech_queue  = queue.Queue()
         self._worker_thread = None
         self._running       = False
@@ -171,6 +172,10 @@ class VoiceEngine:
         self.model_path  = None
         self.VOICE_MODEL = s.get("tts_voice", DEFAULT_VOICE)
         self.current_process = None
+
+        # Maximum characters per TTS call — ONNX Runtime can segfault on
+        # extremely long strings; split defensively at this boundary.
+        self._MAX_CHARS = 400
 
     # ── Model discovery / auto-download (Python library) ─────────────────
 
@@ -273,6 +278,12 @@ class VoiceEngine:
 
     def initialize(self) -> bool:
         """Load the voice model and start the worker thread."""
+        # Guard against double-initialisation (e.g. called from both the
+        # model preloader thread and VoiceAssistant.initialize()).  A second
+        # call would spawn a second worker thread; both threads then compete
+        # to drive sounddevice concurrently, causing a PortAudio crash.
+        if self._running and self._engine is not None:
+            return True   # Already initialised — safe to call again.
         if HAS_PIPER_LIB:
             return self._initialize_lib()
         if HAS_PIPER_EXE_DEPS:
@@ -333,8 +344,14 @@ class VoiceEngine:
             return False
 
     def _start_worker(self):
+        # Prevent creating a second worker thread if one is already alive.
+        # This is the critical guard that stops the double-init crash:
+        # two concurrent calls to sd.play() on Windows cause a PortAudio
+        # segfault that takes down the entire Python process.
+        if self._running and self._worker_thread and self._worker_thread.is_alive():
+            return
         self._running       = True
-        self._worker_thread = threading.Thread(target=self._speech_worker, daemon=True)
+        self._worker_thread = threading.Thread(target=self._speech_worker, daemon=True, name="TTS-Worker")
         self._worker_thread.start()
 
     # ── Speech worker ─────────────────────────────────────────────────────
@@ -358,30 +375,55 @@ class VoiceEngine:
     def _speak_lib(self, text: str):
         """Synthesise via Python library and play with sounddevice.
 
-        Handles both piper-tts API generations automatically:
+        Two-lock design:
+          self._lock      — serialises ONNX inference (one synthesis at a time)
+          self._play_lock — serialises sounddevice playback (one play at a time)
 
-        NEW API (piper-tts OHF-Voice fork, ≈ April 2026+):
-          • SynthesisConfig is importable from piper
-          • synthesize_wav(text, wav_file, syn_config=SynthesisConfig(...))
-          • synthesize(text) → iterator of AudioChunk objects
+        Keeping these separate means the NEXT sentence can be synthesised
+        while the CURRENT one is still playing, but two sd.play() calls can
+        never overlap.  Concurrent sd.play() on Windows causes PortAudio to
+        corrupt its internal state and segfault the Python process — which is
+        what was crashing Plia when TTS started reading a story.
 
-        OLD API (original rhasspy/piper, archived Oct 2025):
-          • synthesize(text, wav_file) — two positional args only, no kwargs
-
-        The function tries the new API first, then falls back to the old API.
-        Neither path ever passes length_scale / noise_scale as kwargs to
-        synthesize(), which is what caused the 'unexpected keyword argument'
-        error.
+        Text chunking: ONNX Runtime can segfault on strings longer than
+        ~400 characters.  Any long input is split at sentence boundaries
+        (then hard-split at _MAX_CHARS if needed) before synthesis.
         """
         if not text.strip():
             return
+
+        # ── Split long text into safe chunks ─────────────────────────────
+        if len(text) <= self._MAX_CHARS:
+            chunks = [text]
+        else:
+            raw_parts = re.split(r'(?<=[.!?])\s+', text.strip())
+            chunks, current = [], ""
+            for part in raw_parts:
+                if len(current) + len(part) + 1 <= self._MAX_CHARS:
+                    current = (current + " " + part).strip() if current else part
+                else:
+                    if current:
+                        chunks.append(current)
+                    while len(part) > self._MAX_CHARS:
+                        chunks.append(part[:self._MAX_CHARS])
+                        part = part[self._MAX_CHARS:]
+                    current = part
+            if current:
+                chunks.append(current)
+
+        for chunk in chunks:
+            if chunk.strip():
+                self._speak_chunk(chunk)
+
+    def _speak_chunk(self, text: str):
+        """Synthesise one safe-length chunk and play it serially."""
         try:
+            # ── Synthesis (serialised by _lock) ──────────────────────────
             with self._lock:
+                if not self._engine:
+                    return
                 if HAS_SYNTHESIS_CONFIG:
-                    # ── NEW API: synthesize_wav() + SynthesisConfig ───────
-                    # SynthesisConfig accepts: length_scale, noise_scale,
-                    # noise_w_scale (note: noise_W_scale, not noise_w),
-                    # volume, normalize_audio
+                    # NEW API: synthesize_wav() + SynthesisConfig
                     syn_config = _SynthesisConfig(
                         length_scale=max(0.5, min(2.0, self.length_scale)),
                         noise_scale=0.667,
@@ -402,9 +444,8 @@ class VoiceEngine:
                         n_channels = wf.getnchannels()
                         samplerate = wf.getframerate()
                         raw_pcm    = wf.readframes(wf.getnframes())
-
                 else:
-                    # ── OLD API: synthesize(text, wav_file) — no kwargs ───
+                    # OLD API: synthesize(text, wav_file) — no kwargs
                     buf = io.BytesIO()
                     with wave.open(buf, "wb") as wf:
                         _sr = getattr(
@@ -421,15 +462,19 @@ class VoiceEngine:
                         samplerate = wf.getframerate()
                         raw_pcm    = wf.readframes(wf.getnframes())
 
-            # ── Convert int16 PCM → float32 and play ─────────────────────
+            # ── Convert int16 PCM → float32 ───────────────────────────────
             audio = np.frombuffer(raw_pcm, dtype=np.int16).astype(np.float32)
             audio /= 32768.0
-            # Always reshape to (frames, channels) — sounddevice requires 2-D
-            # to reliably detect channel count.
-            audio = audio.reshape(-1, n_channels)
+            audio = audio.reshape(-1, n_channels)   # always 2-D for sounddevice
             audio = np.clip(audio * self.volume, -1.0, 1.0)
-            sd.play(audio, samplerate=samplerate)
-            sd.wait()
+
+            # ── Playback (serialised by _play_lock) ───────────────────────
+            # This is the critical fix: only ONE sd.play()+sd.wait() pair
+            # can run at a time across ALL threads.
+            with self._play_lock:
+                sd.play(audio, samplerate=samplerate)
+                sd.wait()
+
         except Exception as exc:
             print(f"{YELLOW}[TTS] speak error: {exc}{RESET}")
 
@@ -527,6 +572,10 @@ class VoiceEngine:
         """Interrupt current speech and clear the queue."""
         with self._speech_queue.mutex:
             self._speech_queue.queue.clear()
+        # sd.stop() is safe to call from any thread — it signals PortAudio
+        # to stop the current stream, which causes sd.wait() to return in
+        # the worker thread.  The _play_lock is NOT acquired here because
+        # stop() must return immediately, not block.
         try:
             sd.stop()
         except Exception:

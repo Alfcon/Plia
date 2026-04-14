@@ -83,11 +83,19 @@ class VoiceAssistant(QObject):
                 return False
             print(f"{CYAN}[VoiceAssistant] ✓ STT initialized{RESET}")
             
-            # Ensure TTS is initialized
-            if not tts.piper_exe:
+            # Ensure TTS is initialized — but guard against calling initialize()
+            # a second time if the model preloader already did so.
+            # The old check `if not tts.piper_exe` was ALWAYS True in Python
+            # library mode (piper_exe is only set for the Windows executable
+            # fallback), so initialize() was called twice, spawning two worker
+            # threads that both tried to drive sounddevice concurrently,
+            # causing a PortAudio segfault that crashed the whole app.
+            if not tts._running:
                 print(f"{CYAN}[VoiceAssistant] Initializing TTS...{RESET}")
                 tts.initialize()
                 print(f"{CYAN}[VoiceAssistant] ✓ TTS initialized{RESET}")
+            else:
+                print(f"{CYAN}[VoiceAssistant] ✓ TTS already initialized (skipping){RESET}")
             
             print(f"{CYAN}[VoiceAssistant] ✓ Voice assistant initialized successfully{RESET}")
             return True
@@ -486,7 +494,11 @@ class VoiceAssistant(QObject):
                 "messages": self.messages,
                 "stream": True,
                 "think": enable_thinking,
-                "keep_alive": "5m"
+                "keep_alive": "5m",
+                "options": {
+                    "num_predict": 512,
+                    "num_ctx": 4096,
+                }
             }
             
             sentence_buffer = SentenceBuffer()
@@ -554,7 +566,11 @@ class VoiceAssistant(QObject):
                 "messages": self.messages,
                 "stream": True,
                 "think": enable_thinking,
-                "keep_alive": "5m"
+                "keep_alive": "5m",
+                "options": {
+                    "num_predict": 512,
+                    "num_ctx": 4096,
+                }
             }
             
             sentence_buffer = SentenceBuffer()
