@@ -446,12 +446,16 @@ class FunctionExecutor:
         return {"success": False, "message": "Failed to add task", "data": None}
     
     def _web_search(self, params: Dict) -> Dict:
-        """Perform a web search."""
+        """Perform a web search.
+
+        Returns up to 20 results so the SearchBrowserWindow can paginate them.
+        The 'results' list contains dicts with keys: title, body, url.
+        """
         query = params.get("query", "")
-        
+
         if not query:
             return {"success": False, "message": "No search query provided", "data": None}
-        
+
         try:
             # Try ddgs first (metasearch aggregator), fall back to duckduckgo_search
             try:
@@ -460,26 +464,26 @@ class FunctionExecutor:
                 from duckduckgo_search import DDGS
 
             with DDGS() as ddgs:
-                results = list(ddgs.text(query, max_results=5))
-            
-            if results:
-                # Format results for display
+                raw = list(ddgs.text(query, max_results=20))
+
+            if raw:
+                # Normalise all results (body truncated to 300 chars for LLM context)
                 formatted = []
-                for r in results[:3]:
+                for r in raw:
                     formatted.append({
                         "title": r.get("title", ""),
-                        "body": r.get("body", "")[:200],
-                        "url": r.get("href", "")
+                        "body":  r.get("body", "")[:300],
+                        "url":   r.get("href", ""),
                     })
-                
+
                 return {
                     "success": True,
-                    "message": f"Found {len(results)} results for '{query}'",
-                    "data": {"query": query, "results": formatted}
+                    "message": f"Found {len(formatted)} results for '{query}'",
+                    "data": {"query": query, "results": formatted},
                 }
-            
+
             return {"success": True, "message": f"No results found for '{query}'", "data": None}
-            
+
         except Exception as e:
             return {"success": False, "message": f"Search failed: {e}", "data": None}
     

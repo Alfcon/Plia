@@ -1,916 +1,966 @@
+"""
+gui/tabs/dashboard.py
+
+P.L.I.A. Dashboard Tab — Iron Man HUD style.
+Replaces the original home-screen dashboard with the futuristic HUD display
+seen in plia2.py, ported from Tkinter → PySide6.
+
+Layout
+------
+  ┌─────────────────────────────────────────────────────┐
+  │  ◆ P.L.I.A.   ● ONLINE            HH:MM:SS — Day   │  ← top bar
+  ├───────────┬─────────────────────────────────────────┤
+  │  Arc      │  COMMUNICATION LOG               [...]  │
+  │  Reactor  │                                         │
+  │           │  [scrolling monospace log]              │
+  │  ───────  │                                         │
+  │  SYSTEM   │  ───────────────────────────────────── │
+  │  MONITOR  │  ~~~  waveform  ~~~                     │
+  │           │  ───────────────────────────────────── │
+  │  ───────  │  🎤  🔊  [__input__________]  [SEND]  │
+  │  Buttons  │                                         │
+  └───────────┴─────────────────────────────────────────┘
+"""
+
+from __future__ import annotations
+
+import math
+import random
+import datetime
+import traceback
+
+import psutil
+
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, 
-    QScrollArea, QGridLayout, QPushButton
+    QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel,
+    QPushButton, QTextEdit, QLineEdit, QSizePolicy, QScrollBar,
 )
-from PySide6.QtCore import Qt, QTimer, QDate, QTime, QSize, Signal, QThread
-from PySide6.QtGui import QFont, QColor
-
-from qfluentwidgets import (
-    CardWidget, TitleLabel, BodyLabel, StrongBodyLabel, 
-    FluentIcon as FIF, IconWidget, TransparentToolButton,
-    SimpleCardWidget, ImageLabel, PillToolButton
+from PySide6.QtCore import (
+    Qt, QTimer, QThread, QObject, Signal, QRectF, QPointF,
+)
+from PySide6.QtGui import (
+    QPainter, QPen, QBrush, QColor, QFont, QTextCharFormat,
+    QTextCursor, QPainterPath,
 )
 
-from core.news import news_manager
-from core.tasks import task_manager
-from core.calendar_manager import calendar_manager
-from core.kasa_control import kasa_manager
-from datetime import datetime, timedelta
-import asyncio
-import feedparser
+# ── GPU monitoring ────────────────────────────────────────────
+try:
+    import pynvml
+    pynvml.nvmlInit()
+    _GPU_OK = True
+except Exception:
+    _GPU_OK = False
 
-# --- Components ---
-
-from core.weather import weather_manager
-
-# ---------------------------------------------------------------------------
-# ABC News RSS ticker
-# ---------------------------------------------------------------------------
-_ABC_TOP_RSS = "https://www.abc.net.au/news/feed/2942460/rss.xml"
-
-
-def _fetch_abc_headlines(max_items: int = 20) -> list:
-    try:
-        feed = feedparser.parse(_ABC_TOP_RSS)
-        return [e.get("title", "") for e in feed.entries[:max_items] if e.get("title")]
-    except Exception as e:
-        print(f"[Ticker] RSS error: {e}")
-        return []
-
-
-class ABCHeadlineThread(QThread):
-    loaded = Signal(list)
-
-    def run(self):
-        self.loaded.emit(_fetch_abc_headlines())
+# ── Colour palette (matches plia2.py C_* constants) ───────────
+C_BG          = "#0a0a0f"
+C_PANEL       = "#0d0d18"
+C_BORDER      = "#1a3a5c"
+C_ACCENT      = "#00b4d8"
+C_ACCENT2     = "#0077b6"
+C_TEXT        = "#c8dce8"
+C_TEXT_DIM    = "#4a6a80"
+C_WARN        = "#f4a261"
+C_ERROR       = "#e63946"
+C_SUCCESS     = "#2ec4b6"
+C_GOLD        = "#ffd60a"
+C_ARC_BLUE    = "#48cae4"
+C_ARC_GLOW    = "#90e0ef"
+C_REACTOR     = "#00b4d8"
+C_GPU         = "#4fc3f7"
 
 
-class NewsTicker(QFrame):
+# ══════════════════════════════════════════════════════════════
+#  ARC REACTOR  (animated via QTimer + paintEvent)
+# ══════════════════════════════════════════════════════════════
+class ArcReactorWidget(QWidget):
     """
-    A pinned horizontal bar at the bottom of the dashboard that scrolls
-    ABC News headlines right-to-left in a continuous loop.
+    Animated power-core widget that mirrors plia2.py's ArcReactorCanvas.
+    Draws concentric rotating rings, triangular spokes, and a pulsing core
+    using QPainter — no external assets required.
     """
-    headline_clicked = Signal()   # navigates to Briefing tab
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None, size: int = 190) -> None:
         super().__init__(parent)
-        self.setFixedHeight(34)
-        self.setStyleSheet("""
-            QFrame {
-                background-color: #07101f;
-                border-top: 1px solid #1a2236;
-            }
-        """)
+        self.setFixedSize(size, size)
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
 
-        outer = QHBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.setSpacing(0)
-
-        # "ABC NEWS" badge
-        badge = QLabel("  📡 ABC NEWS  ")
-        badge.setFixedWidth(115)
-        badge.setAlignment(Qt.AlignCenter)
-        badge.setStyleSheet(
-            "background:#c0392b; color:white; font-weight:bold; font-size:11px; font-family:'Segoe UI';"
-        )
-        outer.addWidget(badge)
-
-        # Clipping container — the scrolling label moves inside here
-        self._viewport = QWidget()
-        self._viewport.setStyleSheet("background:transparent;")
-        self._viewport.setFixedHeight(34)
-        outer.addWidget(self._viewport, 1)
-
-        # The actual label that scrolls
-        self._label = QLabel(self._viewport)
-        self._label.setFixedHeight(34)
-        self._label.setAlignment(Qt.AlignVCenter | Qt.AlignLeft)
-        self._label.setStyleSheet(
-            "color:#dce6f5; font-size:12px; font-family:'Segoe UI'; background:transparent;"
-        )
-        self._label.setCursor(Qt.PointingHandCursor)
-        self._label.mousePressEvent = lambda _e: self.headline_clicked.emit()
-
-        self._pos: float = 0.0
-        self._speed: float = 1.0        # pixels per timer tick
-        self._interval: int = 16        # ~60 fps
+        self._size  = size
+        self._cx    = size / 2
+        self._cy    = size / 2
+        self._angle = 0.0
+        self._pulse = 0.0
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
+        self._timer.start(33)          # ~30 FPS
 
-        # Load headlines shortly after the window is shown
-        QTimer.singleShot(800, self._start_fetch)
+    def _tick(self) -> None:
+        self._angle = (self._angle + 1.2) % 360
+        self._pulse += 0.08
+        self.update()
 
-    # ── public ──────────────────────────────────────────────────────────────
+    def paintEvent(self, _event) -> None:          # noqa: N802
+        p   = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-    def set_headlines(self, headlines: list):
-        if not headlines:
-            headlines = ["No headlines available — check your internet connection."]
-        sep = "          ◆          "
-        text = sep.join(headlines)
-        # Duplicate so the scroll loops seamlessly
-        self._label.setText(text + sep + text)
-        self._label.adjustSize()
-        self._label.setFixedHeight(34)
-        # Start just off the right edge of the viewport
-        self._pos = float(max(self._viewport.width(), 0))
-        self._label.move(int(self._pos), 0)
-        if not self._timer.isActive():
-            self._timer.start(self._interval)
+        cx, cy = self._cx, self._cy
+        ang    = self._angle
+        pls    = self._pulse
 
-    # ── private ─────────────────────────────────────────────────────────────
+        # Fill background
+        p.fillRect(self.rect(), QColor(C_BG))
 
-    def _start_fetch(self):
-        self._thread = ABCHeadlineThread()
-        self._thread.loaded.connect(self.set_headlines)
-        self._thread.start()
+        # ── Faint outer glow rings ────────────────────────────
+        for i in range(5):
+            r     = 80 + i * 2.5
+            alpha = max(10, 40 - i * 8)
+            pen   = QPen(QColor(0, 20 + alpha, 180, alpha))
+            pen.setWidthF(1.0)
+            p.setPen(pen)
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
 
-    def _tick(self):
-        self._pos -= self._speed
-        half = self._label.width() / 2
-        if -self._pos >= half:          # first copy scrolled fully off — reset
-            self._pos = float(self._viewport.width())
-        self._label.move(int(self._pos), 0)
+        # ── Outer ring ────────────────────────────────────────
+        pen = QPen(QColor(C_BORDER))
+        pen.setWidthF(2.0)
+        p.setPen(pen)
+        p.drawEllipse(QRectF(cx - 76, cy - 76, 152, 152))
 
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self._label.setFixedHeight(34)
+        # ── 8 rotating outer ticks ────────────────────────────
+        pen_acc = QPen(QColor(C_ACCENT))
+        pen_acc.setWidthF(2.0)
+        p.setPen(pen_acc)
+        for i in range(8):
+            a  = math.radians(ang + i * 45)
+            x1 = cx + 66 * math.cos(a)
+            y1 = cy + 66 * math.sin(a)
+            x2 = cx + 76 * math.cos(a)
+            y2 = cy + 76 * math.sin(a)
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
 
-class GreetingsHeader(QWidget):
+        # ── Middle ring ───────────────────────────────────────
+        pen_acc2 = QPen(QColor(C_ACCENT2))
+        pen_acc2.setWidthF(1.0)
+        p.setPen(pen_acc2)
+        p.drawEllipse(QRectF(cx - 56, cy - 56, 112, 112))
+
+        # ── 6 counter-rotating mid ticks ─────────────────────
+        pen_blue = QPen(QColor(C_ARC_BLUE))
+        pen_blue.setWidthF(2.0)
+        p.setPen(pen_blue)
+        for i in range(6):
+            a  = math.radians(-ang * 1.5 + i * 60)
+            x1 = cx + 48 * math.cos(a)
+            y1 = cy + 48 * math.sin(a)
+            x2 = cx + 56 * math.cos(a)
+            y2 = cy + 56 * math.sin(a)
+            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
+
+        # ── Inner ring ────────────────────────────────────────
+        pen_acc.setWidthF(1.0)
+        p.setPen(pen_acc)
+        p.drawEllipse(QRectF(cx - 35, cy - 35, 70, 70))
+
+        # ── 3 fast-rotating triangular spokes ────────────────
+        pen_glow = QPen(QColor(C_ARC_GLOW))
+        pen_glow.setWidthF(1.0)
+        p.setPen(pen_glow)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        for i in range(3):
+            a    = math.radians(ang * 2 + i * 120)
+            x1   = cx + 28 * math.cos(a)
+            y1   = cy + 28 * math.sin(a)
+            x2   = cx + 35 * math.cos(a + 0.3)
+            y2   = cy + 35 * math.sin(a + 0.3)
+            x3   = cx + 35 * math.cos(a - 0.3)
+            y3   = cy + 35 * math.sin(a - 0.3)
+            path = QPainterPath()
+            path.moveTo(x1, y1)
+            path.lineTo(x2, y2)
+            path.lineTo(x3, y3)
+            path.closeSubpath()
+            p.drawPath(path)
+
+        # ── Pulsing core ─────────────────────────────────────
+        pr = 16 + 4 * math.sin(pls)
+        # Dark halo
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(QColor(0, 26, 51)))
+        p.drawEllipse(QRectF(cx - pr - 7, cy - pr - 7,
+                             (pr + 7) * 2, (pr + 7) * 2))
+        # Glowing core fill
+        p.setBrush(QBrush(QColor(C_REACTOR)))
+        pen_glow2 = QPen(QColor(C_ARC_GLOW))
+        pen_glow2.setWidthF(2.0)
+        p.setPen(pen_glow2)
+        p.drawEllipse(QRectF(cx - pr, cy - pr, pr * 2, pr * 2))
+        # Inner highlight
+        ir = 5 + 2 * math.sin(pls * 1.5)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QBrush(QColor(C_ARC_GLOW)))
+        p.drawEllipse(QRectF(cx - ir, cy - ir, ir * 2, ir * 2))
+
+        p.end()
+
+
+# ══════════════════════════════════════════════════════════════
+#  WAVEFORM  (animated sine wave)
+# ══════════════════════════════════════════════════════════════
+class WaveformWidget(QWidget):
     """
-    Header showing "Good [Morning/Afternoon/Evening]" and Bubbles (Time | Weather).
+    Audio waveform visualiser that mirrors plia2.py's WaveformCanvas.
+    Two layered sine waves rendered with QPainter, animated at ~30 FPS.
+    Call set_amplitude(value) to make the waveform spike.
     """
-    def __init__(self, parent=None):
+
+    def __init__(self, parent: QWidget | None = None, height: int = 50) -> None:
         super().__init__(parent)
-        self.layout = QHBoxLayout(self)
-        self.layout.setContentsMargins(0, 0, 0, 20)
-        self.layout.setSpacing(15)
-        
-        # Text Block
-        text_layout = QVBoxLayout()
-        text_layout.setSpacing(2)
-        
-        self.sub_label = BodyLabel("Welcome back, User")
-        self.sub_label.setStyleSheet("color: #8b9bb4;")
-        
-        self.title_label = QLabel()
-        self.title_label.setStyleSheet("font-size: 42px; font-weight: bold; color: #33b5e5; font-family: 'Segoe UI', sans-serif;")
-        
-        self.date_label = BodyLabel()
-        self.date_label.setStyleSheet("color: #8b9bb4; font-size: 14px;")
-        
-        text_layout.addWidget(self.sub_label)
-        text_layout.addWidget(self.title_label)
-        text_layout.addWidget(self.date_label)
-        
-        self.layout.addLayout(text_layout)
+        self.setFixedHeight(height)
+        self.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
-        # ── Plia animated logo (centre) ──────────────────────────────────────
-        from gui.components.voice_indicator import EmbeddedVoiceWidget
-        self.voice_widget = EmbeddedVoiceWidget()
-        self.layout.addStretch()
-        self.layout.addWidget(self.voice_widget, 0, Qt.AlignCenter)
-        self.layout.addStretch()
-        
-        # --- Bubbles Container ---
-        # We use a container to hold the two bubbles side-by-side or grouped
-        bubbles_layout = QHBoxLayout()
-        bubbles_layout.setSpacing(15)
-        
-        # 1. Time Bubble
-        self.time_bubble = QFrame()
-        self.time_bubble.setFixedSize(160, 100)
-        self.time_bubble.setStyleSheet("""
-            QFrame {
-                background-color: #0f1524;
-                border: 1px solid #1a2236;
-                border-radius: 20px;
-            }
-        """)
-        tb_layout = QVBoxLayout(self.time_bubble)
-        tb_layout.setAlignment(Qt.AlignCenter)
-        
-        self.clock_label = QLabel()
-        self.clock_label.setStyleSheet("color: #e8eaed; font-size: 28px; font-weight: bold;")
-        tb_layout.addWidget(self.clock_label)
-        
-        bubbles_layout.addWidget(self.time_bubble)
-        
-        # 2. Weather Bubble
-        self.weather_bubble = QFrame()
-        self.weather_bubble.setFixedSize(160, 100)
-        self.weather_bubble.setStyleSheet("""
-            QFrame {
-                background-color: #0f1524;
-                border: 1px solid #1a2236;
-                border-radius: 20px;
-            }
-        """)
-        wb_layout = QVBoxLayout(self.weather_bubble)
-        wb_layout.setAlignment(Qt.AlignCenter)
-        wb_layout.setSpacing(5)
-        
-        # Icon Area
-        # Using a label for emoji or IconWidget
-        self.w_icon_label = QLabel("☁️") # Default emoji
-        self.w_icon_label.setStyleSheet("font-size: 24px; background: transparent;")
-        self.w_icon_label.setAlignment(Qt.AlignCenter)
-        
-        self.temp_label = QLabel("--°")
-        self.temp_label.setStyleSheet("color: #e8eaed; font-size: 18px; font-weight: bold;")
-        
-        self.cond_label = QLabel("Loading...")
-        self.cond_label.setStyleSheet("color: #8b9bb4; font-size: 12px;")
-        
-        wb_layout.addWidget(self.w_icon_label)
-        wb_layout.addWidget(self.temp_label)
-        wb_layout.addWidget(self.cond_label)
-        
-        bubbles_layout.addWidget(self.weather_bubble)
-        
-        self.layout.addLayout(bubbles_layout)
-        
-        # Timer
-        self._update_time()
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self._update_time)
-        self.timer.start(1000) 
-        
-        # Weather update (async would be better, but simple timer fits pattern)
-        # Fetch immediately then every 15 mins
-        self._fetch_weather()
-        self.w_timer = QTimer(self)
-        self.w_timer.timeout.connect(self._fetch_weather)
-        self.w_timer.start(900000) 
+        self._phase     = 0.0
+        self._amplitude = 2.0
 
-    def _update_time(self):
-        now = datetime.now()
-        hour = now.hour
-        
-        if 5 <= hour < 12:
-            greeting = "Good Morning"
-        elif 12 <= hour < 18:
-            greeting = "Good Afternoon"
-        else:
-            greeting = "Good Evening"
-            
-        self.title_label.setText(greeting)
-        self.date_label.setText("📅 " + QDate.currentDate().toString("dddd, MMMM d"))
-        self.clock_label.setText(QTime.currentTime().toString("h:mm AP"))
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(33)
 
-    def _fetch_weather(self):
-        # Guard against previous thread still running
+    def set_amplitude(self, amp: float) -> None:
+        self._amplitude = max(2.0, min(25.0, float(amp)))
+
+    def _tick(self) -> None:
+        self._phase += 0.15
+        if self._amplitude > 2.0:
+            self._amplitude *= 0.97
+        self.update()
+
+    def paintEvent(self, _event) -> None:          # noqa: N802
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), QColor(C_BG))
+
+        w   = self.width()
+        mid = self.height() / 2
+        ph  = self._phase
+        amp = self._amplitude
+
+        # Primary wave
+        pen1 = QPen(QColor(C_ACCENT))
+        pen1.setWidthF(1.5)
+        p.setPen(pen1)
+        pts: list[QPointF] = []
+        for x in range(0, w, 2):
+            y = (mid + amp * math.sin(ph + x * 0.04)
+                 * math.cos(ph * 0.7 + x * 0.02)
+                 + random.uniform(-amp * 0.3, amp * 0.3))
+            pts.append(QPointF(x, y))
+        if len(pts) >= 2:
+            path = QPainterPath()
+            path.moveTo(pts[0])
+            for pt in pts[1:]:
+                path.lineTo(pt)
+            p.drawPath(path)
+
+        # Secondary wave (slightly different frequency)
+        pen2 = QPen(QColor(C_ACCENT2))
+        pen2.setWidthF(1.0)
+        p.setPen(pen2)
+        pts2: list[QPointF] = []
+        for x in range(0, w, 2):
+            y = mid + amp * 0.6 * math.sin(ph * 1.3 + x * 0.05 + 1)
+            pts2.append(QPointF(x, y))
+        if len(pts2) >= 2:
+            path2 = QPainterPath()
+            path2.moveTo(pts2[0])
+            for pt in pts2[1:]:
+                path2.lineTo(pt)
+            p.drawPath(path2)
+
+        p.end()
+
+
+# ══════════════════════════════════════════════════════════════
+#  SYSTEM MONITOR PANEL (bar-based, matches plia2.py look)
+# ══════════════════════════════════════════════════════════════
+class _BarRow(QWidget):
+    """Single metric row: label | progress bar | percentage."""
+
+    def __init__(self, name: str, accent: QColor, parent=None) -> None:
+        super().__init__(parent)
+        self.setFixedHeight(22)
+        self._pct    = 0.0
+        self._accent = accent
+
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(8, 0, 8, 0)
+        lay.setSpacing(4)
+
+        self._name_lbl = QLabel(f"{name}:")
+        self._name_lbl.setFixedWidth(38)
+        self._name_lbl.setFont(QFont("Consolas", 8))
+        self._name_lbl.setStyleSheet(f"color: {C_TEXT_DIM};")
+        lay.addWidget(self._name_lbl)
+
+        self._bar = _MiniBar(accent)
+        self._bar.setFixedSize(110, 12)
+        lay.addWidget(self._bar)
+
+        self._pct_lbl = QLabel("--")
+        self._pct_lbl.setFixedWidth(36)
+        self._pct_lbl.setFont(QFont("Consolas", 8))
+        self._pct_lbl.setStyleSheet(f"color: {C_TEXT};")
+        lay.addWidget(self._pct_lbl)
+
+    def set_value(self, pct: float, override_color: QColor | None = None) -> None:
+        self._pct = max(0.0, min(100.0, pct))
+        color = override_color or self._color_for(pct)
+        self._bar.set_value(self._pct, color)
+        self._pct_lbl.setText(f"{pct:.0f}%")
+        self._pct_lbl.setStyleSheet(
+            f"color: {color.name()}; font-family: Consolas; font-size: 8pt;"
+        )
+
+    @staticmethod
+    def _color_for(pct: float) -> QColor:
+        if pct >= 90:
+            return QColor("#ef5350")
+        if pct >= 70:
+            return QColor("#ffb74d")
+        if pct >= 50:
+            return QColor("#fff176")
+        return QColor(C_ACCENT)
+
+
+class _MiniBar(QWidget):
+    """Thin coloured progress bar without Qt's built-in QProgressBar styling."""
+
+    def __init__(self, default_color: QColor, parent=None) -> None:
+        super().__init__(parent)
+        self._pct   = 0.0
+        self._color = default_color
+
+    def set_value(self, pct: float, color: QColor) -> None:
+        self._pct   = pct
+        self._color = color
+        self.update()
+
+    def paintEvent(self, _event) -> None:          # noqa: N802
+        p = QPainter(self)
+        w, h = self.width(), self.height()
+
+        # Dark background
+        p.fillRect(0, 0, w, h, QColor("#0a0a12"))
+        # Filled portion
+        filled = int(w * self._pct / 100)
+        if filled > 0:
+            p.fillRect(0, 0, filled, h, self._color)
+        # Border
+        pen = QPen(QColor(C_BORDER))
+        pen.setWidth(1)
+        p.setPen(pen)
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawRect(0, 0, w - 1, h - 1)
+        p.end()
+
+
+class _MonitorWorker(QObject):
+    """Collect psutil / pynvml stats off the UI thread."""
+    stats_ready = Signal(dict)
+
+    def collect(self) -> None:                     # noqa: D102
         try:
-            if hasattr(self, '_thread') and self._thread and self._thread.isRunning():
-                return
-        except RuntimeError:
-            self._thread = None
+            data: dict = {}
+            data["cpu"]  = psutil.cpu_percent(interval=None)
+            mem          = psutil.virtual_memory()
+            data["ram"]  = mem.percent
+            disk         = psutil.disk_usage("/")
+            data["disk"] = disk.percent
+            boot         = datetime.datetime.fromtimestamp(psutil.boot_time())
+            up           = datetime.datetime.now() - boot
+            d, h, m      = (up.days,
+                            up.seconds // 3600,
+                            (up.seconds % 3600) // 60)
+            data["uptime"] = f"Uptime: {d}d {h}h {m}m"
 
-        self._thread = QThread()
-        self._worker = WeatherWorker()
-        self._worker.moveToThread(self._thread)
-        self._thread.started.connect(self._worker.run)
-        self._worker.finished.connect(self._on_weather_loaded)
-        self._worker.finished.connect(self._thread.quit)
-        self._worker.finished.connect(self._worker.deleteLater)
-        self._thread.finished.connect(self._thread.deleteLater)
-        self._thread.finished.connect(self._on_weather_thread_done)
-        self._thread.start()
-
-    def _on_weather_thread_done(self):
-        """Null out thread reference after Qt deletes the C++ object."""
-        self._thread = None
-        self._worker = None
-
-    def _on_weather_loaded(self, data):
-        if not data:
-            self.cond_label.setText("Offline")
-            return
-
-        temp = data['temp']
-        code = data['code']
-        unit = data.get('unit', '°C')   # use unit from weather_manager
-
-        self.temp_label.setText(f"{int(temp)}{unit}")
-
-        if code == 0:
-            icon, text = "☀️", "Clear"
-        elif code in [1, 2, 3]:
-            icon, text = "⛅", "Cloudy"
-        elif code in [45, 48]:
-            icon, text = "🌫️", "Foggy"
-        elif code in [51, 53, 55, 61, 63, 65]:
-            icon, text = "🌧️", "Rain"
-        elif code in [71, 73, 75, 85, 86]:
-            icon, text = "❄️", "Snow"
-        elif code >= 95:
-            icon, text = "⚡", "Storm"
-        else:
-            icon, text = "🌡️", "Unknown"
-
-        self.w_icon_label.setText(icon)
-        self.cond_label.setText(text)
-
-    def refresh_weather(self):
-        """Public method — re-fetches weather immediately (called on settings change)."""
-        self._fetch_weather()
-
-class WeatherWorker(QThread):
-    finished = Signal(dict)
-    def run(self):
-        data = weather_manager.get_weather()
-        self.finished.emit(data or {})
-
-class StatCard(CardWidget):
-    """
-    Square/Rectangular card for quick stats (Agenda, Devices, etc).
-    Clickable - emits navigate_requested signal with route_key for navigation.
-    """
-    navigate_requested = Signal(str)
-    
-    def __init__(self, icon: FIF, title: str, count: str, route_key: str = None, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(280, 110)
-        self.setBorderRadius(16)
-        self.route_key = route_key
-        if route_key:
-            self.setCursor(Qt.PointingHandCursor)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(20, 20, 25, 20)
-        
-        # Left Side: Icon + Title
-        left = QVBoxLayout()
-        left.setSpacing(15)
-        
-        # Icon bubble
-        icon_bubble = QLabel()
-        icon_bubble.setFixedSize(40, 40)
-        icon_bubble.setAlignment(Qt.AlignCenter)
-        # Using a QFrame approach or just styling the label
-        # Since I can't easily embed FluentIcon in stylesheet, use IconWidget in a container
-        
-        ib_container = QFrame()
-        ib_container.setFixedSize(40, 40)
-        ib_container.setStyleSheet("background-color: #1a2236; border-radius: 12px;")
-        ib_layout = QVBoxLayout(ib_container)
-        ib_layout.setContentsMargins(0,0,0,0)
-        ib_layout.setAlignment(Qt.AlignCenter)
-        
-        iw = IconWidget(icon)
-        iw.setFixedSize(20, 20)
-        # Tint icon
-        # iw.setStyleSheet("color: #33b5e5;") # IconWidget doesn't style this way easily
-        ib_layout.addWidget(iw)
-        
-        left.addWidget(ib_container)
-        
-        lbl = BodyLabel(title)
-        lbl.setStyleSheet("color: #8b9bb4; font-size: 13px; font-weight: 500;")
-        left.addWidget(lbl)
-        
-        layout.addLayout(left)
-        layout.addStretch()
-        
-        # Right Side: Big Number
-        self.num_label = QLabel(str(count))
-        self.num_label.setStyleSheet("font-size: 28px; font-weight: bold; color: #e8eaed;")
-        self.num_label.setAlignment(Qt.AlignRight | Qt.AlignTop)
-        layout.addWidget(self.num_label)
-
-    def set_count(self, count):
-        self.num_label.setText(str(count))
-    
-    def mousePressEvent(self, event):
-        super().mousePressEvent(event)
-        if self.route_key:
-            self.navigate_requested.emit(self.route_key)
-
-class HomeScenesCard(CardWidget):
-    """
-    Card with Home Scene buttons that control Kasa devices.
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedSize(280, 160)
-        self.setBorderRadius(16)
-        self._devices = []
-        self._action_thread = None
-        
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(15)
-        
-        t1 = StrongBodyLabel("Home Scenes")
-        t2 = BodyLabel("Instant environmental adjustments.")
-        t2.setStyleSheet("color: #6e7a8e; font-size: 12px;")
-        
-        layout.addWidget(t1)
-        layout.addWidget(t2)
-        
-        # Buttons
-        btns = QHBoxLayout()
-        self.focus_btn = QPushButton("Focus Mode")
-        self.focus_btn.setStyleSheet("""
-            QPushButton {
-                background-color: #1a2236; color: #e8eaed; border: 1px solid #1a2236; 
-                border-radius: 8px; padding: 8px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #232d45; }
-        """)
-        self.focus_btn.clicked.connect(self._on_focus_mode)
-        
-        self.relax_btn = QPushButton("Relax")
-        self.relax_btn.setStyleSheet("""
-            QPushButton {
-                background-color: transparent; color: #e8eaed; border: 1px solid #1a2236; 
-                border-radius: 8px; padding: 8px; font-weight: bold;
-            }
-            QPushButton:hover { background-color: #1a2236; }
-        """)
-        self.relax_btn.clicked.connect(self._on_relax_mode)
-        
-        btns.addWidget(self.focus_btn)
-        btns.addWidget(self.relax_btn)
-        layout.addLayout(btns)
-    
-    def set_devices(self, devices: list):
-        """Store the discovered devices for scene control."""
-        self._devices = devices
-    
-    def _on_focus_mode(self):
-        """Focus Mode: Turn off all lights to minimize distractions."""
-        if not self._devices:
-            return
-        self._run_scene_action(self._focus_action)
-    
-    def _on_relax_mode(self):
-        """Relax Mode: Dim lights to 40%."""
-        if not self._devices:
-            return
-        self._run_scene_action(self._relax_action)
-    
-    def _run_scene_action(self, action_func):
-        """Run a scene action in a background thread."""
-        class SceneThread(QThread):
-            def __init__(self, func):
-                super().__init__()
-                self.func = func
-            def run(self):
+            if _GPU_OK:
                 try:
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    loop.run_until_complete(self.func())
-                    loop.close()
-                except Exception as e:
-                    print(f"Scene action error: {e}")
-        
-        # Wait for any previous thread to finish (with safety check)
-        try:
-            if self._action_thread is not None and self._action_thread.isRunning():
-                self._action_thread.wait()
-        except RuntimeError:
-            # C++ object already deleted, that's fine
-            pass
-        
-        self._action_thread = SceneThread(action_func)
-        # Clear our reference when finished to avoid stale reference issues
-        self._action_thread.finished.connect(lambda: setattr(self, '_action_thread', None))
-        self._action_thread.start()
-    
-    async def _focus_action(self):
-        """Turn off all discovered devices."""
-        for device in self._devices:
-            try:
-                dev_obj = device.get('obj')
-                await kasa_manager.turn_off(device['ip'], dev=dev_obj)
-            except Exception as e:
-                print(f"Focus mode error for {device['alias']}: {e}")
-    
-    async def _relax_action(self):
-        """Dim all dimmable devices to 40%."""
-        for device in self._devices:
-            try:
-                dev_obj = device.get('obj')
-                if device.get('brightness') is not None:
-                    await kasa_manager.set_brightness(device['ip'], 40, dev=dev_obj)
-                    await kasa_manager.turn_on(device['ip'], dev=dev_obj)
-                else:
-                    # For non-dimmable, just turn on
-                    await kasa_manager.turn_on(device['ip'], dev=dev_obj)
-            except Exception as e:
-                print(f"Relax mode error for {device['alias']}: {e}")
-
-
-class IntelligenceItem(QFrame):
-    """
-    Single row in the Intelligence Feed.
-    """
-    def __init__(self, icon: FIF, title: str, description: str, time_str: str, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet("background: transparent; border: none;")
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(0, 10, 0, 10)
-        layout.setSpacing(15)
-        
-        # Icon
-        ic_bg = QFrame()
-        ic_bg.setFixedSize(36, 36)
-        ic_bg.setStyleSheet("background-color: #141c2f; border-radius: 10px;")
-        icl = QVBoxLayout(ic_bg)
-        icl.setContentsMargins(0,0,0,0)
-        icl.setAlignment(Qt.AlignCenter)
-        icl.addWidget(IconWidget(icon))
-        
-        layout.addWidget(ic_bg)
-        
-        # Content
-        col = QVBoxLayout()
-        col.setSpacing(4)
-        
-        top_line = QHBoxLayout()
-        self.t_lbl = StrongBodyLabel(title)
-        self.time_lbl = BodyLabel(time_str)
-        self.time_lbl.setStyleSheet("color: #6e7a8e; font-size: 11px;")
-        
-        top_line.addWidget(self.t_lbl)
-        top_line.addStretch()
-        top_line.addWidget(self.time_lbl)
-        
-        self.desc_lbl = BodyLabel(description)
-        self.desc_lbl.setStyleSheet("color: #8b9bb4; font-size: 12px;")
-        self.desc_lbl.setWordWrap(True)
-        
-        col.addLayout(top_line)
-        col.addWidget(self.desc_lbl)
-        
-        layout.addLayout(col)
-        
-    def update_content(self, title: str, description: str, time_str: str):
-        self.t_lbl.setText(title)
-        self.desc_lbl.setText(description)
-        self.time_lbl.setText(time_str)
-
-class IntelligenceFeed(CardWidget):
-    """
-    Main content area: System Intelligence.
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setBorderRadius(20)
-        
-        self.layout = QVBoxLayout(self)
-        self.layout.setContentsMargins(30, 25, 30, 30)
-        self.layout.setSpacing(20)
-        
-        # Header
-        h_layout = QHBoxLayout()
-        h = TitleLabel("System Intelligence", self)
-        h.setStyleSheet("font-size: 18px; font-weight: bold;")
-        
-        live_tag = QLabel("Live Updates")
-        live_tag.setStyleSheet("""
-            background-color: #1a2236; color: #8b9bb4; 
-            padding: 4px 10px; border-radius: 6px; font-size: 10px; font-weight: bold;
-        """)
-        
-        h_layout.addWidget(h)
-        h_layout.addStretch()
-        h_layout.addWidget(live_tag)
-        
-        self.layout.addLayout(h_layout)
-        
-        # 1. Daily Focus
-        self.focus_item = IntelligenceItem(
-            FIF.TILES,
-            "Daily Focus",
-            "Analyzing your schedule...",
-            "NOW"
-        )
-        self.layout.addWidget(self.focus_item)
-        
-        # Separator
-        sep1 = QFrame()
-        sep1.setFixedHeight(1)
-        sep1.setStyleSheet("background-color: #1a2236;")
-        self.layout.addWidget(sep1)
-        
-        # 2. News (Intel Alert)
-        self.news_item = IntelligenceItem(
-            FIF.WIFI,
-            "Intel Alert",
-            "Syncing intelligence streams...",
-            "NOW"
-        )
-        self.layout.addWidget(self.news_item)
-            
-        # Separator
-        sep2 = QFrame()
-        sep2.setFixedHeight(1)
-        sep2.setStyleSheet("background-color: #1a2236;")
-        self.layout.addWidget(sep2)
-        
-        # 3. Devices Status
-        self.devices_item = IntelligenceItem(
-            FIF.IOT, 
-            "Smart Home",
-            "Scanning for connected devices...",
-            "NOW"
-        )
-        self.layout.addWidget(self.devices_item)
-        
-        self.layout.addStretch()
-        
-        # Upcoming Priority Card (Embedded at bottom)
-        self.priority = PriorityCard()
-        self.layout.addWidget(self.priority)
-
-    def update_news(self, news):
-        if news:
-            top = news[0]
-            self.news_item.update_content("Intel Alert", top['title'], "JUST NOW")
-        else:
-            self.news_item.update_content("Intel Alert", "No active intelligence streams detected.", "NOW")
-    
-    def update_devices(self, devices):
-        count = len(devices) if devices else 0
-        online = sum(1 for d in devices if d.get('is_on')) if devices else 0
-        if count > 0:
-            self.devices_item.update_content(
-                "Smart Home", 
-                f"{count} devices found, {online} currently on.", 
-                "LIVE"
-            )
-        else:
-            self.devices_item.update_content(
-                "Smart Home", 
-                "No Kasa devices detected on network.", 
-                "NOW"
-            )
-    
-    def update_focus(self, tasks):
-        active = [t for t in tasks if not t.get('completed')]
-        if active:
-            self.focus_item.update_content(
-                "Daily Focus",
-                f"You have {len(active)} active task{'s' if len(active) != 1 else ''} to complete today.",
-                "NOW"
-            )
-        else:
-            self.focus_item.update_content(
-                "Daily Focus",
-                "All tasks completed. Great job!",
-                "NOW"
-            )
-
-class PriorityCard(QFrame):
-    """
-    Blue gradient card for next priority.
-    """
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setFixedHeight(100)
-        self.setStyleSheet("""
-            QFrame {
-                background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #33b5e5, stop:1 #4a68af);
-                border-radius: 16px;
-            }
-        """)
-        
-        layout = QHBoxLayout(self)
-        layout.setContentsMargins(25, 0, 25, 0)
-        
-        # Text
-        txt = QVBoxLayout()
-        txt.setAlignment(Qt.AlignVCenter)
-        txt.setSpacing(5)
-        
-        l1 = QLabel("Upcoming Priority")
-        l1.setStyleSheet("color: white; font-weight: bold; font-size: 16px; background: transparent;")
-        
-        self.title_label = QLabel("No upcoming events")
-        self.title_label.setStyleSheet("color: rgba(255,255,255,0.9); font-size: 14px; background: transparent;")
-        
-        self.time_label = QLabel("")
-        self.time_label.setStyleSheet("color: rgba(255,255,255,0.7); font-size: 12px; background: transparent;")
-        
-        txt.addWidget(l1)
-        txt.addWidget(self.title_label)
-        txt.addWidget(self.time_label)
-        
-        layout.addLayout(txt)
-        layout.addStretch()
-        
-        # Button
-        btn = QPushButton("Details")
-        btn.setFixedSize(80, 32)
-        btn.setStyleSheet("""
-            QPushButton {
-                background-color: rgba(255,255,255,0.2);
-                color: white;
-                border-radius: 8px;
-                border: 1px solid rgba(255,255,255,0.3);
-                font-weight: bold;
-            }
-            QPushButton:hover { background-color: rgba(255,255,255,0.3); }
-        """)
-        layout.addWidget(btn)
-
-    def update_event(self, events: list):
-        """Update with the next upcoming event from the list."""
-        now = datetime.now()
-        next_event = None
-        
-        for event in events:
-            try:
-                start_time = datetime.strptime(event['start_time'], "%Y-%m-%d %H:%M:%S")
-                if start_time > now:
-                    if next_event is None or start_time < datetime.strptime(next_event['start_time'], "%Y-%m-%d %H:%M:%S"):
-                        next_event = event
-            except (KeyError, ValueError):
-                continue
-        
-        if next_event:
-            self.title_label.setText(next_event['title'])
-            start_time = datetime.strptime(next_event['start_time'], "%Y-%m-%d %H:%M:%S")
-            delta = start_time - now
-            minutes = int(delta.total_seconds() / 60)
-            if minutes < 60:
-                self.time_label.setText(f"Starts in {minutes} minutes")
+                    handle         = pynvml.nvmlDeviceGetHandleByIndex(0)
+                    util           = pynvml.nvmlDeviceGetUtilizationRates(handle)
+                    mi             = pynvml.nvmlDeviceGetMemoryInfo(handle)
+                    data["gpu"]    = float(util.gpu)
+                    data["vram"]   = (mi.used / mi.total) * 100 if mi.total else 0.0
+                    data["vram_gb"] = (
+                        f"{mi.used / 1024**3:.1f} / {mi.total / 1024**3:.1f} GB"
+                    )
+                except Exception:
+                    data["gpu"] = data["vram"] = None
             else:
-                hours = minutes // 60
-                self.time_label.setText(f"Starts in {hours} hour{'s' if hours > 1 else ''}")
-        else:
-            self.title_label.setText("No upcoming events")
-            self.time_label.setText("Enjoy your free time!")
+                data["gpu"] = data["vram"] = None
 
-class DashboardLoader(QThread):
-    finished = Signal(dict)
-    
-    def run(self):
-        # Fetch tasks, news, devices, and calendar in background
-        try:
-            tasks = task_manager.get_tasks()
-            news = news_manager.get_briefing(use_ai=False)
-            
-            # Fetch Kasa devices
-            devices = []
-            try:
-                print("[Dashboard] Starting Kasa device discovery...")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                devices_dict = loop.run_until_complete(kasa_manager.discover_devices())
-                loop.close()
-                # Convert dict to list for GUI
-                devices = list(devices_dict.values()) if isinstance(devices_dict, dict) else devices_dict
-                print(f"[Dashboard] Found {len(devices)} devices")
-            except Exception as e:
-                print(f"[Dashboard] Kasa discovery error: {e}")
-            
-            # Fetch today's calendar events
-            today_str = datetime.now().strftime("%Y-%m-%d")
-            events = calendar_manager.get_events(today_str)
-            
-            print("[Dashboard] Data loading complete, emitting signal")
-            self.finished.emit({
-                "tasks": tasks,
-                "news": news,
-                "devices": devices,
-                "events": events
-            })
-        except Exception as e:
-            print(f"[Dashboard] Loader error: {e}")
-            self.finished.emit({"tasks": [], "news": [], "devices": [], "events": []})
+            self.stats_ready.emit(data)
+        except Exception:
+            pass
+
+
+class SystemMonitorPanel(QFrame):
+    """
+    Left-panel system monitor with CPU / RAM / DISK / GPU / VRAM bars.
+    Mirrors plia2.py's SystemMonitorPanel, rebuilt for PySide6.
+    Updates every 2 seconds via a background QThread.
+    """
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setStyleSheet(f"background: {C_PANEL}; border: none;")
+        self._build()
+        self._start_worker()
+
+    def _build(self) -> None:
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(4, 4, 4, 4)
+        lay.setSpacing(2)
+
+        hdr = QLabel("SYSTEM MONITOR")
+        hdr.setFont(QFont("Consolas", 9, QFont.Weight.Bold))
+        hdr.setStyleSheet(f"color: {C_ACCENT};")
+        hdr.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        lay.addWidget(hdr)
+
+        gpu_color = QColor(C_GPU)
+
+        self._cpu_row  = _BarRow("CPU",  QColor(C_ACCENT))
+        self._ram_row  = _BarRow("RAM",  QColor(C_ACCENT))
+        self._disk_row = _BarRow("DISK", QColor(C_ACCENT))
+        self._gpu_row  = _BarRow("GPU",  gpu_color)
+        self._vram_row = _BarRow("VRAM", gpu_color)
+
+        for row in (self._cpu_row, self._ram_row, self._disk_row,
+                    self._gpu_row, self._vram_row):
+            lay.addWidget(row)
+
+        self._vram_detail = QLabel("")
+        self._vram_detail.setFont(QFont("Consolas", 7))
+        self._vram_detail.setStyleSheet(f"color: {C_GPU};")
+        self._vram_detail.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        lay.addWidget(self._vram_detail)
+
+        if not _GPU_OK:
+            self._vram_detail.setText("nvidia-ml-py not found")
+            self._vram_detail.setStyleSheet(f"color: {C_TEXT_DIM};")
+
+        self._uptime_lbl = QLabel("Uptime: --")
+        self._uptime_lbl.setFont(QFont("Consolas", 7))
+        self._uptime_lbl.setStyleSheet(f"color: {C_TEXT_DIM};")
+        self._uptime_lbl.setAlignment(Qt.AlignmentFlag.AlignHCenter)
+        lay.addWidget(self._uptime_lbl)
+
+    def _start_worker(self) -> None:
+        self._thread = QThread(self)
+        self._worker = _MonitorWorker()
+        self._worker.moveToThread(self._thread)
+        self._worker.stats_ready.connect(self._on_stats)
+        self._thread.start()
+
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._worker.collect)
+        self._timer.start(2000)
+        QTimer.singleShot(200, self._worker.collect)
+
+    def _on_stats(self, data: dict) -> None:
+        self._cpu_row.set_value(data.get("cpu", 0))
+        self._ram_row.set_value(data.get("ram", 0))
+        self._disk_row.set_value(data.get("disk", 0))
+        self._uptime_lbl.setText(data.get("uptime", "Uptime: --"))
+
+        gpu  = data.get("gpu")
+        vram = data.get("vram")
+        gpu_color = QColor(C_GPU)
+
+        if gpu is not None:
+            self._gpu_row.set_value(gpu,  self._usage_color(gpu,  gpu_color))
+            self._vram_row.set_value(vram, self._usage_color(vram, gpu_color))
+            self._vram_detail.setText(data.get("vram_gb", ""))
+            self._vram_detail.setStyleSheet(
+                f"color: {self._usage_color(vram or 0, gpu_color).name()};"
+            )
+        else:
+            self._gpu_row.set_value(0, gpu_color)
+            self._vram_row.set_value(0, gpu_color)
+            if _GPU_OK:
+                self._vram_detail.setText("GPU read error")
+                self._vram_detail.setStyleSheet(f"color: {C_ERROR};")
+
+    @staticmethod
+    def _usage_color(pct: float, base: QColor) -> QColor:
+        if pct >= 90:
+            return QColor("#ef5350")
+        if pct >= 70:
+            return QColor("#ffb74d")
+        if pct >= 50:
+            return QColor("#fff176")
+        return base
+
+    def cleanup(self) -> None:
+        self._timer.stop()
+        self._thread.quit()
+        self._thread.wait()
+
+
+# ══════════════════════════════════════════════════════════════
+#  COMMUNICATION LOG (QTextEdit with colour-tagged output)
+# ══════════════════════════════════════════════════════════════
+class CommunicationLog(QTextEdit):
+    """
+    Read-only log widget that mirrors plia2.py's ScrolledText conversation area.
+    Supports four colour tags: 'system', 'user', 'plia', 'error'.
+    """
+
+    _TAG_COLORS = {
+        "system":  C_TEXT_DIM,
+        "user":    C_GOLD,
+        "plia":    C_ACCENT,
+        "error":   C_ERROR,
+        "success": C_SUCCESS,
+    }
+
+    def __init__(self, parent=None) -> None:
+        super().__init__(parent)
+        self.setReadOnly(True)
+        self.setFont(QFont("Consolas", 10))
+        self.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: #080814;
+                color: {C_TEXT};
+                border: none;
+                padding: 8px;
+            }}
+            QScrollBar:vertical {{
+                background: transparent;
+                width: 6px;
+            }}
+            QScrollBar::handle:vertical {{
+                background: {C_BORDER};
+                border-radius: 3px;
+            }}
+        """)
+
+    def append_message(self, text: str, tag: str = "system") -> None:
+        """Append a timestamped, colour-coded line."""
+        color    = self._TAG_COLORS.get(tag, C_TEXT)
+        ts       = datetime.datetime.now().strftime("%H:%M:%S")
+
+        cursor   = self.textCursor()
+        cursor.movePosition(QTextCursor.MoveOperation.End)
+
+        # Timestamp (always dimmed)
+        fmt_ts   = QTextCharFormat()
+        fmt_ts.setForeground(QColor(C_TEXT_DIM))
+        cursor.setCharFormat(fmt_ts)
+        cursor.insertText(f"[{ts}] ")
+
+        # Message body (colour-tagged)
+        fmt_msg  = QTextCharFormat()
+        fmt_msg.setForeground(QColor(color))
+        cursor.setCharFormat(fmt_msg)
+        cursor.insertText(f"{text}\n")
+
+        self.setTextCursor(cursor)
+        self.ensureCursorVisible()
+
+
+# ══════════════════════════════════════════════════════════════
+#  DASHBOARD VIEW  (main QWidget registered as a tab)
+# ══════════════════════════════════════════════════════════════
+_BTN_STYLE = f"""
+    QPushButton {{
+        background: #111122;
+        color: {C_TEXT};
+        border: 1px solid {C_BORDER};
+        border-radius: 3px;
+        font-family: Consolas;
+        font-size: 9pt;
+        padding: 3px 6px;
+        text-align: left;
+    }}
+    QPushButton:hover {{
+        background: {C_ACCENT2};
+        color: white;
+        border-color: {C_ACCENT};
+    }}
+    QPushButton:pressed {{
+        background: {C_ACCENT};
+    }}
+"""
+
+_SEND_STYLE = f"""
+    QPushButton {{
+        background: {C_ACCENT2};
+        color: white;
+        border: none;
+        border-radius: 3px;
+        font-family: Consolas;
+        font-size: 9pt;
+        font-weight: bold;
+        padding: 4px 14px;
+    }}
+    QPushButton:hover  {{ background: {C_ACCENT}; }}
+    QPushButton:pressed {{ background: #005f8a; }}
+"""
+
+_INPUT_STYLE = f"""
+    QLineEdit {{
+        background: #0a0a16;
+        color: {C_TEXT};
+        border: 1px solid {C_BORDER};
+        border-radius: 3px;
+        font-family: Consolas;
+        font-size: 11pt;
+        padding: 2px 6px;
+    }}
+    QLineEdit:focus {{
+        border-color: {C_ACCENT};
+    }}
+"""
+
 
 class DashboardView(QWidget):
     """
-    The main 'System Intelligence' Dashboard.
-    Emits navigate_to signal when user clicks on a stat card to go to that tab.
-    A scrolling ABC News ticker is pinned to the very bottom of the view.
+    Main dashboard tab — P.L.I.A. HUD style.
+
+    Signals
+    -------
+    navigate_to(str) : emitted with objectName of the target tab so that
+                       app.py can call switchTo() appropriately.
     """
-    navigate_to = Signal(str)  # Emits the route key (e.g., "plannerInterface")
 
-    def __init__(self, parent=None):
+    navigate_to = Signal(str)
+
+    # ── Construction ──────────────────────────────────────────
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setObjectName("dashboardView")
+        self.setObjectName("dashboardInterface")
+        self.setStyleSheet(f"background: {C_BG};")
 
-        # Outer layout: content area (expands) + ticker (fixed at bottom)
-        outer_layout = QVBoxLayout(self)
-        outer_layout.setContentsMargins(0, 0, 0, 0)
-        outer_layout.setSpacing(0)
+        self._build_ui()
+        self._start_clock()
+        self._post_init_messages()
 
-        # ── Content widget (everything that was in main_layout before) ───────
-        content_widget = QWidget()
-        main_layout = QVBoxLayout(content_widget)
-        main_layout.setContentsMargins(40, 40, 40, 20)
-        main_layout.setSpacing(30)
+    # ── UI construction ───────────────────────────────────────
+    def _build_ui(self) -> None:
+        root = QVBoxLayout(self)
+        root.setContentsMargins(0, 0, 0, 0)
+        root.setSpacing(0)
 
-        # 1. Greeting Header
-        self.header = GreetingsHeader()
-        main_layout.addWidget(self.header)
+        root.addWidget(self._build_top_bar())
 
-        # 2. Main Content Area (2 Columns)
-        content_layout = QHBoxLayout()
-        content_layout.setSpacing(25)
+        # Thin separator
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background: {C_BORDER}; border: none;")
+        root.addWidget(sep)
 
-        # --- Left Column (Stats) ---
-        left_col = QVBoxLayout()
-        left_col.setSpacing(20)
+        # Main content area
+        content = QHBoxLayout()
+        content.setContentsMargins(5, 5, 5, 5)
+        content.setSpacing(5)
+        content.addWidget(self._build_left_panel(), 0)
+        content.addWidget(self._build_right_panel(), 1)
+        root.addLayout(content)
 
-        # Stat 1: Planner - navigates to plannerInterface
-        self.planner_stat = StatCard(FIF.CALENDAR, "Planner Agenda", "--", "plannerInterface")
-        self.planner_stat.navigate_requested.connect(self._on_navigate)
-        left_col.addWidget(self.planner_stat)
+    def _build_top_bar(self) -> QFrame:
+        bar = QFrame()
+        bar.setFixedHeight(40)
+        bar.setStyleSheet("background: #060610; border: none;")
 
-        # Stat 2: Devices - navigates to homeInterface
-        self.devices_stat = StatCard(FIF.IOT, "Active Devices", "--", "homeInterface")
-        self.devices_stat.navigate_requested.connect(self._on_navigate)
-        left_col.addWidget(self.devices_stat)
+        lay = QHBoxLayout(bar)
+        lay.setContentsMargins(15, 0, 15, 0)
+        lay.setSpacing(20)
 
-        # Stat 3: Unread News - navigates to briefingInterface
-        self.news_stat = StatCard(FIF.TILES, "Unread News", "--", "briefingInterface")
-        self.news_stat.navigate_requested.connect(self._on_navigate)
-        left_col.addWidget(self.news_stat)
+        title = QLabel("◆ P.L.I.A.")
+        title.setFont(QFont("Consolas", 14, QFont.Weight.Bold))
+        title.setStyleSheet(f"color: {C_ACCENT};")
+        lay.addWidget(title)
 
-        # Home Scenes
-        self.home_scenes = HomeScenesCard()
-        left_col.addWidget(self.home_scenes)
+        self._status_lbl = QLabel("● ONLINE")
+        self._status_lbl.setFont(QFont("Consolas", 10))
+        self._status_lbl.setStyleSheet(f"color: {C_SUCCESS};")
+        lay.addWidget(self._status_lbl)
 
-        left_col.addStretch()
-        content_layout.addLayout(left_col)
+        lay.addStretch()
 
-        # --- Right Column (Feed) ---
-        self.feed = IntelligenceFeed()
-        content_layout.addWidget(self.feed, 1)
+        self._clock_lbl = QLabel("")
+        self._clock_lbl.setFont(QFont("Consolas", 10))
+        self._clock_lbl.setStyleSheet(f"color: {C_TEXT_DIM};")
+        lay.addWidget(self._clock_lbl)
 
-        main_layout.addLayout(content_layout)
+        return bar
 
-        outer_layout.addWidget(content_widget, 1)   # expands to fill
+    def _build_left_panel(self) -> QFrame:
+        panel = QFrame()
+        panel.setFixedWidth(225)
+        panel.setStyleSheet(f"background: {C_PANEL}; border: none;")
 
-        # ── News Ticker (pinned at bottom) ───────────────────────────────────
-        self.ticker = NewsTicker()
-        # Clicking a headline navigates to the Briefing tab
-        self.ticker.headline_clicked.connect(lambda: self._on_navigate("briefingInterface"))
-        outer_layout.addWidget(self.ticker)          # fixed height, no stretch
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(0, 5, 0, 5)
+        lay.setSpacing(0)
 
-        # Store devices for scene control
-        self._devices = []
-        self.loader = None
+        # Arc reactor
+        self.reactor = ArcReactorWidget(size=190)
+        lay.addWidget(self.reactor, 0, Qt.AlignmentFlag.AlignHCenter)
 
-        # Trigger async load
-        QTimer.singleShot(100, self._start_loading)
+        lay.addWidget(self._hsep())
 
-    def _start_loading(self):
-        # Prevent multiple loaders — guard against deleted C++ object
+        # System monitor bars
+        self.sys_monitor = SystemMonitorPanel()
+        lay.addWidget(self.sys_monitor)
+
+        lay.addWidget(self._hsep())
+
+        # Quick-action buttons
+        btn_frame = QFrame()
+        btn_frame.setStyleSheet(f"background: {C_PANEL}; border: none;")
+        btn_lay = QVBoxLayout(btn_frame)
+        btn_lay.setContentsMargins(10, 5, 10, 5)
+        btn_lay.setSpacing(2)
+
+        actions = [
+            ("⚙  Status",   self._cmd_status),
+            ("📋  Notes",   self._cmd_notes),
+            ("⏰  Remind",  self._cmd_remind),
+            ("🔍  Help",    self._cmd_help),
+        ]
+        for label, callback in actions:
+            btn = QPushButton(label)
+            btn.setStyleSheet(_BTN_STYLE)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(callback)
+            btn_lay.addWidget(btn)
+
+        lay.addWidget(btn_frame)
+        lay.addStretch()
+
+        return panel
+
+    def _build_right_panel(self) -> QFrame:
+        panel = QFrame()
+        panel.setStyleSheet(f"background: {C_BG}; border: none;")
+
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        # ── Header bar ────────────────────────────────────────
+        hdr = QFrame()
+        hdr.setFixedHeight(28)
+        hdr.setStyleSheet("background: #060610; border: none;")
+        hdr_lay = QHBoxLayout(hdr)
+        hdr_lay.setContentsMargins(10, 0, 10, 0)
+        lbl = QLabel("COMMUNICATION LOG")
+        lbl.setFont(QFont("Consolas", 9, QFont.Weight.Bold))
+        lbl.setStyleSheet(f"color: {C_TEXT_DIM};")
+        hdr_lay.addWidget(lbl)
+        hdr_lay.addStretch()
+        lay.addWidget(hdr)
+
+        # ── Communication log ────────────────────────────────
+        self.log = CommunicationLog()
+        lay.addWidget(self.log, 1)
+
+        # ── Waveform ─────────────────────────────────────────
+        self.waveform = WaveformWidget(height=50)
+        lay.addWidget(self.waveform)
+
+        # ── Input area ───────────────────────────────────────
+        input_frame = QFrame()
+        input_frame.setFixedHeight(52)
+        input_frame.setStyleSheet(f"background: {C_PANEL}; border: none;")
+        inp_lay = QHBoxLayout(input_frame)
+        inp_lay.setContentsMargins(8, 6, 8, 6)
+        inp_lay.setSpacing(4)
+
+        mic_btn = QPushButton("🎤")
+        mic_btn.setFixedSize(36, 36)
+        mic_btn.setFont(QFont("Segoe UI Emoji", 14))
+        mic_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: #111122; color: {C_TEXT};
+                border: 1px solid {C_BORDER}; border-radius: 3px;
+            }}
+            QPushButton:hover {{ background: {C_ERROR}; }}
+        """)
+        mic_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        mic_btn.setToolTip("Voice input (handled by voice assistant)")
+        inp_lay.addWidget(mic_btn)
+
+        spk_btn = QPushButton("🔊")
+        spk_btn.setFixedSize(36, 36)
+        spk_btn.setFont(QFont("Segoe UI Emoji", 12))
+        spk_btn.setStyleSheet(f"""
+            QPushButton {{
+                background: #111122; color: {C_TEXT};
+                border: 1px solid {C_BORDER}; border-radius: 3px;
+            }}
+            QPushButton:hover {{ background: {C_WARN}; }}
+        """)
+        spk_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        spk_btn.setToolTip("TTS toggle (handled by voice assistant)")
+        inp_lay.addWidget(spk_btn)
+
+        self._input = QLineEdit()
+        self._input.setPlaceholderText("Type a command…")
+        self._input.setStyleSheet(_INPUT_STYLE)
+        self._input.returnPressed.connect(self._on_send)
+        inp_lay.addWidget(self._input, 1)
+
+        send_btn = QPushButton("SEND")
+        send_btn.setStyleSheet(_SEND_STYLE)
+        send_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        send_btn.clicked.connect(self._on_send)
+        inp_lay.addWidget(send_btn)
+
+        lay.addWidget(input_frame)
+
+        return panel
+
+    # ── Helpers ───────────────────────────────────────────────
+    @staticmethod
+    def _hsep() -> QFrame:
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFixedHeight(1)
+        sep.setStyleSheet(f"background: {C_BORDER}; border: none;")
+        return sep
+
+    # ── Clock ─────────────────────────────────────────────────
+    def _start_clock(self) -> None:
+        self._clock_timer = QTimer(self)
+        self._clock_timer.timeout.connect(self._tick_clock)
+        self._clock_timer.start(1000)
+        self._tick_clock()
+
+    def _tick_clock(self) -> None:
+        now = datetime.datetime.now().strftime("%I:%M:%S %p  —  %A, %b %d")
+        self._clock_lbl.setText(now)
+
+    # ── Startup log messages ──────────────────────────────────
+    def _post_init_messages(self) -> None:
+        self.log.append_message("P.L.I.A. initialized. All systems nominal.")
+
         try:
-            if self.loader and self.loader.isRunning():
-                return
-        except RuntimeError:
-            # C++ object already deleted — safe to create a new one
-            self.loader = None
+            import psutil as _ps
+            ps_status = "Online"
+        except ImportError:
+            ps_status = "OFF — pip install psutil"
 
-        self.loader = DashboardLoader(self)
-        self.loader.finished.connect(self._on_data_loaded)
-        self.loader.finished.connect(self._on_loader_done)
-        self.loader.start()
+        gpu_status = "Online" if _GPU_OK else "OFF — pip install nvidia-ml-py"
 
-    def _on_loader_done(self):
-        """Null out the loader reference before Qt deletes the C++ object."""
-        if self.loader:
-            self.loader.deleteLater()
-            self.loader = None
+        self.log.append_message(
+            f"System Monitor: {ps_status}  |  GPU Monitor: {gpu_status}"
+        )
+        self.log.append_message(
+            "Type a command below or use the quick-action buttons on the left."
+        )
 
-    def _on_data_loaded(self, data):
-        tasks = data.get("tasks", [])
-        news = data.get("news", [])
-        devices = data.get("devices", [])
-        events = data.get("events", [])
-        
-        # Store devices for scene control
-        self._devices = devices
-        self.home_scenes.set_devices(devices)
-        
-        # Update stat cards
-        active_tasks = [t for t in tasks if not t.get('completed')]
-        self.planner_stat.set_count(len(active_tasks))
-        self.news_stat.set_count(len(news))
-        self.devices_stat.set_count(len(devices))
-        
-        # Update intelligence feed
-        self.feed.update_news(news)
-        self.feed.update_devices(devices)
-        self.feed.update_focus(tasks)
-        
-        # Update priority card with calendar events
-        self.feed.priority.update_event(events)
-    
-    def _on_navigate(self, route_key: str):
-        """Emit navigation signal when a stat card is clicked."""
-        self.navigate_to.emit(route_key)
+    # ── Quick-action button handlers ──────────────────────────
+    def _cmd_status(self) -> None:
+        try:
+            cpu  = psutil.cpu_percent(interval=None)
+            mem  = psutil.virtual_memory()
+            disk = psutil.disk_usage("/")
+            msg  = (f"System Status — CPU: {cpu:.1f}%  "
+                    f"RAM: {mem.percent:.1f}%  "
+                    f"Disk: {disk.percent:.1f}%")
+            if _GPU_OK:
+                try:
+                    h    = pynvml.nvmlDeviceGetHandleByIndex(0)
+                    util = pynvml.nvmlDeviceGetUtilizationRates(h)
+                    mi   = pynvml.nvmlDeviceGetMemoryInfo(h)
+                    msg += (f"  GPU: {util.gpu}%  "
+                            f"VRAM: {mi.used/1024**3:.1f}/"
+                            f"{mi.total/1024**3:.1f} GB")
+                except Exception:
+                    msg += "  GPU: read error"
+            self.log.append_message(msg, "success")
+        except Exception as exc:
+            self.log.append_message(f"Status error: {exc}", "error")
 
-    def refresh(self):
-        """Public method — reload all dashboard data and re-fetch weather.
-        Called when settings change to apply new provider/unit immediately."""
-        self._start_loading()
-        self.header.refresh_weather()
+    def _cmd_notes(self) -> None:
+        self.log.append_message("► Navigating to Planner (Notes/Tasks)…", "plia")
+        self.navigate_to.emit("plannerInterface")
+
+    def _cmd_remind(self) -> None:
+        self.log.append_message("► Navigating to Planner (Reminders/Alarms)…", "plia")
+        self.navigate_to.emit("plannerInterface")
+
+    def _cmd_help(self) -> None:
+        help_text = (
+            "Available commands:\n"
+            "  status       — Show system resource stats\n"
+            "  notes/tasks  — Open Planner tab\n"
+            "  remind       — Open Planner tab (alarms)\n"
+            "  settings     — Open Settings tab\n"
+            "  help         — Show this help text\n"
+            "Voice: Wake word 'Plia' activates voice mode."
+        )
+        for line in help_text.splitlines():
+            self.log.append_message(line, "plia")
+
+    def _cmd_settings(self) -> None:
+        self.log.append_message("► Navigating to Settings…", "plia")
+        self.navigate_to.emit("settingsInterface")
+
+    # ── Input send handler ────────────────────────────────────
+    def _on_send(self) -> None:
+        text = self._input.text().strip()
+        if not text:
+            return
+        self._input.clear()
+        self.log.append_message(f"► {text}", "user")
+        self.waveform.set_amplitude(15)
+
+        cmd = text.lower()
+        if cmd in ("status", "system status"):
+            self._cmd_status()
+        elif cmd in ("help",):
+            self._cmd_help()
+        elif cmd.startswith("note") or cmd.startswith("task"):
+            self._cmd_notes()
+        elif cmd.startswith("remind") or cmd.startswith("alarm"):
+            self._cmd_remind()
+        elif cmd in ("settings", "setting"):
+            self._cmd_settings()
+        else:
+            self.log.append_message(
+                "◄ Command not recognised in dashboard mode. "
+                "Switch to the Chat tab to talk to P.L.I.A.",
+                "plia",
+            )
+
+    # ── Public helpers (called by app.py voice signals) ───────
+    def set_status_online(self) -> None:
+        self._status_lbl.setText("● ONLINE")
+        self._status_lbl.setStyleSheet(f"color: {C_SUCCESS};")
+
+    def set_status_listening(self) -> None:
+        self._status_lbl.setText("● LISTENING")
+        self._status_lbl.setStyleSheet(f"color: {C_ACCENT};")
+
+    def set_status_processing(self) -> None:
+        self._status_lbl.setText("● PROCESSING")
+        self._status_lbl.setStyleSheet(f"color: {C_GOLD};")
+
+    def add_system_message(self, text: str, tag: str = "system") -> None:
+        """Allow external callers to inject messages into the log."""
+        self.log.append_message(text, tag)
+
+    # ── Cleanup ───────────────────────────────────────────────
+    def closeEvent(self, event) -> None:           # noqa: N802
+        if hasattr(self, "sys_monitor"):
+            try:
+                self.sys_monitor.cleanup()
+            except Exception:
+                pass
+        super().closeEvent(event)

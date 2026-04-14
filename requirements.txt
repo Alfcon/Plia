@@ -5,7 +5,7 @@
 # Install all dependencies with:
 #   pip install -r requirements.txt
 #
-# IMPORTANT: This project requires Python 3.11 or higher
+# IMPORTANT: This project requires Python 3.10 or higher
 #
 # IMPORTANT: After installing, run the following to install
 #   Playwright browser binaries (required for web agent):
@@ -42,9 +42,9 @@ pygments>=2.15.0               # Syntax highlighting for code blocks
 # inference for the router model, Whisper STT, and Ollama offloading.
 # Verify CUDA is working after install with:
 #   python -c "import torch; print(torch.cuda.is_available())"
-torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
-torchvision>=0.21.0            # Image/vision utilities companion to PyTorch
-torchaudio>=2.6.0              # Audio processing utilities companion to PyTorch
+# torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
+# torchvision>=0.21.0            # Image/vision utilities companion to PyTorch
+# torchaudio>=2.6.0              # Audio processing utilities companion to PyTorch
 transformers>=4.57.0           # Hugging Face transformers for router model
 accelerate>=1.12.0             # Optimised model loading and inference
 safetensors>=0.7.0             # Fast, safe model weight loading

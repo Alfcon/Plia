@@ -5,6 +5,7 @@ Manages: STT → Function Gemma → Qwen → TTS pipeline.
 
 import threading
 import json
+import re as _re
 import requests
 from typing import Optional
 from PySide6.QtCore import QObject, Signal
@@ -22,7 +23,7 @@ from core.function_executor import executor as function_executor
 ACTION_FUNCTIONS = {
     "control_light", "set_timer", "set_alarm",
     "create_calendar_event", "add_task", "web_search",
-    "control_desktop", "browse_web",
+    "control_desktop",
 }
 
 
@@ -43,11 +44,14 @@ class VoiceAssistant(QObject):
     # Weather window signals
     weather_requested = Signal(dict)  # emits weather data dict
     close_weather_requested = Signal()
+    # Search browser signals
+    web_search_requested = Signal(str, list)  # query, results list
+    close_search_requested = Signal()
+    search_nav_requested = Signal(str)   # "next" or "previous"
+    search_open_requested = Signal(int)  # result number to open (1-based)
     # Desktop / Discord agent signals
     desktop_task_started = Signal(str)   # emits the task description
     desktop_task_finished = Signal(str)  # emits the result summary
-    # VLM Browser Agent signals
-    browser_task_requested = Signal(str)  # emits task → BrowserTab.run_signal
     
     def __init__(self):
         super().__init__()
@@ -155,6 +159,52 @@ class VoiceAssistant(QObject):
         try:
             text_lower = user_text.lower().strip()
 
+            # ── Search browser navigation — MUST be checked first ────────
+            # These must intercept before the desktop-trigger check because
+            # "open search 3" starts with "open " which would otherwise be
+            # swallowed by the desktop agent handler.
+
+            # "next search page" / "next search results page"
+            NEXT_SEARCH_PHRASES = (
+                "next search page",
+                "next search results page",
+                "next results page",
+                "next search results",
+            )
+            if any(p in text_lower for p in NEXT_SEARCH_PHRASES):
+                self.search_nav_requested.emit("next")
+                tts.queue_sentence("Going to the next search page.")
+                self.processing_finished.emit()
+                return
+
+            # "previous search page" / "previous search results page"
+            PREV_SEARCH_PHRASES = (
+                "previous search page",
+                "previous search results page",
+                "previous results page",
+                "previous search results",
+                "prev search page",
+            )
+            if any(p in text_lower for p in PREV_SEARCH_PHRASES):
+                self.search_nav_requested.emit("previous")
+                tts.queue_sentence("Going to the previous search page.")
+                self.processing_finished.emit()
+                return
+
+            # "open search 3" / "open search result 3" / "open search number 3"
+            # Must match "open search" followed by a digit, to avoid clashing
+            # with desktop "open <appname>" commands.
+            open_search_match = _re.search(
+                r'\bopen\s+search(?:\s+result(?:s)?)?(?:\s+number)?\s+(\d+)\b',
+                text_lower
+            )
+            if open_search_match:
+                num = int(open_search_match.group(1))
+                self.search_open_requested.emit(num)
+                tts.queue_sentence(f"Opening search result {num}.")
+                self.processing_finished.emit()
+                return
+
             # ── "Close weather" — hide the weather window ────────────────
             CLOSE_WEATHER_PHRASES = (
                 "close weather", "hide weather", "dismiss weather",
@@ -167,6 +217,18 @@ class VoiceAssistant(QObject):
                 self.processing_finished.emit()
                 return
 
+            # ── "Close search" — hide the search browser window ─────────
+            CLOSE_SEARCH_PHRASES = (
+                "close search", "hide search", "dismiss search",
+                "close the search", "hide the search", "search close",
+                "close browser", "exit search", "close results",
+            )
+            if any(p in text_lower for p in CLOSE_SEARCH_PHRASES):
+                self.close_search_requested.emit()
+                tts.queue_sentence("Closing the search window.")
+                self.processing_finished.emit()
+                return
+
             # ── Weather query — fetch data, speak it, show window ────────
             WEATHER_KEYWORDS = (
                 "weather", "temperature", "forecast", "rain", "sunny",
@@ -176,7 +238,6 @@ class VoiceAssistant(QObject):
             )
             # Use word-boundary matching so "window" does not trigger "wind",
             # "outside" does not trigger "out", etc.
-            import re as _re
             is_weather_query = any(
                 _re.search(r'\b' + _re.escape(kw) + r'\b', text_lower)
                 for kw in WEATHER_KEYWORDS
@@ -207,21 +268,46 @@ class VoiceAssistant(QObject):
                 self._handle_desktop_task(user_text, user_text)
                 return
 
-            # ── VLM Browser Agent — multi-step website tasks ─────────────
-            # Triggered by navigation/interaction phrases that imply visual
-            # browser control rather than a simple DuckDuckGo lookup.
-            BROWSER_TRIGGERS = (
-                "browse to ", "navigate to ", "go to ", "open the website",
-                "go on ", "visit ", "click on ", "fill in the form",
-                "fill out the form", "scroll down on ", "open youtube",
-                "play on youtube", "search on amazon", "search amazon",
-                "search on ebay", "add to cart", "add to basket",
+            # ── Web Search — DuckDuckGo keyword lookup ───────────────────
+            # Catches phrases that describe a plain web search but that the
+            # FunctionGemma router sometimes misclassifies as nonthinking.
+            # These are intercepted BEFORE the router so they always execute.
+            WEB_SEARCH_TRIGGERS = (
+                "do an internet search", "internet search",
+                "do a web search", "web search for",
+                "search the internet", "search the web",
+                "search online", "online search",
+                "search for ", "look up ", "look it up",
+                "find information on", "find information about",
+                "google ", "bing ", "find out about",
             )
-            is_browser_command = any(text_lower.startswith(t) or t in text_lower
-                                     for t in BROWSER_TRIGGERS)
-            # Exclude simple greetings / desktop commands already caught above
-            if is_browser_command and not is_weather_query and not is_desktop_command:
-                self._handle_browser_task(user_text)
+            is_web_search_command = any(
+                text_lower.startswith(t) or t in text_lower
+                for t in WEB_SEARCH_TRIGGERS
+            )
+            if is_web_search_command and not is_weather_query and not is_desktop_command:
+                # Extract the query: strip leading trigger phrase so the search
+                # query itself is clean (e.g. "internet search on X" → "X")
+                query = user_text.strip()
+                for trigger in WEB_SEARCH_TRIGGERS:
+                    idx = text_lower.find(trigger)
+                    if idx != -1:
+                        after = user_text[idx + len(trigger):].strip()
+                        # Remove leading prepositions: "on", "for", "about"
+                        for prep in ("on ", "for ", "about ", "into "):
+                            if after.lower().startswith(prep):
+                                after = after[len(prep):]
+                        if after:
+                            query = after
+                        break
+                print(f"{GRAY}[VoiceAssistant] Keyword-routed to: web_search (query={query!r}){RESET}")
+                result = function_executor.execute("web_search", {"query": query})
+                # Emit results to the floating search browser window
+                if result.get("success") and result.get("data"):
+                    data    = result["data"]
+                    results = data.get("results", [])
+                    self.web_search_requested.emit(query, results)
+                self._generate_response_with_context("web_search", result, user_text)
                 return
 
             # ── Discord channel reading ──────────────────────────────────
@@ -256,13 +342,6 @@ class VoiceAssistant(QObject):
                     self.task_added.emit()
                 elif func_name == "control_desktop":
                     self.desktop_task_finished.emit(response_text)
-                elif func_name == "browse_web":
-                    # Delegate to VLM Browser Agent via signal — runs in BrowserTab's QThread
-                    task = params.get("task", user_text)
-                    self.browser_task_requested.emit(task)
-                    tts.queue_sentence("Starting the browser agent now.")
-                    self.processing_finished.emit()
-                    return
                 
                 # Generate Qwen response with context
                 self._generate_response_with_context(func_name, result, user_text)
@@ -347,24 +426,6 @@ class VoiceAssistant(QObject):
         except Exception as e:
             print(f"{GRAY}[VoiceAssistant] Desktop task error: {e}{RESET}")
             self.processing_finished.emit()
-
-    def _handle_browser_task(self, task: str):
-        """
-        Emit a signal to start the VLM Browser Agent for a multi-step web task.
-        The BrowserTab in app.py receives this signal and invokes its own agent thread.
-        TTS confirms the action so the user has audio feedback immediately.
-        """
-        try:
-            print(f"{CYAN}[VoiceAssistant] Browser task requested: {task}{RESET}")
-            tts.queue_sentence("Starting the browser agent. Watch the Web Agent tab.")
-            self.browser_task_requested.emit(task)
-        except Exception as e:
-            print(f"{GRAY}[VoiceAssistant] Browser task error: {e}{RESET}")
-            tts.queue_sentence("Sorry, I couldn't start the browser agent.")
-        finally:
-            self.processing_finished.emit()
-
-
 
 
     def _generate_response_with_context(self, func_name: str, result: dict, user_text: str, enable_thinking: bool = False):

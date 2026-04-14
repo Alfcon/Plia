@@ -26,13 +26,12 @@ from gui.tabs.chat import ChatTab
 from gui.tabs.planner import PlannerTab
 from gui.tabs.settings import SettingsTab
 from gui.tabs.briefing import BriefingView
-from gui.tabs.browser import BrowserTab
 from gui.tabs.home_automation import HomeAutomationTab
 from gui.tabs.agents import AgentsTab
 from gui.tabs.model_browser import ModelBrowserTab
 from gui.components.system_monitor import SystemMonitor
-from gui.components.voice_indicator import VoiceIndicator
 from gui.components.weather_window import WeatherWindow
+from gui.components.search_browser import SearchBrowserWindow
 from core.llm import preload_models
 
 
@@ -88,17 +87,16 @@ class MainWindow(FluentWindow):
         self.briefing_view = None
         self.home_tab = None
         self._weather_window = None  # Floating weather window
+        self.search_browser = SearchBrowserWindow(self)  # Floating search results browser
         
         # Flag to prevent duplicate signal connections
         self._chat_signals_connected = False
-        self._plia_indicator = None  # Logo overlay indicator
 
         self._init_window()
         self._connect_signals()
         self._init_background()
         self._preload_models()
         self._init_voice_assistant()
-        self._init_plia_indicator()
         
     def _preload_models(self):
         """Start the background thread to preload models."""
@@ -121,10 +119,14 @@ class MainWindow(FluentWindow):
             voice_assistant.task_added.connect(self._on_voice_task_added)
             voice_assistant.weather_requested.connect(self._on_voice_weather_requested)
             voice_assistant.close_weather_requested.connect(self._on_voice_close_weather)
+            # Web search browser — voice triggers
+            voice_assistant.web_search_requested.connect(self._on_voice_web_search_requested)
+            voice_assistant.close_search_requested.connect(self._on_voice_close_search)
+            voice_assistant.search_nav_requested.connect(self._on_voice_search_nav)
+            voice_assistant.search_open_requested.connect(self._on_voice_search_open)
             # Desktop agent and Discord reader signals
             voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
             voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
-            voice_assistant.browser_task_requested.connect(self._on_voice_browser_task)
             print(f"[App] ✓ Signals connected")
             
             # Initialize in background thread to avoid blocking UI
@@ -146,11 +148,6 @@ class MainWindow(FluentWindow):
         else:
             print(f"[App] Voice assistant disabled in config")
     
-    def _init_plia_indicator(self):
-        """Create the Plia logo overlay voice indicator."""
-        from gui.components.voice_indicator import VoiceIndicator
-        self._plia_indicator = VoiceIndicator(self)
-
     def _dashboard_voice_widget(self):
         """Return the embedded voice widget from the dashboard header, or None."""
         try:
@@ -163,8 +160,6 @@ class MainWindow(FluentWindow):
         print(f"{GREEN}[App] ✓ Wake word detected — showing Plia indicator{RESET}")
         if VOICE_ASSISTANT_ENABLED:
             self.system_monitor.show_listening()
-            if self._plia_indicator:
-                self._plia_indicator.show_listening()
             dw = self._dashboard_voice_widget()
             if dw:
                 dw.show_listening()
@@ -172,8 +167,6 @@ class MainWindow(FluentWindow):
     def _on_speech_recognized(self, text: str):
         """Speech received — switch logo to speaking animation."""
         if VOICE_ASSISTANT_ENABLED:
-            if self._plia_indicator:
-                self._plia_indicator.show_speaking()
             dw = self._dashboard_voice_widget()
             if dw:
                 dw.show_speaking()
@@ -183,8 +176,6 @@ class MainWindow(FluentWindow):
         if VOICE_ASSISTANT_ENABLED:
             from PySide6.QtCore import QTimer
             QTimer.singleShot(800, lambda: self.system_monitor.hide_listening())
-            if self._plia_indicator:
-                QTimer.singleShot(800, lambda: self._plia_indicator.hide_listening())
             dw = self._dashboard_voice_widget()
             if dw:
                 QTimer.singleShot(800, lambda: dw.show_idle())
@@ -244,7 +235,27 @@ class MainWindow(FluentWindow):
         """Hide the floating weather window."""
         if self._weather_window is not None:
             self._weather_window.close_weather()
-        
+
+    def _on_voice_web_search_requested(self, query: str, results: list):
+        """Show the floating search browser with voice-triggered results."""
+        if self.search_browser:
+            self.search_browser.show_results(query, results)
+
+    def _on_voice_close_search(self):
+        """Hide the floating search browser (voice command)."""
+        if self.search_browser:
+            self.search_browser.close_browser()
+
+    def _on_voice_search_nav(self, direction: str):
+        """Next / previous page in the search browser (voice command)."""
+        if self.search_browser and self.search_browser.isVisible():
+            self.search_browser.on_search_nav(direction)
+
+    def _on_voice_search_open(self, number: int):
+        """Open a numbered search result in the browser (voice command)."""
+        if self.search_browser and self.search_browser.isVisible():
+            self.search_browser.open_result(number)
+
     def _init_window(self):
         # Dashboard is loaded immediately as it's the home screen
         self.dashboard_view = DashboardView()
@@ -260,7 +271,6 @@ class MainWindow(FluentWindow):
         self.briefing_view.setObjectName("briefingInterface")
 
         self.home_lazy = LazyTab(HomeAutomationTab, "homeInterface")
-        self.browser_lazy = LazyTab(BrowserTab, "browserInterface")
         self.agents_lazy = LazyTab(AgentsTab, "agentsInterface")
         self.model_browser_lazy = LazyTab(ModelBrowserTab, "modelBrowserInterface")
 
@@ -268,7 +278,6 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
         self.addSubInterface(self.briefing_view, FIF.DATE_TIME, "Briefing")
         self.addSubInterface(self.home_lazy, FIF.HOME, "Home Auto")
-        self.addSubInterface(self.browser_lazy, FIF.GLOBE, "Web Agent")
         self.addSubInterface(self.agents_lazy, FIF.ROBOT, "Active Agents")
         self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
         
@@ -402,9 +411,6 @@ class MainWindow(FluentWindow):
                 self.briefing_view = real_widget
             elif obj_name == "homeInterface":
                 self.home_tab = real_widget
-            elif obj_name == "browserInterface":
-                # No signals to connect for browser yet
-                pass
             elif obj_name == "agentsInterface":
                 pass  # AgentsTab self-initialises
             elif obj_name == "modelBrowserInterface":
@@ -462,28 +468,6 @@ class MainWindow(FluentWindow):
         except Exception:
             pass
         self.set_status("Ready")
-
-    def _on_voice_browser_task(self, task: str):
-        """
-        Route a voice-triggered browser task to the VLM Browser Agent tab.
-        Forces the BrowserTab to load (if lazy) then emits the task via run_signal.
-        """
-        try:
-            # Ensure the BrowserTab is instantiated (lazy tabs load on first navigation)
-            browser_tab = self.browser_lazy.get_widget()
-            if browser_tab is None:
-                # Force instantiate by switching to the tab
-                self.switchTo(self.browser_lazy)
-                browser_tab = self.browser_lazy.get_widget()
-
-            if browser_tab is not None:
-                self.set_status(f"Browser agent: {task[:60]}…")
-                browser_tab.run_signal.emit(task)
-            else:
-                self.set_status("Browser tab could not be loaded.")
-        except Exception as e:
-            print(f"[App] Browser task routing error: {e}")
-            self.set_status("Browser agent error — check logs.")
 
 
     def closeEvent(self, event):

@@ -10,6 +10,8 @@ from core.model_manager import ensure_exclusive_qwen
 from core.model_persistence import ensure_qwen_loaded, mark_qwen_used
 from core.settings_store import settings as app_settings
 from core.function_executor import executor as function_executor
+from core.agent_registry import agent_registry
+from core.agent_builder import detect_build_intent, build_agent
 
 # Functions that are actions (not passthrough)
 ACTION_FUNCTIONS = {
@@ -39,8 +41,16 @@ class ChatWorker(QObject):
     set_timer_signal = Signal(int, str)  # seconds, label
     reload_alarms = Signal()  # trigger alarm list reload
     reload_calendar = Signal()  # trigger calendar refresh
-    search_start = Signal(str)  # query
+    search_start = Signal(str)   # query
     search_end = Signal()
+    search_results_ready = Signal(str, list)  # query, results list
+    # Dynamic agent creation — carries the prefill dict for the dialog
+    create_agent_signal = Signal(dict)
+    # Custom agent run result — carries (display_name, response_text)
+    agent_result_signal = Signal(str, str)
+    # Agent builder signals — carries file_path when a real .py agent is written
+    build_agent_signal  = Signal(str)   # file_path of the newly built agent
+    build_status_signal = Signal(str)   # streaming status during build
     
     def __init__(self, user_text: str, messages: list, is_tts_enabled: bool, 
                  current_session_id: str, stop_event):
@@ -55,6 +65,69 @@ class ChatWorker(QObject):
     def process(self):
         """Background processing method."""
         try:
+            # ── Build-a-Programme Intent (Priority 0) ─────────────────────
+            # Detect "create a programme / build a tool / write a script …"
+            # BEFORE the simple agent-registry intent so that build requests
+            # produce real Python files rather than prompt-only agent entries.
+            build_intent = detect_build_intent(self.user_text)
+            if build_intent:
+                self.status.emit(f"🔬 Building: {build_intent['display_name']}…")
+                self.simple_response.emit(
+                    f"Got it! Building **{build_intent['display_name']}** now — "
+                    f"this may take 30–60 seconds while I research and write the code…"
+                )
+                result = build_agent(
+                    intent=build_intent,
+                    ollama_url=OLLAMA_URL,
+                    model=RESPONDER_MODEL,
+                    on_status=lambda s: self.status.emit(s),
+                )
+                if result.success:
+                    self.build_agent_signal.emit(result.file_path)
+                    self.simple_response.emit(result.message)
+                else:
+                    self.simple_response.emit(
+                        f"⚠️ Could not build the agent: {result.error}\n\n"
+                        "Please check Ollama is running and try again."
+                    )
+                self.done.emit()
+                return
+
+            # ── Dynamic Agent Creation ────────────────────────────────────
+            # Check if the user is asking to create a custom agent BEFORE
+            # sending to the Function Gemma router. This avoids misrouting.
+            intent = agent_registry.parse_create_intent(self.user_text)
+            if intent:
+                self.status.emit("Creating agent…")
+                # Signal the UI thread to open the Create Agent dialog
+                self.create_agent_signal.emit(intent)
+                self.simple_response.emit(
+                    f"Sure! I've opened the Create Agent dialog pre-filled for "
+                    f"'{intent['display_name']}'. Check the Agents tab to review "
+                    f"and confirm — you can edit the name, description, and system "
+                    f"prompt before creating it."
+                )
+                return
+
+            # ── Run a named custom agent ──────────────────────────────────
+            # Pattern: "run the <agent name> agent" / "use <agent name> agent to <task>"
+            run_match = self._detect_run_agent_intent(self.user_text)
+            if run_match:
+                agent_name, user_task = run_match
+                agent = agent_registry.get_agent(agent_name)
+                if agent:
+                    self.status.emit(f"Running agent '{agent['display_name']}'…")
+                    result = agent_registry.run_agent(
+                        agent_name, user_task,
+                        ollama_url=OLLAMA_URL, model=RESPONDER_MODEL,
+                    )
+                    if result["success"]:
+                        self.agent_result_signal.emit(agent["display_name"], result["message"])
+                        self.simple_response.emit(result["message"])
+                    else:
+                        self.simple_response.emit(f"Agent error: {result['message']}")
+                    return
+
             if should_bypass_router(self.user_text):
                 func_name = "nonthinking"
                 params = {"prompt": self.user_text}
@@ -76,6 +149,12 @@ class ChatWorker(QObject):
                 # Emit search end for web_search
                 if func_name == "web_search":
                     self.search_end.emit()
+                    # Emit results to search browser window
+                    if result.get("success") and result.get("data"):
+                        data    = result["data"]
+                        q       = data.get("query", query)
+                        results = data.get("results", [])
+                        self.search_results_ready.emit(q, results)
                 
                 # Emit toast notification
                 self.toast.emit(result["message"], result["success"])
@@ -119,6 +198,40 @@ class ChatWorker(QObject):
         finally:
             self.done.emit()
     
+    @staticmethod
+    def _detect_run_agent_intent(user_text: str):
+        """
+        Detect "run the X agent [to do Y]" patterns.
+
+        Returns (agent_name_slug, user_task_str) or None.
+        Matches examples:
+          "run the email summariser agent on this email: ..."
+          "use my coding assistant agent to write a function"
+          "ask the weather monitor agent what the forecast is"
+        """
+        import re
+        from core.agent_registry import agent_registry
+
+        patterns = [
+            r"(?:run|use|ask|execute|trigger)\s+(?:the\s+|my\s+)?(.+?)\s+agent\s*(?:to|on|for|:)?\s*(.*)",
+        ]
+        text = user_text.strip()
+        for pat in patterns:
+            m = re.search(pat, text, re.IGNORECASE)
+            if m:
+                candidate_name = m.group(1).strip().lower()
+                task_part      = m.group(2).strip() or user_text
+
+                # Find best-matching agent by fuzzy display_name comparison
+                agents = agent_registry.all_agents()
+                for agent in agents:
+                    display_slug = agent["display_name"].lower()
+                    if (candidate_name in display_slug or
+                            display_slug in candidate_name or
+                            agent["name"] in candidate_name.replace(" ", "_")):
+                        return (agent["name"], task_part or user_text)
+        return None
+
     def _generate_response_with_context(self, func_name: str, result: dict, enable_thinking: bool = False):
         """Generate a Qwen response with function result as context."""
         # Build system message with context
@@ -488,15 +601,23 @@ class ChatHandlers(QObject):
             print(f"[Handlers] Calendar reload failed: {e}")
     
     def _on_search_start(self, query: str):
-        """Called when web search starts."""
+        """Called when web search starts — show the loading state in the browser window."""
         if self.streaming_state['search_indicator']:
             self.streaming_state['search_indicator'].add_query(query)
             self.streaming_state['search_indicator'].setVisible(True)
-    
+        # Show loading state in the floating search browser
+        if hasattr(self.main_window, 'search_browser') and self.main_window.search_browser:
+            self.main_window.search_browser.show_loading(query)
+
     def _on_search_end(self):
-        """Called when web search completes."""
+        """Called when web search completes — keep browser open until results arrive."""
         if self.streaming_state['search_indicator']:
             self.streaming_state['search_indicator'].complete()
+
+    def _on_search_results_ready(self, query: str, results: list):
+        """Called with full results list — populate the browser window."""
+        if hasattr(self.main_window, 'search_browser') and self.main_window.search_browser:
+            self.main_window.search_browser.show_results(query, results)
             
     def _on_error(self, text):
         self.main_window.add_message_bubble("system", f"Error: {text}", is_thinking=True)
@@ -597,6 +718,11 @@ class ChatHandlers(QObject):
         self._worker.reload_calendar.connect(self._on_reload_calendar)
         self._worker.search_start.connect(self._on_search_start)
         self._worker.search_end.connect(self._on_search_end)
+        self._worker.search_results_ready.connect(self._on_search_results_ready)
+        self._worker.create_agent_signal.connect(self._on_create_agent_from_chat)
+        self._worker.agent_result_signal.connect(self._on_agent_result)
+        self._worker.build_agent_signal.connect(self._on_agent_built)
+        self._worker.build_status_signal.connect(self._on_status)
         self._worker.done.connect(self._on_done)
         self._worker.done.connect(self._thread.quit)
         self._worker.done.connect(self._worker.deleteLater)
@@ -619,3 +745,47 @@ class ChatHandlers(QObject):
         self.is_tts_enabled = enabled
         tts.toggle(enabled)
         self.main_window.set_status("TTS Active" if enabled else "TTS Muted")
+
+    # ── Custom Agent handlers ─────────────────────────────────────────────
+
+    def _on_create_agent_from_chat(self, prefill: dict):
+        """
+        Called when ChatWorker detects a 'create an agent' intent.
+        Delegates to the Agents tab which opens the creation dialog.
+        The prefill dict contains display_name, description, and prompt
+        auto-generated by agent_registry.parse_create_intent().
+        """
+        try:
+            # Navigate to Agents tab so user sees the dialog in context
+            mw = self.main_window
+            if hasattr(mw, "navigate_to_agents"):
+                mw.navigate_to_agents()
+            # Ask the agents tab to open the pre-filled dialog
+            if hasattr(mw, "agents_tab"):
+                mw.agents_tab.create_agent_from_chat(prefill)
+        except Exception as e:
+            print(f"[ChatHandlers] Could not open Create Agent dialog: {e}")
+
+    def _on_agent_result(self, display_name: str, response_text: str):
+        """
+        Called when a custom agent has finished running via chat command.
+        Adds an informational toast and ensures the response bubble is updated.
+        """
+        self.main_window.set_status(f"Agent '{display_name}' done")
+
+    def _on_agent_built(self, file_path: str):
+        """
+        Called when AgentBuilder has successfully written a new .py agent file.
+        Updates the status bar and refreshes the Agents tab card list so the
+        new agent appears immediately without restarting Plia.
+        """
+        self.main_window.set_status("✅ Agent built")
+        try:
+            if hasattr(self.main_window, "agents_tab"):
+                self.main_window.agents_tab.refresh()
+            # If there's a navigate helper, bring the Agents tab into view
+            if hasattr(self.main_window, "navigate_to_agents"):
+                self.main_window.navigate_to_agents()
+        except Exception as exc:
+            print(f"[ChatHandlers] agents_tab refresh failed: {exc}")
+
