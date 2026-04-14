@@ -81,6 +81,8 @@ playwright-stealth>=2.0.0      # Stealth mode to avoid bot detection
 # Smart Home Control
 # -----------------------------------------------------
 python-kasa>=0.10.0            # TP-Link Kasa smart device control
+yeelight>=0.7.16			   # Yeelight package smart device control
+lifxlan>=1.2.9			       # Lifxlan package smart device control
 
 # -----------------------------------------------------
 # Web & API Integrations

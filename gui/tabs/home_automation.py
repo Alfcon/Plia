@@ -606,13 +606,26 @@ class HomeAutomationTab(QWidget):
     # ── Device loading ────────────────────────────────────────────────────────
 
     def _load_devices(self):
-        if hasattr(self, "loader") and self.loader and self.loader.isRunning():
+        # Guard: use a plain bool flag instead of calling .isRunning() on the
+        # thread object, because deleteLater() destroys the C++ side while the
+        # Python wrapper still exists — calling any method on it then raises
+        # "RuntimeError: Internal C++ object already deleted".
+        if getattr(self, "_discovery_running", False):
             print("[HomeAutomation] Discovery already in progress, skipping")
             return
+
+        self._discovery_running = True
         self.loader = DataFetchThread()
         self.loader.devices_found.connect(self._on_devices_loaded)
-        self.loader.finished.connect(self.loader.deleteLater)
+        # Do NOT connect finished → deleteLater while we hold self.loader.
+        # Instead clear the flag and nullify the reference when done.
+        self.loader.finished.connect(self._on_loader_finished)
         self.loader.start()
+
+    def _on_loader_finished(self):
+        """Called when DataFetchThread finishes; safe to clean up now."""
+        self._discovery_running = False
+        self.loader = None
 
     def _on_devices_loaded(self, devices: list):
         self.all_devices  = devices
