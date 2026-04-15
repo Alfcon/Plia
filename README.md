@@ -18,7 +18,6 @@
 | 💬 **AI Chat** | Streaming chat with local LLMs via Ollama |
 | 🤖 **Active Agents** | Build and run autonomous AI agents from chat or GUI |
 | 🖥️ **Desktop Agent** | Control Windows applications with natural language using a Vision Language Model |
-| 🏠 **Smart Home** | Control TP-Link Kasa smart lights and plugs (optional) |
 | 📅 **Planner** | Calendar events, alarms, and timers with Google/Outlook sync (optional) |
 | 📰 **Daily Briefing** | AI-curated news from Technology, Science, and Top Stories |
 | 🌤️ **Weather** | Current weather and hourly forecast with floating overlay |
