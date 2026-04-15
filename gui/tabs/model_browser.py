@@ -569,6 +569,13 @@ class ModelBrowserTab(QWidget):
         self._uc_combo.setFixedWidth(148)
         self._uc_combo.currentTextChanged.connect(self._on_filter)
         frow.addWidget(self._uc_combo)
+
+        self._installed_combo = ComboBox()
+        self._installed_combo.addItems(["All Models", "Installed Only"])
+        self._installed_combo.setFixedWidth(130)
+        self._installed_combo.currentTextChanged.connect(self._on_filter)
+        frow.addWidget(self._installed_combo)
+
         root.addLayout(frow)
 
         # Status
@@ -723,15 +730,18 @@ class ModelBrowserTab(QWidget):
             self._apply_filters()
 
     def _apply_filters(self):
-        q    = self._search.text().lower().strip()
-        fitf = self._fit_combo.currentText()
-        ucf  = self._uc_combo.currentText()
+        q      = self._search.text().lower().strip()
+        fitf   = self._fit_combo.currentText()
+        ucf    = self._uc_combo.currentText()
+        instf  = self._installed_combo.currentText()
 
         visible = []
         for m in self._all_models:
             if fitf != "All Fit Levels" and m.get("fit_label","") != fitf:
                 continue
             if ucf != "All Use Cases" and m.get("use_case","") != ucf:
+                continue
+            if instf == "Installed Only" and _hf_to_ollama(m.get("name","")) not in self._installed:
                 continue
             if q:
                 hay = (m.get("name","")+" "+m.get("provider","")+" "+

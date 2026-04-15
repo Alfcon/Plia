@@ -364,6 +364,10 @@ class SearchBrowserWindow(QWidget):
 
         root.addWidget(header_frame)
 
+        # ── Web Search Help Panel (collapsible) ─────────────────────────────
+        self._help_panel = self._build_help_panel()
+        root.addWidget(self._help_panel)
+
         # ── Scroll area for results ─────────────────────────────────────────
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
@@ -587,6 +591,100 @@ class SearchBrowserWindow(QWidget):
         self._fetch_thread.start()
 
     # -----------------------------------------------------------------------
+    # Web Search Help Panel
+    # -----------------------------------------------------------------------
+    _HELP_LINES = [
+        ("▶ WEB SEARCH COMMANDS", True),           # (text, is_heading)
+        ("Type  :  'search for Python tutorials'", False),
+        ("Voice :  'Jarvis, internet search on <topic>'", False),
+        ("Voice :  'Jarvis, search the web for <topic>'", False),
+        ("", False),
+        ("▶ NAVIGATING RESULTS", True),
+        ("Navigate  :  'Jarvis, next search page'", False),
+        ("Navigate  :  'Jarvis, previous search page'", False),
+        ("Open link :  'Jarvis, open search result 3'", False),
+        ("Or type a number in the box below and press Enter", False),
+        ("", False),
+        ("▶ CLOSING THE PANEL", True),
+        ("Voice  :  'Jarvis, close search'", False),
+        ("Button :  click  ✕  in the header above", False),
+    ]
+
+    def _build_help_panel(self) -> QFrame:
+        """
+        Build and return the collapsible web-search help panel.
+
+        The panel sits between the header and the results area.
+        Click the toggle bar (📖 Search Help ▼ / ▲) to expand/collapse.
+        It starts *expanded* so new users immediately see the available commands.
+        """
+        # Outer container
+        container = QFrame()
+        container.setStyleSheet(
+            "QFrame { background: #12151f; border-bottom: 1px solid #2d3348; }"
+        )
+        outer_layout = QVBoxLayout(container)
+        outer_layout.setContentsMargins(0, 0, 0, 0)
+        outer_layout.setSpacing(0)
+
+        # ── Toggle bar ───────────────────────────────────────────────────────
+        toggle_bar = QPushButton("📖  Search Help  ▲")
+        toggle_bar.setStyleSheet(
+            "QPushButton {"
+            "  background: #1a1d27;"
+            "  border: none;"
+            "  border-top: 1px solid #2d3348;"
+            "  color: #8b9bb4;"
+            "  font-size: 12px;"
+            "  padding: 5px 14px;"
+            "  text-align: left;"
+            "}"
+            "QPushButton:hover { color: #c8d8f0; background: #1e2235; }"
+        )
+        toggle_bar.setFixedHeight(28)
+        toggle_bar.setCursor(QCursor(Qt.PointingHandCursor))
+        outer_layout.addWidget(toggle_bar)
+
+        # ── Collapsible content ──────────────────────────────────────────────
+        content_frame = QFrame()
+        content_frame.setStyleSheet("QFrame { background: #12151f; }")
+        content_layout = QVBoxLayout(content_frame)
+        content_layout.setContentsMargins(18, 8, 18, 10)
+        content_layout.setSpacing(2)
+
+        for text, is_heading in self._HELP_LINES:
+            if text == "":
+                spacer = QLabel("")
+                spacer.setFixedHeight(4)
+                content_layout.addWidget(spacer)
+                continue
+            lbl = QLabel(text)
+            if is_heading:
+                lbl.setStyleSheet(
+                    "color: #5b8dee; font-size: 11px; font-weight: 700; "
+                    "padding-top: 2px;"
+                )
+            else:
+                lbl.setStyleSheet(
+                    "color: #9aa5c0; font-size: 11px; padding-left: 10px;"
+                )
+            content_layout.addWidget(lbl)
+
+        outer_layout.addWidget(content_frame)
+
+        # ── Wire toggle ──────────────────────────────────────────────────────
+        self._help_expanded = True   # starts expanded
+
+        def _toggle():
+            self._help_expanded = not self._help_expanded
+            content_frame.setVisible(self._help_expanded)
+            arrow = "▲" if self._help_expanded else "▼"
+            toggle_bar.setText(f"📖  Search Help  {arrow}")
+
+        toggle_bar.clicked.connect(_toggle)
+        return container
+
+    # -----------------------------------------------------------------------
     # Page rendering
     # -----------------------------------------------------------------------
     def _render_page(self):
@@ -705,21 +803,20 @@ class SearchBrowserWindow(QWidget):
     # Positioning & dragging
     # -----------------------------------------------------------------------
     def _position_window(self):
-        """Centre on screen (or near parent) on first show, unless maximised."""
+        """Position the search window on the LEFT side of the screen."""
         if self._is_maximised:
             return
-        if not self.parent():
-            screen = QApplication.primaryScreen()
-            if screen:
-                geo = screen.availableGeometry()
-                self.move(
-                    geo.center().x() - self.width() // 2,
-                    geo.center().y() - self.height() // 2,
-                )
-        else:
+        screen = QApplication.primaryScreen()
+        if screen:
+            geo = screen.availableGeometry()
+            # 12 px margin from the left edge; vertically centred
+            x = geo.left() + 12
+            y = geo.top() + max(0, (geo.height() - self.height()) // 2)
+            self.move(x, y)
+        elif self.parent():
             parent_geo = self.parent().geometry()
             self.move(
-                parent_geo.center().x() - self.width() // 2,
+                parent_geo.left() + 12,
                 parent_geo.center().y() - self.height() // 2,
             )
 

@@ -189,8 +189,8 @@ if __name__ == "__main__":
     # Create main window
     window = MainWindow()
 
-    # Show window and finish splash
-    window.show()
+    # Show window maximised (full-screen) then finish splash
+    window.showMaximized()
     splash.finish()
 
     sys.exit(app.exec())
