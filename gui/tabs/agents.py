@@ -140,14 +140,21 @@ class AgentStatusThread(QThread):
                 statuses["stt"] = ("offline", "Failed to import")
 
         # ── TTS ──────────────────────────────────────────────────────────
+        # FIX: Check both the Python library engine (_engine) AND the
+        # executable fallback (piper_exe).  Previously only piper_exe was
+        # checked, so the status always showed "Piper not found" even when
+        # the piper-tts Python library was installed and working correctly.
         try:
             from core.tts import tts
-            if tts.piper_exe and tts.enabled:
+            piper_ready = (tts._engine is not None) or (tts.piper_exe is not None)
+            if piper_ready and tts.enabled:
                 statuses["tts"] = ("active", "Piper ready, voice on")
-            elif tts.piper_exe:
+            elif piper_ready:
                 statuses["tts"] = ("idle", "Piper ready, voice off")
+            elif tts.available:
+                statuses["tts"] = ("idle", "Piper library found — not yet initialised")
             else:
-                statuses["tts"] = ("offline", "Piper not found")
+                statuses["tts"] = ("offline", "Piper not found — run: pip install piper-tts")
         except Exception:
             statuses["tts"] = ("offline", "Failed to import")
 
@@ -156,11 +163,10 @@ class AgentStatusThread(QThread):
             from core.function_executor import executor
             statuses["task_manager"]     = ("active", "Ready") if executor.task_manager     else ("offline", "Not loaded")
             statuses["calendar_manager"] = ("active", "Ready") if executor.calendar_manager  else ("offline", "Not loaded")
-            statuses["kasa_manager"]     = ("active", "Ready") if executor.kasa_manager      else ("offline", "Not loaded")
             statuses["weather_manager"]  = ("active", "Ready") if executor.weather_manager   else ("offline", "Not loaded")
             statuses["news_manager"]     = ("active", "Ready") if executor.news_manager      else ("offline", "Not loaded")
         except Exception:
-            for key in ("task_manager", "calendar_manager", "kasa_manager",
+            for key in ("task_manager", "calendar_manager",
                         "weather_manager", "news_manager"):
                 statuses[key] = ("offline", "Executor not reachable")
 
@@ -168,7 +174,9 @@ class AgentStatusThread(QThread):
         try:
             import mss
             import pyautogui
-            from core.agent.desktop_agent import DesktopAgent
+            import importlib
+            _da_mod = importlib.import_module("core.agent.desktop_agent")
+            DesktopAgent = getattr(_da_mod, "DesktopAgent")
             statuses["desktop_agent"] = ("idle", "Ready — mss + pyautogui installed")
         except ImportError as e:
             statuses["desktop_agent"] = ("offline", f"Missing dependency: {e}")
@@ -194,17 +202,6 @@ class AgentStatusThread(QThread):
                 statuses["calendar_sync"] = ("idle", "No providers enabled")
         except Exception:
             statuses["calendar_sync"] = ("offline", "Settings not available")
-
-        # ── Kasa smart-home reachability ─────────────────────────────────
-        try:
-            from core.kasa_control import kasa_manager
-            devices = getattr(kasa_manager, "devices", {})
-            if devices:
-                statuses["kasa_devices"] = ("active", f"{len(devices)} device(s) found")
-            else:
-                statuses["kasa_devices"] = ("idle", "No devices discovered yet")
-        except Exception:
-            statuses["kasa_devices"] = ("offline", "Kasa module not reachable")
 
         self.finished.emit(statuses)
 
@@ -942,7 +939,6 @@ class AgentsTab(QWidget):
 
         # ── Section 3: Function Agents ───────────────────────────────────
         card3, lay3 = _make_section("Function Agents  (routed by Gemma)")
-        self._add_row(lay3, "kasa_devices",    "Smart Lights",    "control_light — Kasa TP-Link smart home control")
         self._add_row(lay3, "task_manager",    "Task Manager",    "add_task — to-do list management")
         self._add_row(lay3, "calendar_manager","Calendar Manager","create_calendar_event — event creation")
         self._add_row(lay3, "calendar_sync",   "Calendar Sync",   "Google / Outlook event synchronisation")

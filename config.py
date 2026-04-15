@@ -44,21 +44,6 @@ FUNCTIONS = [
     {
         "type": "function",
         "function": {
-            "name": "control_light",
-            "description": "Controls smart lights - turn on, off, or dim lights in a room",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "action": {"type": "string", "description": "The action to perform: on, off, or dim"},
-                    "room": {"type": "string", "description": "The room name where the light is located"}
-                },
-                "required": ["action", "room"]
-            }
-        }
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "web_search",
             "description": "Searches the web for information using Google",
             "parameters": {
@@ -121,7 +106,7 @@ FUNCTIONS = [
         "type": "function",
         "function": {
             "name": "passthrough",
-            "description": "DEFAULT FUNCTION - Use this whenever no other function is clearly needed. This is the fallback for: greetings (hello, hi, good morning), chitchat (how are you, what's your name), general knowledge questions, explanations, conversations, and ANY query that does NOT explicitly require controlling lights, setting timers, searching the web, or managing calendar events. When in doubt, use passthrough.",
+            "description": "DEFAULT FUNCTION - Use this whenever no other function is clearly needed. This is the fallback for: greetings (hello, hi, good morning), chitchat (how are you, what's your name), general knowledge questions, explanations, conversations, and ANY query that does NOT explicitly require setting timers, searching the web, or managing calendar events. When in doubt, use passthrough.",
             "parameters": {
                 "type": "object",
                 "properties": {

@@ -29,6 +29,18 @@ def _configure_logging() -> None:
     _log_dir   = _os.path.join(_proj_root, "log")
     _os.makedirs(_log_dir, exist_ok=True)
 
+    # ── Remove any stray log file left in the project root ────────────────
+    # RealtimeSTT (or a previous version of this logging setup) occasionally
+    # creates realtimesst.log in the project root instead of log/.
+    # This one-time cleanup deletes it on every startup so only the correct
+    # log/realtimesst.log remains.
+    _stray_log = _os.path.join(_proj_root, "realtimesst.log")
+    if _os.path.isfile(_stray_log):
+        try:
+            _os.remove(_stray_log)
+        except OSError:
+            pass   # If deletion fails (e.g. locked), silently ignore
+
     # ── Root logger: NullHandler to suppress spurious basicConfig calls ──
     _root = logging.getLogger()
     if not _root.handlers:

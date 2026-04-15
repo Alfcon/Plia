@@ -1,6 +1,6 @@
 """
 FunctionGemma Router - Routes user prompts to appropriate functions.
-Supports 9 functions: 6 actions, 1 context, 2 passthrough.
+Supports 8 functions: 5 actions, 1 context, 2 passthrough.
 
 IMPORTANT – torch / transformers lazy-import fix
 ─────────────────────────────────────────────────
@@ -62,18 +62,6 @@ DEBUG_ROUTER = False
 
 
 # --- Tool Definitions (all functions) ---
-
-def control_light(action: str, device_name: str = None, brightness: int = None, color: str = None) -> str:
-    """
-    Control smart lights - turn on, off, dim, or change color.
-
-    Args:
-        action: Action to perform: on, off, dim, toggle
-        device_name: Name of the light or room
-        brightness: Brightness level 0-100
-        color: Color name or hex code
-    """
-    return "result"
 
 def set_timer(duration: str, label: str = None) -> str:
     """
@@ -146,7 +134,6 @@ def get_system_info() -> str:
     - Upcoming alarms (time, label)
     - Today's calendar events (title, time)
     - Pending tasks from to-do list (text, completion status)
-    - Smart home devices (name, on/off status, type)
     - Current weather (temperature, condition, high/low)
     - Recent news headlines (title, category, URL)
 
@@ -199,7 +186,6 @@ def control_desktop(task: str) -> str:
 
 # Pre-compute tool schemas at module level (get_json_schema is torch-free)
 TOOLS = [
-    get_json_schema(control_light),
     get_json_schema(set_timer),
     get_json_schema(set_alarm),
     get_json_schema(create_calendar_event),
@@ -215,7 +201,7 @@ SYSTEM_MSG = "You are a model that can do function calling with the following fu
 
 # All valid function names
 VALID_FUNCTIONS = {
-    "control_light", "set_timer", "set_alarm", "create_calendar_event",
+    "set_timer", "set_alarm", "create_calendar_event",
     "add_task", "web_search", "get_system_info", "thinking", "nonthinking",
     "control_desktop",
 }
@@ -410,9 +396,7 @@ class FunctionGemmaRouter:
                 return args
 
         # Fallback: return user prompt as main argument
-        if func_name == "control_light":
-            return {"action": "toggle", "device_name": user_prompt}
-        elif func_name == "set_timer":
+        if func_name == "set_timer":
             return {"duration": user_prompt}
         elif func_name == "set_alarm":
             return {"time": user_prompt}
@@ -439,7 +423,6 @@ if __name__ == "__main__":
     router = FunctionGemmaRouter(compile_model=False)
 
     test_prompts = [
-        ("Turn on the living room lights", "control_light"),
         ("Set a timer for 10 minutes", "set_timer"),
         ("Wake me up at 7am", "set_alarm"),
         ("Schedule meeting tomorrow at 3pm", "create_calendar_event"),

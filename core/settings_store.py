@@ -195,4 +195,7 @@ class SettingsStore(QObject):
 
 
 # ── Module-level singleton ────────────────────────────────────────────────
-settings = SettingsStore()
+settings_store = SettingsStore()
+
+# Convenience alias used by gui/ modules
+settings = settings_store

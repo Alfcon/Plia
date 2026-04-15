@@ -17,8 +17,8 @@
 | 🎤 **Voice Control** | Wake word detection ("Jarvis") with natural language commands |
 | 💬 **AI Chat** | Streaming chat with local LLMs via Ollama |
 | 🤖 **Active Agents** | Build and run autonomous AI agents from chat or GUI |
-| 🖥️ **Desktop Agent** | Control Windows applications with natural language |
-| 🏠 **Smart Home** | Control TP-Link Kasa smart lights and plugs |
+| 🖥️ **Desktop Agent** | Control Windows applications with natural language using a Vision Language Model |
+| 🏠 **Smart Home** | Control TP-Link Kasa smart lights and plugs (optional) |
 | 📅 **Planner** | Calendar events, alarms, and timers with Google/Outlook sync (optional) |
 | 📰 **Daily Briefing** | AI-curated news from Technology, Science, and Top Stories |
 | 🌤️ **Weather** | Current weather and hourly forecast with floating overlay |
@@ -115,30 +115,9 @@ pip install -r requirements.txt
 
 > ⏱️ First install may take 5–15 minutes — PyTorch and AI packages are large downloads.
 
-### Step 5 — Install the OpenAI Python Library (Required for Agent Builder)
+> ℹ️ **OpenAI & DuckDuckGo** packages are included in `requirements.txt`. An OpenAI API key is only required for Agent Builder agents that use GPT-4o. Set your key in the Plia **Settings** tab under "OpenAI API Key". Core functions (chat, voice, weather, search) do **not** require an OpenAI key.
 
-The Agent Builder uses the OpenAI API to power custom agents with internet search capability.
-Install it separately:
-
-```bash
-pip install openai>=2.0.0
-```
-
-> ℹ️ An OpenAI API key is required for agents that use the GPT-4o model.
-> Set your key in the Plia **Settings** tab under "OpenAI API Key".
-> The core Plia assistant (chat, voice, weather, etc.) does **not** require an OpenAI key.
-
-### Step 6 — Install the DuckDuckGo Search Library
-
-Plia uses the `ddgs` package (the current maintained version of DuckDuckGo search):
-
-```bash
-pip install ddgs>=9.13.0
-```
-
-> ⚠️ The older `duckduckgo-search` package is deprecated and broken. Always use `ddgs`.
-
-### Step 7 — NVIDIA GPU Setup (Optional but Recommended)
+### Step 5 — NVIDIA GPU Setup (Optional but Recommended)
 
 If you have an NVIDIA GPU, install PyTorch with CUDA for significantly faster inference:
 
@@ -154,7 +133,7 @@ python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
 > 💡 **CPU-only users**: Skip this step. The `requirements.txt` torch lines are commented out by default, so CPU PyTorch will be installed automatically via the `transformers` dependency.
 
-### Step 8 — Install Playwright Browser Binaries
+### Step 6 — Install Playwright Browser Binaries
 
 Playwright is used for the web search results browser panel. After pip install, run:
 
@@ -164,7 +143,7 @@ playwright install
 
 > You only need to do this once. It downloads ~300 MB of browser binaries.
 
-### Step 9 — Run Plia
+### Step 7 — Run Plia
 
 ```bash
 python main.py
@@ -192,7 +171,8 @@ The full `requirements.txt` installs these packages. This table shows what each 
 | `realtimestt>=0.3.0` | Real-time speech-to-text + wake word |
 | `PyAudio>=0.2.14` | Microphone access |
 | `playwright>=1.57.0` | Browser automation for web agent |
-| `python-kasa>=0.10.0` | TP-Link Kasa smart device control |
+| `playwright-stealth>=2.0.0` | Stealth mode for browser automation |
+| `python-kasa>=0.10.0` | TP-Link Kasa smart device control (optional) |
 | `requests>=2.32.0` | HTTP API calls |
 | `feedparser>=6.0.0` | RSS news feed parsing |
 | `ddgs>=9.13.0` | DuckDuckGo web search (current package) |
@@ -220,6 +200,14 @@ google-auth-oauthlib>=1.2.0
 google-auth-httplib2>=0.2.0
 google-api-python-client>=2.130.0    # Google Calendar
 msal>=1.28.0                         # Microsoft Outlook
+```
+
+### Optional (Smart Home)
+
+Uncomment in `requirements.txt` and re-run `pip install -r requirements.txt`:
+
+```text
+python-kasa>=0.10.0    # TP-Link Kasa device control
 ```
 
 ---
@@ -317,10 +305,20 @@ Plia will:
 2. Save it to `C:\Users\<YourName>\.plia_ai\agents\<agent_name>.py`
 3. Register it in the Agents tab
 
+You can also create agents manually via the **Create Agent** button in the Active Agents tab. The unified dialog accepts:
+
+| Field | Purpose |
+|-------|---------|
+| **Name** | Required — identifier for the agent |
+| **System Prompt** | Optional — customise the agent's behaviour |
+| **OpenAI API Key** | Optional — leave blank for a local Ollama agent; fill in for an Internet Search Agent (DuckDuckGo + GPT-4o) |
+
+Search query and task details are requested at run-time, not at creation time.
+
 ### Running an Agent
 
 - Open the **Active Agents** tab and click **Run** next to the agent name
-- Or say *"Jarvis, run the <agent name> agent"*
+- Or say *"Jarvis, run the \<agent name\> agent"*
 - Standalone: `python "%USERPROFILE%\.plia_ai\agents\<agent_name>.py"`
 
 ### Agent Builder Requirements
@@ -330,10 +328,7 @@ Custom agents that perform internet search use:
 - `ddgs>=9.13.0` — DuckDuckGo internet search
 - `requests>=2.32.0` — File downloading (for download agents)
 
-Install these if not already present:
-```bash
-pip install openai ddgs requests
-```
+These are all included in `requirements.txt` — no separate install needed.
 
 ---
 
@@ -384,19 +379,18 @@ To set your location: open Plia → **Settings** tab → enter your latitude and
 
 ```
 Plia/
-├── main.py                    # Entry point — launches Ollama, then the GUI
+├── main.py                    # Entry point — configures logging, launches Ollama, then GUI
 ├── config.py                  # All configuration in one place
 ├── requirements.txt           # Python dependencies
 ├── pyproject.toml             # Project metadata
 │
 ├── core/                      # Backend logic
-│   ├── router.py              # FunctionGemma intent classifier
+│   ├── router.py              # FunctionGemma intent classifier (9 functions, lazy torch import)
 │   ├── function_executor.py   # Runs the action chosen by the router
 │   ├── voice_assistant.py     # STT → Router → LLM → TTS pipeline
 │   ├── stt.py                 # RealtimeSTT wrapper (Whisper + wake word)
 │   ├── tts.py                 # Piper TTS (Python library + exe fallback)
 │   ├── llm.py                 # Ollama streaming interface
-│   ├── kasa_control.py        # TP-Link Kasa smart device control
 │   ├── weather.py             # Open-Meteo weather API
 │   ├── news.py                # DuckDuckGo news + AI curation
 │   ├── tasks.py               # SQLite task management
@@ -410,14 +404,15 @@ Plia/
 │   ├── settings_store.py      # JSON settings persistence
 │   ├── discord_reader.py      # Discord channel reading (optional)
 │   └── agent/
-│       ├── desktop_agent.py   # Windows-Use natural language desktop control
-│       └── desktop_controller.py  # Low-level desktop automation
+│       ├── desktop_agent.py   # Natural language Windows desktop control
+│       ├── desktop_controller.py  # Low-level mouse/keyboard automation
+│       └── vlm_client.py      # Vision Language Model client for screen understanding
 │
 ├── gui/                       # PySide6 + QFluentWidgets frontend
-│   ├── app.py                 # Main window, navigation, signal wiring
+│   ├── app.py                 # Main window, lazy tab loading, signal wiring
 │   ├── handlers.py            # Chat message handling and streaming
 │   ├── styles.py              # Global stylesheet (Aura theme)
-│   ├── assets/                # Logo images
+│   ├── assets/                # Logo images (logo.png, logo_64/128/256.png)
 │   ├── components/            # Reusable widgets
 │   │   ├── system_monitor.py  # CPU/RAM/GPU title bar widget
 │   │   ├── alarm.py           # Alarm display widget
@@ -437,18 +432,16 @@ Plia/
 │       ├── chat.py            # AI chat interface
 │       ├── planner.py         # Calendar, tasks, alarms, timers
 │       ├── briefing.py        # AI-curated daily news
-│       ├── home_automation.py # Smart device control
-│       ├── agents.py          # Active agents manager
+│       ├── agents.py          # Active agents manager + custom agent builder
 │       ├── desktop_agent.py   # Desktop agent control tab
 │       ├── model_browser.py   # Ollama model browser & downloader
 │       └── settings.py        # App settings screen
 │
-├── log/                       # Log files (auto-created)
+├── log/                       # Log files (auto-created on first run)
 │   ├── plia.log               # Application warnings and errors
 │   └── realtimesst.log        # Speech-to-text engine log
 │
-└── merged_model/              # Router model (auto-downloaded, not in git)
-    └── .gitkeep
+└── merged_model/              # Router model (auto-downloaded from HF, not in git)
 ```
 
 ### How the Pipeline Works
@@ -481,16 +474,34 @@ Plia/
 ```
 
 1. The user speaks or types a command
-2. **FunctionGemma Router** classifies intent in ~50ms (GPU) or ~200ms (CPU)
-3. **Function Executor** runs the appropriate action (light control, timer, search, etc.)
+2. **FunctionGemma Router** classifies intent in ~50ms (GPU) or ~200ms (CPU) — routes to one of 9 functions
+3. **Function Executor** runs the appropriate action (light control, timer, search, desktop task, etc.)
 4. **Qwen LLM** (via Ollama) generates a natural language response
 5. **Piper TTS** speaks the response aloud (when voice is enabled)
+
+### Router Functions
+
+The FunctionGemma router (from [nlouis/pocket-ai-router](https://huggingface.co/nlouis/pocket-ai-router)) classifies every query into one of these 9 functions:
+
+| Function | Triggered By |
+|----------|-------------|
+| `set_timer` | "Set a timer for 10 minutes" |
+| `set_alarm` | "Wake me up at 7am" |
+| `create_calendar_event` | "Schedule meeting tomorrow at 3pm" |
+| `add_task` | "Add buy groceries to my list" |
+| `web_search` | "Search for Python tutorials" |
+| `get_system_info` | "What's on my schedule?" / "What timers do I have?" |
+| `control_desktop` | "Open Notepad" / "Switch to the browser" |
+| `thinking` | Complex queries — reasoning, math, coding |
+| `nonthinking` | Greetings, chitchat, simple factual questions |
+
+> 💡 **Note on torch imports**: The router uses a lazy import pattern — `torch` and `transformers` are only imported inside `FunctionGemmaRouter.__init__()`, not at module level. This prevents a circular import issue (`torch.hub → tqdm`) that caused startup failures in earlier versions.
 
 ---
 
 ## 🏠 Smart Home Integration
 
-Plia supports **TP-Link Kasa** smart devices over your local network.
+Plia supports **TP-Link Kasa** smart devices over your local network (optional feature).
 
 ### Supported Devices
 
@@ -500,10 +511,9 @@ Plia supports **TP-Link Kasa** smart devices over your local network.
 
 ### Setup
 
-1. Ensure your Kasa devices are connected to the same WiFi as your computer
-2. Open the **Home Automation** tab in Plia
-3. Click **Refresh Devices** to discover them
-4. Control via the GUI or voice commands
+1. Uncomment `python-kasa>=0.10.0` in `requirements.txt` and run `pip install -r requirements.txt`
+2. Ensure your Kasa devices are connected to the same WiFi as your computer
+3. Control via voice commands
 
 > ⚠️ If devices are not found, check your firewall is not blocking **UDP port 9999** (used for Kasa discovery).
 
@@ -652,13 +662,14 @@ Agents that only use local Ollama do not need an OpenAI key.
 <details>
 <summary><strong>❌ Smart home devices not found</strong></summary>
 
-**Problem**: Kasa devices don't appear in the Home Automation tab.
+**Problem**: Kasa devices don't appear.
 
 **Solutions**:
-1. Make sure devices and computer are on the same WiFi network
-2. Verify devices work in the official Kasa mobile app
-3. Check your Windows Firewall is not blocking **UDP port 9999**
-4. Run as Administrator if network discovery is restricted
+1. Make sure `python-kasa` is installed: `pip install python-kasa`
+2. Make sure devices and computer are on the same WiFi network
+3. Verify devices work in the official Kasa mobile app
+4. Check your Windows Firewall is not blocking **UDP port 9999**
+5. Run as Administrator if network discovery is restricted
 
 </details>
 
@@ -719,7 +730,7 @@ python -c "import torch; import torchaudio; print(torch.__version__, torchaudio.
 - `Plia/log/plia.log` — application warnings and errors
 - `Plia/log/realtimesst.log` — RealtimeSTT speech engine log
 
-The `log/` directory is created automatically on first run.
+The `log/` directory is created automatically on first run. Any stray `realtimesst.log` in the project root is automatically cleaned up on startup.
 
 </details>
 
@@ -763,13 +774,6 @@ Contributions are welcome! To contribute:
 3. Make your changes and test them
 4. Submit a pull request with a clear description of what changed
 
-Please do not commit:
-- `__pycache__/` directories
-- `merged_model/` (auto-downloaded)
-- `data/*.db` files (runtime data)
-- `.plia_ai/` user data
-- API keys or credentials of any kind
-
 ---
 
 ## 📜 License
@@ -788,6 +792,8 @@ This project is open source. See [LICENSE](LICENSE) for details.
 - [Open-Meteo](https://open-meteo.com/) — Free, open-source weather API
 - [ddgs](https://github.com/deedy5/duckduckgo_search) — DuckDuckGo search library (current maintained package)
 - [OpenAI Python Library](https://github.com/openai/openai-python) — GPT-4o for the Agent Builder
+- [ada_local by Naz Louis](https://github.com/nazirlouis/ada_local) — A.D.A (Advanced Digital Assistant), the original pocket local AI assistant that Plia builds upon and was inspired by
+- [llmfit by Alex Jones](https://github.com/AlexsJones/llmfit) — Hardware-aware LLM model selection tool; invaluable for choosing models that fit your machine
 
 ---
 

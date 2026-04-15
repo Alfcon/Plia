@@ -48,6 +48,12 @@ pygments>=2.15.0               # Syntax highlighting for code blocks
 # inference for the router model, Whisper STT, and Ollama offloading.
 # Verify CUDA is working after install with:
 #   python -c "import torch; print(torch.cuda.is_available())"
+#
+# NOTE: torch, transformers and their dependencies are imported
+# *lazily* inside FunctionGemmaRouter.__init__() — not at module level.
+# This prevents a circular import (torch.hub → tqdm) that caused a
+# fatal startup crash in earlier versions. Do not move these imports
+# back to module level.
 # torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
 # torchvision>=0.21.0            # Image/vision utilities companion to PyTorch
 # torchaudio>=2.6.0              # Audio processing utilities companion to PyTorch
@@ -59,6 +65,8 @@ safetensors>=0.7.0             # Fast, safe model weight loading
 # Speech & Audio
 # -----------------------------------------------------
 piper-tts>=1.4.0               # Local text-to-speech engine (Piper TTS)
+                               # Requires the synthesize_wav() / SynthesisConfig
+                               # API introduced in 1.4 — do not downgrade.
 sounddevice>=0.5.0             # Audio playback interface
 soundfile>=0.13.0              # Audio file I/O
 numpy>=2.0.0                   # Numerical computing (audio processing)
@@ -76,13 +84,6 @@ PyAudio>=0.2.14                # Audio I/O for microphone access
 # that Playwright controls. The pip package alone is not sufficient.
 playwright>=1.57.0             # Browser automation for web agent
 playwright-stealth>=2.0.0      # Stealth mode to avoid bot detection
-
-# -----------------------------------------------------
-# Smart Home Control
-# -----------------------------------------------------
-python-kasa>=0.10.0            # TP-Link Kasa smart device control
-yeelight>=0.7.16			   # Yeelight package smart device control
-lifxlan>=1.2.9			       # Lifxlan package smart device control
 
 # -----------------------------------------------------
 # Web & API Integrations
@@ -105,6 +106,8 @@ openai>=2.0.0                  # OpenAI API — used by the Agent Builder featur
 psutil>=7.0.0                  # System and process monitoring
 pynvml>=13.0.0                 # NVIDIA GPU monitoring (VRAM display)
 huggingface-hub>=0.36.0        # Download models from Hugging Face
+                               # Used to auto-download the FunctionGemma router
+                               # from nlouis/pocket-ai-router on first run.
 
 # -----------------------------------------------------
 # Desktop Agent (full screen AI control)
@@ -120,6 +123,15 @@ Pillow>=10.0.0                 # Image processing (resize screenshots for VLM)
 pywin32>=306                   # Windows API access: win32gui for window focusing
                                # (brings launched apps to foreground after open)
 pyperclip>=1.8.0               # Clipboard paste for reliable Unicode text input
+
+# -----------------------------------------------------
+# Smart Home (Optional — only needed for TP-Link Kasa control)
+# -----------------------------------------------------
+# Uncomment to enable voice and GUI control of Kasa smart lights and plugs.
+# Devices must be on the same local network as this machine.
+# Discovery uses UDP port 9999 — ensure your firewall allows it.
+#
+# python-kasa>=0.10.0                   # TP-Link Kasa smart device control
 
 # -----------------------------------------------------
 # Calendar Sync (Optional — only needed for Google / Outlook integration)

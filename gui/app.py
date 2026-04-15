@@ -26,7 +26,6 @@ from gui.tabs.chat import ChatTab
 from gui.tabs.planner import PlannerTab
 from gui.tabs.settings import SettingsTab
 from gui.tabs.briefing import BriefingView
-from gui.tabs.home_automation import HomeAutomationTab
 from gui.tabs.agents import AgentsTab
 from gui.tabs.model_browser import ModelBrowserTab
 from gui.components.system_monitor import SystemMonitor
@@ -80,13 +79,10 @@ class MainWindow(FluentWindow):
         # Add system monitor to title bar
         self._init_system_monitor()
         
-        # Voice indicator is now in system monitor (removed overlay)
-        
         # Initialize sub-interfaces pointers
         self.chat_tab = None
         self.planner_tab = None
         self.briefing_view = None
-        self.home_tab = None
         self._weather_window = None  # Floating weather window
         self.search_browser = SearchBrowserWindow(self)  # Floating search results browser
         
@@ -297,14 +293,12 @@ class MainWindow(FluentWindow):
         self.briefing_view = BriefingView()
         self.briefing_view.setObjectName("briefingInterface")
 
-        self.home_lazy = LazyTab(HomeAutomationTab, "homeInterface")
         self.agents_lazy = LazyTab(AgentsTab, "agentsInterface")
         self.model_browser_lazy = LazyTab(ModelBrowserTab, "modelBrowserInterface")
 
         self.addSubInterface(self.chat_lazy, FIF.CHAT, "Chat")
         self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
         self.addSubInterface(self.briefing_view, FIF.DATE_TIME, "Briefing")
-        self.addSubInterface(self.home_lazy, FIF.HOME, "Home Auto")
         self.addSubInterface(self.agents_lazy, FIF.ROBOT, "Active Agents")
         self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
         
@@ -404,16 +398,14 @@ class MainWindow(FluentWindow):
         # Create logo label — flexible width so it auto-adjusts, fixed height
         logo_label = QLabel()
         logo_label.setPixmap(scaled_pixmap)
-        # Allow the label to shrink horizontally if the title bar is narrow,
-        # but never taller than 28 px.  This prevents the logo being clipped.
         logo_label.setMaximumHeight(28)
-        logo_label.setMinimumWidth(20)          # always show at least a sliver
+        logo_label.setMinimumWidth(20)
         logo_label.setSizePolicy(
-            _QSP.Policy.Preferred,              # horizontal: flexible
-            _QSP.Policy.Fixed                   # vertical: locked to 28 px
+            _QSP.Policy.Preferred,
+            _QSP.Policy.Fixed
         )
         logo_label.setStyleSheet("background: transparent; margin-left: 6px;")
-        logo_label.setScaledContents(True)      # Qt will scale the pixmap as the label resizes
+        logo_label.setScaledContents(True)
 
         # Insert at position 0 (far left of title bar)
         self.titleBar.hBoxLayout.insertWidget(
@@ -436,8 +428,6 @@ class MainWindow(FluentWindow):
                 self.planner_tab = real_widget
             elif obj_name == "briefingInterface":
                 self.briefing_view = real_widget
-            elif obj_name == "homeInterface":
-                self.home_tab = real_widget
             elif obj_name == "agentsInterface":
                 pass  # AgentsTab self-initialises
             elif obj_name == "modelBrowserInterface":
@@ -514,7 +504,6 @@ class MainWindow(FluentWindow):
             self.dashboard_view._cmd_help()
         except Exception as e:
             print(f"[App] _on_voice_help_requested error: {e}")
-
 
     def closeEvent(self, event):
         """Handle application close event."""
