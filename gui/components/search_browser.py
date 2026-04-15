@@ -572,6 +572,37 @@ class SearchBrowserWindow(QWidget):
         """Slot for VoiceAssistant.search_open_requested signal."""
         self._open_result_by_number(number)
 
+    def voice_maximise(self):
+        """
+        Slot for VoiceAssistant.search_maximise_requested signal.
+
+        Toggles the window between full-screen and its previous size.
+        Voice commands that trigger this:
+          'Jarvis, expand search window'
+          'Jarvis, maximise search window'
+          'Jarvis, search full screen'
+        """
+        self._toggle_maximise()
+
+    def voice_collapse_help(self):
+        """
+        Slot for VoiceAssistant.search_help_minimise_requested signal.
+
+        Collapses the Search Help panel if it is currently expanded.
+        Has no effect (and does not re-expand) if the panel is already
+        collapsed — callers should use a dedicated 'expand help' phrase
+        for the reverse direction.
+
+        Voice commands that trigger this:
+          'Jarvis, hide search help'
+          'Jarvis, minimise search help'
+          'Jarvis, collapse search help'
+        """
+        if self._help_expanded:
+            self._help_expanded = False
+            self._help_content_frame.setVisible(False)
+            self._help_toggle_bar.setText("📖  Search Help  ▼")
+
     def fetch_and_show(self, query: str):
         """
         Start an async DuckDuckGo search, show loading state, then populate.
@@ -605,6 +636,16 @@ class SearchBrowserWindow(QWidget):
         ("Open link :  'Jarvis, open search result 3'", False),
         ("Or type a number in the box below and press Enter", False),
         ("", False),
+        ("▶ WINDOW SIZE", True),
+        ("Expand  :  'Jarvis, expand search window'", False),
+        ("Restore :  'Jarvis, restore search window'", False),
+        ("Button  :  click  ⤢  in the header above", False),
+        ("", False),
+        ("▶ HELP PANEL", True),
+        ("Hide  :  'Jarvis, hide search help'", False),
+        ("Hide  :  'Jarvis, minimise search help'", False),
+        ("Hide  :  'Jarvis, collapse search help'", False),
+        ("", False),
         ("▶ CLOSING THE PANEL", True),
         ("Voice  :  'Jarvis, close search'", False),
         ("Button :  click  ✕  in the header above", False),
@@ -628,8 +669,9 @@ class SearchBrowserWindow(QWidget):
         outer_layout.setSpacing(0)
 
         # ── Toggle bar ───────────────────────────────────────────────────────
-        toggle_bar = QPushButton("📖  Search Help  ▲")
-        toggle_bar.setStyleSheet(
+        # Stored as instance attributes so voice commands can drive them externally.
+        self._help_toggle_bar = QPushButton("📖  Search Help  ▲")
+        self._help_toggle_bar.setStyleSheet(
             "QPushButton {"
             "  background: #1a1d27;"
             "  border: none;"
@@ -641,14 +683,15 @@ class SearchBrowserWindow(QWidget):
             "}"
             "QPushButton:hover { color: #c8d8f0; background: #1e2235; }"
         )
-        toggle_bar.setFixedHeight(28)
-        toggle_bar.setCursor(QCursor(Qt.PointingHandCursor))
-        outer_layout.addWidget(toggle_bar)
+        self._help_toggle_bar.setFixedHeight(28)
+        self._help_toggle_bar.setCursor(QCursor(Qt.PointingHandCursor))
+        outer_layout.addWidget(self._help_toggle_bar)
 
         # ── Collapsible content ──────────────────────────────────────────────
-        content_frame = QFrame()
-        content_frame.setStyleSheet("QFrame { background: #12151f; }")
-        content_layout = QVBoxLayout(content_frame)
+        # Stored as instance attribute so voice_collapse_help() can hide it.
+        self._help_content_frame = QFrame()
+        self._help_content_frame.setStyleSheet("QFrame { background: #12151f; }")
+        content_layout = QVBoxLayout(self._help_content_frame)
         content_layout.setContentsMargins(18, 8, 18, 10)
         content_layout.setSpacing(2)
 
@@ -670,18 +713,18 @@ class SearchBrowserWindow(QWidget):
                 )
             content_layout.addWidget(lbl)
 
-        outer_layout.addWidget(content_frame)
+        outer_layout.addWidget(self._help_content_frame)
 
         # ── Wire toggle ──────────────────────────────────────────────────────
         self._help_expanded = True   # starts expanded
 
         def _toggle():
             self._help_expanded = not self._help_expanded
-            content_frame.setVisible(self._help_expanded)
+            self._help_content_frame.setVisible(self._help_expanded)
             arrow = "▲" if self._help_expanded else "▼"
-            toggle_bar.setText(f"📖  Search Help  {arrow}")
+            self._help_toggle_bar.setText(f"📖  Search Help  {arrow}")
 
-        toggle_bar.clicked.connect(_toggle)
+        self._help_toggle_bar.clicked.connect(_toggle)
         return container
 
     # -----------------------------------------------------------------------

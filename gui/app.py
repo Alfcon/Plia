@@ -139,6 +139,8 @@ class MainWindow(FluentWindow):
         voice_assistant.close_search_requested.connect(self._on_voice_close_search)
         voice_assistant.search_nav_requested.connect(self._on_voice_search_nav)
         voice_assistant.search_open_requested.connect(self._on_voice_search_open)
+        voice_assistant.search_maximise_requested.connect(self._on_voice_search_maximise)
+        voice_assistant.search_help_minimise_requested.connect(self._on_voice_search_help_minimise)
         voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
         voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
         voice_assistant.refresh_agents_requested.connect(self._on_voice_refresh_agents)
@@ -278,6 +280,35 @@ class MainWindow(FluentWindow):
         """Open a numbered search result in the browser (voice command)."""
         if self.search_browser and self.search_browser.isVisible():
             self.search_browser.open_result(number)
+
+    def _on_voice_search_maximise(self):
+        """
+        Toggle the search browser between full-screen and its previous size.
+
+        Voice phrases that reach this handler:
+          'Jarvis, expand search window'
+          'Jarvis, maximise search window'
+          'Jarvis, search full screen'
+          'Jarvis, restore search window'
+        The window must be visible; if it is hidden the command is silently
+        ignored (there is nothing meaningful to maximise).
+        """
+        if self.search_browser and self.search_browser.isVisible():
+            self.search_browser.voice_maximise()
+
+    def _on_voice_search_help_minimise(self):
+        """
+        Collapse the Search Help panel inside the search browser.
+
+        Voice phrases that reach this handler:
+          'Jarvis, hide search help'
+          'Jarvis, minimise search help'
+          'Jarvis, collapse search help'
+        Works whether or not the search window is currently visible so the
+        panel is pre-collapsed for the next time the window is shown.
+        """
+        if self.search_browser:
+            self.search_browser.voice_collapse_help()
 
     def _init_window(self):
         # Dashboard is loaded immediately as it's the home screen

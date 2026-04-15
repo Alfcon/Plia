@@ -49,6 +49,8 @@ class VoiceAssistant(QObject):
     close_search_requested = Signal()
     search_nav_requested = Signal(str)   # "next" or "previous"
     search_open_requested = Signal(int)  # result number to open (1-based)
+    search_maximise_requested = Signal()       # expand / restore window to full screen
+    search_help_minimise_requested = Signal()  # collapse the Search Help panel
     # Desktop / Discord agent signals
     desktop_task_started = Signal(str)   # emits the task description
     desktop_task_finished = Signal(str)  # emits the result summary
@@ -226,6 +228,46 @@ class VoiceAssistant(QObject):
             if any(p in text_lower for p in CLOSE_WEATHER_PHRASES):
                 self.close_weather_requested.emit()
                 tts.queue_sentence("Closing the weather window.")
+                self.processing_finished.emit()
+                return
+
+            # ── "Expand / maximise search window" — voice-triggered ──────
+            # Must be checked BEFORE CLOSE_SEARCH_PHRASES and DESKTOP_TRIGGERS
+            # because "maximise " appears in DESKTOP_TRIGGERS and would otherwise
+            # intercept "maximise search window" for the desktop agent.
+            SEARCH_MAXIMISE_PHRASES = (
+                "expand search window", "expand the search window",
+                "maximise search window", "maximize search window",
+                "maximise search", "maximize search",
+                "search full screen", "full screen search",
+                "fullscreen search", "make search full",
+                "search window full", "expand search",
+                "restore search window", "restore search",
+            )
+            if any(p in text_lower for p in SEARCH_MAXIMISE_PHRASES):
+                self.search_maximise_requested.emit()
+                tts.queue_sentence("Toggling the search window size.")
+                self.processing_finished.emit()
+                return
+
+            # ── "Collapse / hide search help panel" — voice-triggered ────
+            # Must be checked BEFORE CLOSE_SEARCH_PHRASES because "hide search"
+            # is already in that tuple and would intercept "hide search help".
+            # Must also be checked BEFORE HELP_TRIGGERS because "help" appears
+            # as a standalone trigger there and would match "collapse help".
+            SEARCH_HELP_MINIMISE_PHRASES = (
+                "hide search help", "minimise search help",
+                "minimize search help", "collapse search help",
+                "close search help", "hide the search help",
+                "minimise help panel", "minimize help panel",
+                "collapse help panel", "hide help panel",
+                "close help panel", "minimise help section",
+                "minimize help section", "collapse help",
+                "hide help", "close help",
+            )
+            if any(p in text_lower for p in SEARCH_HELP_MINIMISE_PHRASES):
+                self.search_help_minimise_requested.emit()
+                tts.queue_sentence("Collapsing the search help panel.")
                 self.processing_finished.emit()
                 return
 
