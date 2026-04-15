@@ -4,7 +4,7 @@
   <img src="gui/assets/logo.png" alt="Plia Logo" width="120" height="120">
 </p>
 
-**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI desktop assistant** for Windows. It combines a modern Fluent Design GUI with voice control, smart home integration, a daily briefing, autonomous AI agents, and a desktop automation agent — all running on your machine with no cloud dependency and no subscription required for core features.
+**Plia** (Pocket Local Intelligent Assistant) is a **fully local, privacy-focused AI desktop assistant** for Windows. It combines a modern Fluent Design GUI with voice control, a daily briefing, autonomous AI agents, and a desktop automation agent — all running on your machine with no cloud dependency and no subscription required for core features.
 
 > 🔒 **Your data stays on your machine.** No API keys required for core functionality. No subscriptions. No data collection.
 
@@ -18,7 +18,6 @@
 | 💬 **AI Chat** | Streaming chat with local LLMs via Ollama |
 | 🤖 **Active Agents** | Build and run autonomous AI agents from chat or GUI |
 | 🖥️ **Desktop Agent** | Control Windows applications with natural language using a Vision Language Model |
-| 🏠 **Smart Home** | Control TP-Link Kasa smart lights and plugs (optional) |
 | 📅 **Planner** | Calendar events, alarms, and timers with Google/Outlook sync (optional) |
 | 📰 **Daily Briefing** | AI-curated news from Technology, Science, and Top Stories |
 | 🌤️ **Weather** | Current weather and hourly forecast with floating overlay |
@@ -201,16 +200,6 @@ google-auth-httplib2>=0.2.0
 google-api-python-client>=2.130.0    # Google Calendar
 msal>=1.28.0                         # Microsoft Outlook
 ```
-
-### Optional (Smart Home)
-
-Uncomment in `requirements.txt` and re-run `pip install -r requirements.txt`:
-
-```text
-python-kasa>=0.10.0    # TP-Link Kasa device control
-```
-
----
 
 ## 🤖 Automatic Model Downloads
 
@@ -499,26 +488,6 @@ The FunctionGemma router (from [nlouis/pocket-ai-router](https://huggingface.co/
 
 ---
 
-## 🏠 Smart Home Integration
-
-Plia supports **TP-Link Kasa** smart devices over your local network (optional feature).
-
-### Supported Devices
-
-- ✅ Smart bulbs (on/off, brightness, colour temperature)
-- ✅ Smart plugs (on/off)
-- ✅ Smart light strips
-
-### Setup
-
-1. Uncomment `python-kasa>=0.10.0` in `requirements.txt` and run `pip install -r requirements.txt`
-2. Ensure your Kasa devices are connected to the same WiFi as your computer
-3. Control via voice commands
-
-> ⚠️ If devices are not found, check your firewall is not blocking **UDP port 9999** (used for Kasa discovery).
-
----
-
 ## 📅 Calendar Sync (Optional)
 
 Plia includes a local SQLite calendar that works out of the box. You can optionally sync with:
@@ -656,20 +625,6 @@ from ddgs import DDGS   # correct
 2. Open Plia → **Settings** tab → paste your key under "OpenAI API Key"
 
 Agents that only use local Ollama do not need an OpenAI key.
-
-</details>
-
-<details>
-<summary><strong>❌ Smart home devices not found</strong></summary>
-
-**Problem**: Kasa devices don't appear.
-
-**Solutions**:
-1. Make sure `python-kasa` is installed: `pip install python-kasa`
-2. Make sure devices and computer are on the same WiFi network
-3. Verify devices work in the official Kasa mobile app
-4. Check your Windows Firewall is not blocking **UDP port 9999**
-5. Run as Administrator if network discovery is restricted
 
 </details>
 
