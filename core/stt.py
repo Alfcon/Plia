@@ -75,7 +75,18 @@ from core.settings_store import settings as app_settings
 # realtimestt.log in the project root.
 
 def _setup_stt_logging() -> None:
-    """Redirect the realtimestt logger to Plia/log/realtimesst.log."""
+    """Redirect the realtimestt logger to Plia/log/realtimesst.log.
+
+    Root-cause note (RealtimeSTT library behaviour):
+      AudioToTextRecorder.__init__() calls
+          logging.FileHandler('realtimesst.log')
+      with a *relative* path, which creates the file in the current working
+      directory (the Plia project root) — not in log/.
+      The definitive fix is to pass  no_log_file=True  to every
+      AudioToTextRecorder() call so the library never opens that FileHandler.
+      This function then remains the sole owner of the 'realtimestt' logger's
+      FileHandler, correctly pointing to  Plia/log/realtimesst.log.
+    """
     # Resolve the log directory relative to this file's package root
     # core/stt.py  →  project root  →  log/
     _core_dir   = os.path.dirname(os.path.abspath(__file__))
@@ -86,13 +97,15 @@ def _setup_stt_logging() -> None:
     _log_path = os.path.join(_log_dir, "realtimesst.log")
 
     # Prevent Python logging.basicConfig (called inside RealtimeSTT) from
-    # creating its own realtimestt.log in the project root by ensuring the
-    # root logger already has a handler before the library is imported.
+    # creating its own log file in the project root by ensuring the root
+    # logger already has a handler before the library is imported.
     _root = logging.getLogger()
     if not _root.handlers:
         _root.addHandler(logging.NullHandler())
 
-    # Configure the specific realtimestt logger
+    # Configure the specific realtimestt logger.
+    # no_log_file=True on AudioToTextRecorder() means the library will NOT add
+    # its own FileHandler here, so Plia's handler below is the only one.
     _rtstt = logging.getLogger("realtimestt")
     if not any(isinstance(h, logging.FileHandler) for h in _rtstt.handlers):
         _fh = logging.FileHandler(_log_path, mode="a", encoding="utf-8")
@@ -400,6 +413,10 @@ class STTListener:
                 silero_sensitivity=silero_sens,
                 silero_deactivity_detection=silero_deact,
                 webrtc_sensitivity=3,
+                no_log_file=True,       # Prevents library writing realtimesst.log to
+                                        # the project root; Plia's _setup_stt_logging()
+                                        # already owns the 'realtimestt' FileHandler
+                                        # pointing to log/realtimesst.log.
             )
 
             self.initialized = True
@@ -530,6 +547,10 @@ class SpeechEngine:
                 post_speech_silence_duration=0.5,
                 min_length_of_recording=0.3,
                 min_gap_between_recordings=0.2,
+                no_log_file=True,       # Prevents library writing realtimesst.log to
+                                        # the project root; Plia's _setup_stt_logging()
+                                        # already owns the 'realtimestt' FileHandler
+                                        # pointing to log/realtimesst.log.
             )
             self.enabled = True
         except Exception as exc:
