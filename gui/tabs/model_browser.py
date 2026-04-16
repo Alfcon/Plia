@@ -729,6 +729,45 @@ class ModelBrowserTab(QWidget):
         if self._loaded:
             self._apply_filters()
 
+    # ── Installed-model matching helpers ──────────────────────────────────
+
+    def _installed_bases(self) -> set:
+        """Return the set of base model names (without :tag) from _installed.
+
+        Example: {"qwen3:1.7b", "qwen2.5:latest", "qwen3-v1:4b"}
+                 → {"qwen3", "qwen2.5", "qwen3-v1"}
+        """
+        return {n.split(":")[0] for n in self._installed}
+
+    def _is_db_model_installed(self, hf_name: str) -> bool:
+        """Return True if a DB model (given by HF name) matches any
+        locally-installed Ollama model.
+
+        Two matching strategies used in order:
+          1. Exact  — _hf_to_ollama(name) == installed model name.
+          2. Base   — strip the :tag from both sides and compare.
+             Handles the very common case where a model was pulled with
+             the :latest tag or a different specific tag than the DB
+             entry expects  (e.g. qwen2.5:latest → matches qwen2.5:7b).
+        """
+        ol      = _hf_to_ollama(hf_name)
+        ol_base = ol.split(":")[0]
+        return ol in self._installed or ol_base in self._installed_bases()
+
+    def _matched_ollama_names(self) -> set:
+        """Return installed Ollama names that are already represented by at
+        least one DB entry (exact or base-name match).  Everything NOT in
+        this set is a custom/unrecognised install that needs a synthetic row.
+        """
+        matched = set()
+        for m in self._all_models:
+            ol      = _hf_to_ollama(m.get("name", ""))
+            ol_base = ol.split(":")[0]
+            for inst in self._installed:
+                if inst == ol or inst.split(":")[0] == ol_base:
+                    matched.add(inst)
+        return matched
+
     def _apply_filters(self):
         q      = self._search.text().lower().strip()
         fitf   = self._fit_combo.currentText()
@@ -741,7 +780,9 @@ class ModelBrowserTab(QWidget):
                 continue
             if ucf != "All Use Cases" and m.get("use_case","") != ucf:
                 continue
-            if instf == "Installed Only" and _hf_to_ollama(m.get("name","")) not in self._installed:
+            # FIX: use base-name matching so e.g. qwen2.5:latest is
+            # recognised as the installed version of qwen2.5:7b in the DB.
+            if instf == "Installed Only" and not self._is_db_model_installed(m.get("name","")):
                 continue
             if q:
                 hay = (m.get("name","")+" "+m.get("provider","")+" "+
@@ -750,14 +791,49 @@ class ModelBrowserTab(QWidget):
                     continue
             visible.append(m)
 
-        # ── Bug fix: float installed models to the top of the list ──────
-        # Within the "installed" and "not-installed" groups the original
-        # scored order (fit_level → score) is preserved.
-        visible.sort(key=lambda x: (
-            0 if _hf_to_ollama(x.get("name", "")) in self._installed else 1,
-            FIT_ORDER.get(x.get("fit_level", "too_tight"), 9),
-            -x.get("score", 0.0),
-        ))
+        # ── Inject raw / custom installed models not found in the DB ────────
+        # These are Ollama models the user has pulled (e.g. qwen3-v1:4b)
+        # that have no entry in the llmfit database.  We synthesise a
+        # minimal row so they always appear as "Installed" regardless of
+        # which filters are active.
+        unmatched = self._installed - self._matched_ollama_names()
+        for raw_name in sorted(unmatched):
+            if q and q not in raw_name.lower():
+                continue
+            # Raw models are always "General" use-case and "Good" fit;
+            # skip only when the user has narrowed to an incompatible filter.
+            if ucf not in ("All Use Cases", "General"):
+                continue
+            if fitf not in ("All Fit Levels", "Good", "Perfect"):
+                continue
+            visible.append({
+                "name":               raw_name,   # already an Ollama name
+                "provider":           "Custom",
+                "parameter_count":    "?",
+                "params_b":           0.0,
+                "use_case":           "General",
+                "fit_label":          "Good",
+                "fit_level":          "good",
+                "best_quant":         "—",
+                "file_size_gb":       0.0,
+                "memory_required_gb": 0.0,
+                "estimated_tps":      0.0,
+                "is_moe":             False,
+                "run_mode":           "gpu",
+                "score":              0.0,
+                "_raw_ollama":        True,   # flag: name IS already the Ollama name
+            })
+
+        # ── Sort: installed first, then fit_level → score ────────────────────
+        def _sort_key(x):
+            is_raw  = x.get("_raw_ollama", False)
+            is_inst = is_raw or self._is_db_model_installed(x.get("name", ""))
+            return (
+                0 if is_inst else 1,
+                FIT_ORDER.get(x.get("fit_level", "too_tight"), 9),
+                -x.get("score", 0.0),
+            )
+        visible.sort(key=_sort_key)
 
         self._status.setText(f"{len(visible)} models shown")
         self._populate(visible)
@@ -770,6 +846,10 @@ class ModelBrowserTab(QWidget):
 
         RA = Qt.AlignRight | Qt.AlignVCenter
         LA = Qt.AlignLeft  | Qt.AlignVCenter
+
+        # Pre-build base-name lookup for O(1) installed checks per row
+        _inst_exact = self._installed
+        _inst_bases = self._installed_bases()
 
         for row, m in enumerate(models):
             name     = m.get("name","")
@@ -784,7 +864,16 @@ class ModelBrowserTab(QWidget):
             tps      = m.get("estimated_tps", 0.0)
             is_moe   = m.get("is_moe", False)
             rmode    = m.get("run_mode","cpu")
-            ol       = _hf_to_ollama(name)
+
+            # FIX: raw/custom models already carry their Ollama name;
+            # DB models need the HF→Ollama conversion.
+            is_raw = m.get("_raw_ollama", False)
+            ol     = name if is_raw else _hf_to_ollama(name)
+
+            # FIX: use same base-name logic as _apply_filters so the
+            # "Installed" badge appears for qwen2.5:latest-style installs.
+            ol_base     = ol.split(":")[0]
+            is_installed = (ol in _inst_exact) or (ol_base in _inst_bases)
 
             dname = (name.split("/")[-1] if "/" in name else name) + ("  [MoE]" if is_moe else "")
             fc    = FIT_COLOURS.get(flev, "#8b9bb4")
@@ -813,7 +902,7 @@ class ModelBrowserTab(QWidget):
             bl = QHBoxLayout(bw)
             bl.setContentsMargins(4,2,4,2)
 
-            if ol in self._installed:
+            if is_installed:
                 # ── Installed: green badge + red Delete button ──────────
                 installed_lbl = PushButton(FIF.ACCEPT, "Installed")
                 installed_lbl.setEnabled(False)

@@ -1,13 +1,3 @@
-"""
-Voice Assistant - Main orchestrator for Alexa-like voice interaction.
-Manages: STT → Function Gemma → Qwen → TTS pipeline.
-"""
-
-import threading
-import json
-import re as _re
-import requests
-from typing import Optional
 from PySide6.QtCore import QObject, Signal
 
 from config import (
@@ -58,6 +48,8 @@ class VoiceAssistant(QObject):
     refresh_agents_requested = Signal()  # emits to AgentsTab.refresh()
     # Dashboard help panel — voice-triggered
     help_requested = Signal()            # emits to DashboardView._cmd_help()
+    # Reading Files tab — voice-triggered file read
+    read_file_requested = Signal(int)    # emits 1-based file index
     
     def __init__(self):
         super().__init__()
@@ -154,12 +146,32 @@ class VoiceAssistant(QObject):
         text = text.strip()
         if not text:
             return
-        
+
+        # ── Early intercept: "read option N" / "read file N" ────────────
+        # Must be checked HERE before _process_query, because the desktop
+        # agent trigger in _process_query can capture "read …" commands and
+        # route them to the VLM pipeline before our regex fires.
+        _read_m = _re.search(
+            r'\b(?:read|open)\s+(?:option|file)\s+(\d+)',
+            text.lower()
+        )
+        if _read_m:
+            n = int(_read_m.group(1))
+            print(f"{CYAN}[VoiceAssistant] Read file option {n} intercepted.{RESET}")
+            self.speech_recognized.emit(text)
+            self.processing_started.emit()
+            # Emit the signal — inject_file_and_respond will speak
+            # the file content once extraction completes.
+            self.read_file_requested.emit(n)
+            self.processing_finished.emit()
+            return
+        # ────────────────────────────────────────────────────────────────
+
         self.speech_recognized.emit(text)
         self.processing_started.emit()
-        
+
         print(f"{CYAN}[VoiceAssistant] Processing: {text}{RESET}")
-        
+
         # Process in background thread to avoid blocking
         thread = threading.Thread(
             target=self._process_query,
@@ -378,7 +390,7 @@ class VoiceAssistant(QObject):
                    or t in text_lower
                    for t in HELP_TRIGGERS):
                 self.help_requested.emit()
-                self._speak(
+                tts.queue_sentence(
                     "Opening the help guide on your dashboard. "
                     "All available commands are listed there."
                 )
@@ -398,7 +410,23 @@ class VoiceAssistant(QObject):
             if any(text_lower.startswith(t) or t in text_lower
                    for t in AGENTS_REFRESH_TRIGGERS):
                 self.refresh_agents_requested.emit()
-                self._speak("Refreshing active agents.")
+                tts.queue_sentence("Refreshing active agents.")
+                return
+
+            # ── Reading Files — "read option N" / "read file N" ─────────
+            # Matches spoken forms such as:
+            #   "read option 1"  /  "read file 2"  /  "open option 3"
+            # The digit is captured and forwarded to ReadingFilesTab.read_option()
+            # via the read_file_requested signal wired in app.py.
+            _read_match = _re.search(
+                r'\b(?:read|open)\s+(?:option|file)\s+(\d+)\b',
+                text_lower
+            )
+            if _read_match:
+                n = int(_read_match.group(1))
+                # inject_file_and_respond speaks the content once extracted
+                self.read_file_requested.emit(n)
+                self.processing_finished.emit()
                 return
 
             # ── Discord channel reading ──────────────────────────────────

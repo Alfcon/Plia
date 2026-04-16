@@ -767,7 +767,10 @@ class DashboardView(QWidget):
 
         # ── Communication log ────────────────────────────────
         self.log = CommunicationLog()
-        lay.addWidget(self.log, 1)
+        self.log.setMinimumHeight(120)
+        self.log.setMaximumHeight(250)
+        lay.addWidget(self.log)   # no stretch — spacer below fills the gap
+        lay.addStretch(1)         # pushes waveform + input bar to the bottom
 
         # ── Waveform ─────────────────────────────────────────
         self.waveform = WaveformWidget(height=50)
@@ -863,6 +866,7 @@ class DashboardView(QWidget):
         self.log.append_message(
             "Type a command below or use the quick-action buttons on the left."
         )
+        self.log.append_message("System is ready.", "success")
 
     # ── Quick-action button handlers ──────────────────────────
     def _cmd_status(self) -> None:

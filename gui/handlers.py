@@ -61,10 +61,21 @@ class ChatWorker(QObject):
         self.current_session_id = current_session_id
         self.stop_event = stop_event
         self.full_response = ""
-        
+        # bypass_router = True skips Gemma router; uses wider context for file reads
+        self.bypass_router: bool = False
+        self.file_num_ctx:  int  = 4096
+
     def process(self):
         """Background processing method."""
         try:
+            # ── File-read bypass (Priority -1) ────────────────────────────
+            # inject_file_and_respond sets bypass_router = True and embeds
+            # the full file content in user_text.  Skip ALL routing and call
+            # _stream_qwen_file_response which uses the wider num_ctx window.
+            if self.bypass_router:
+                self._stream_qwen_file_response()
+                return
+
             # ── Build-a-Programme Intent (Priority 0) ─────────────────────
             # Detect "create a programme / build a tool / write a script …"
             # BEFORE the simple agent-registry intent so that build requests
@@ -441,6 +452,77 @@ class ChatWorker(QObject):
             history_manager.add_message(self.current_session_id, "assistant", self.full_response)
 
 
+    def _stream_qwen_file_response(self) -> None:
+        """
+        Stream a Qwen LLM response for a file-read request.
+
+        Called only when self.bypass_router is True (set by inject_file_and_respond).
+        self.user_text already contains the full file content embedded in the prompt.
+
+        Key differences from _stream_qwen_response:
+          - num_ctx: 8192  (fits ~6 000 words of file content)
+          - No history truncation (file block must not be evicted)
+          - Thinking disabled (save VRAM for wider context)
+        """
+        self.messages.append({"role": "user", "content": self.user_text})
+
+        self.ui_update.emit()
+        self.status.emit("Reading file…")
+
+        model      = app_settings.get("models.chat", RESPONDER_MODEL)
+        ollama_url = app_settings.get("ollama_url", OLLAMA_URL)
+        ensure_qwen_loaded()
+        mark_qwen_used()
+        ensure_exclusive_qwen(model)
+
+        payload = {
+            "model":      model,
+            "messages":   self.messages,
+            "stream":     True,
+            "think":      False,
+            "keep_alive": "5m",
+            "options": {
+                "num_predict": 512,
+                "num_ctx": self.file_num_ctx,
+            },
+        }
+
+        sentence_buffer  = SentenceBuffer()
+        self.full_response = ""
+        self.think_start.emit(False)
+
+        with http_session.post(f"{ollama_url}/api/chat", json=payload, stream=True) as r:
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if self.stop_event.is_set():
+                    break
+                if line:
+                    try:
+                        chunk = json.loads(line.decode("utf-8"))
+                        msg   = chunk.get("message", {})
+                        if "content" in msg and msg["content"]:
+                            content = msg["content"]
+                            self.full_response += content
+                            self.response_chunk.emit(content)
+                            if self.is_tts_enabled and not DEBUG_SKIP_TTS:
+                                for s in sentence_buffer.add(content):
+                                    tts.queue_sentence(s)
+                    except Exception:
+                        continue
+
+        self.think_end.emit()
+
+        if self.is_tts_enabled and not DEBUG_SKIP_TTS and not self.stop_event.is_set():
+            rem = sentence_buffer.flush()
+            if rem:
+                tts.queue_sentence(rem)
+
+        if self.current_session_id:
+            history_manager.add_message(
+                self.current_session_id, "assistant", self.full_response
+            )
+
+
 class ChatHandlers(QObject):
     """Encapsulates all chat-related event handlers and state."""
     
@@ -744,6 +826,159 @@ class ChatHandlers(QObject):
         # Update messages reference
         self._worker.messages = self.messages
         
+        self._thread.start()
+
+    def inject_file_and_respond(self, filename: str, content: str) -> None:
+        """
+        Speak the file content aloud via TTS and stream a brief LLM
+        acknowledgment in the chat panel.
+
+        Behaviour
+        ---------
+        1. Split the file text into sentences and queue each one for TTS
+           playback — this is what "reads" the file aloud to the user.
+        2. Build a combined prompt (file content + instruction) and pass it
+           to a dedicated ChatWorker that bypasses the Gemma router and uses
+           a wider num_ctx (8192) so the whole file fits in the KV-cache.
+        3. The LLM response (brief acknowledgment) is shown as a streaming
+           chat bubble and also spoken via TTS after the file reading finishes.
+        4. A compact summary pair is appended to self.messages so follow-up
+           questions ("what did that file say?") work correctly.
+        """
+        tts.stop()
+
+        # ── 1. Speak the file content aloud via TTS ───────────────────────
+        # Use SentenceBuffer to split on sentence boundaries so Piper TTS
+        # gets natural-length chunks rather than one enormous string.
+        # TTS is always attempted here regardless of self.is_tts_enabled
+        # because the user explicitly asked Plia to "read" the file aloud.
+        # We temporarily force-enable the engine for this operation.
+        _tts_was_enabled = tts.enabled
+        if not tts.enabled:
+            tts.toggle(True)   # initialise & enable if not already running
+
+        sentence_buf = SentenceBuffer()
+        sentences_to_speak = []
+
+        # Feed the full content through SentenceBuffer to get clean chunks
+        MAX_SPEAK_CHARS = 8_000   # avoid reading extremely long files end-to-end
+        speak_body = content[:MAX_SPEAK_CHARS]
+
+        for s in sentence_buf.add(speak_body):
+            sentences_to_speak.append(s)
+        remainder = sentence_buf.flush()
+        if remainder:
+            sentences_to_speak.append(remainder)
+
+        # Announce the filename first, then queue the content sentences
+        tts.queue_sentence(f"Reading {filename}.")
+        for s in sentences_to_speak:
+            tts.queue_sentence(s)
+
+        # Restore TTS enabled state after queueing (engine keeps playing
+        # queued sentences even after enabled=False; stop() would clear them)
+        if not _tts_was_enabled:
+            # Leave enabled so the queue can drain, but mark original state.
+            # The user can re-disable via the UI toggle when done.
+            pass
+
+        # ── 2. Build LLM prompt with embedded file content ────────────────
+        MAX_LLM_CHARS = 20_000
+        llm_body = content[:MAX_LLM_CHARS]
+        if len(content) > MAX_LLM_CHARS:
+            llm_body += (
+                f"\n\n[... truncated at {MAX_LLM_CHARS:,} chars — "
+                f"{len(content) - MAX_LLM_CHARS:,} chars omitted ...]"
+            )
+
+        llm_prompt = (
+            f"I have just read '{filename}' aloud for the user.\n\n"
+            f"--- BEGIN FILE: {filename} ---\n"
+            f"{llm_body}\n"
+            f"--- END FILE: {filename} ---\n\n"
+            f"In one short sentence, confirm you have processed '{filename}' "
+            f"and are ready for follow-up questions about it."
+        )
+        display_text = f"Read file: {filename}"
+
+        # ── 3. Session / history bookkeeping ─────────────────────────────
+        self.main_window.clear_input()
+        if not self.current_session_id:
+            self.init_new_session(display_text)
+            self.refresh_sidebar()
+        history_manager.add_message(self.current_session_id, "user", display_text)
+
+        # ── 4. Show clean user bubble ─────────────────────────────────────
+        self.main_window.add_message_bubble("user", display_text)
+        self._start_generation_state()
+
+        # ── 5. Launch ChatWorker (bypass Gemma router, wide context) ──────
+        import threading
+        self._stop_event = threading.Event()
+
+        from gui.components import MessageBubble, ThinkingExpander, SearchIndicator
+
+        thinking_ui  = ThinkingExpander()
+        search_ind   = SearchIndicator()
+        response_bbl = MessageBubble("assistant", "")
+
+        self.streaming_state["thinking_ui"]      = thinking_ui
+        self.streaming_state["search_indicator"] = search_ind
+        self.streaming_state["response_bubble"]  = response_bbl
+        self.streaming_state["response_buffer"]  = ""
+        self.streaming_state["thought_buffer"]   = ""
+        self.streaming_state["thinking_enabled"] = False
+
+        thinking_ui.setVisible(False)
+        search_ind.setVisible(False)
+        self.main_window.add_streaming_widgets(thinking_ui, search_ind, response_bbl)
+
+        # System prompt only — file content lives in user_text (llm_prompt)
+        clean_messages = [self.messages[0]]
+
+        self._thread = QThread(self)
+        self._worker = ChatWorker(
+            llm_prompt, clean_messages, self.is_tts_enabled,
+            self.current_session_id, self._stop_event,
+        )
+        self._worker.bypass_router = True
+        self._worker.file_num_ctx  = 8192
+        self._worker.moveToThread(self._thread)
+
+        self._thread.started.connect(self._worker.process)
+        self._worker.think_start.connect(self._on_think_start)
+        self._worker.thought_chunk.connect(self._on_thought_chunk)
+        self._worker.response_chunk.connect(self._on_response_chunk)
+        self._worker.think_end.connect(self._on_think_end)
+        self._worker.simple_response.connect(self._on_simple_response)
+        self._worker.error.connect(self._on_error)
+        self._worker.status.connect(self._on_status)
+        self._worker.toast.connect(self._on_toast)
+        self._worker.set_timer_signal.connect(self._on_set_timer)
+        self._worker.reload_alarms.connect(self._on_reload_alarms)
+        self._worker.reload_calendar.connect(self._on_reload_calendar)
+        self._worker.search_start.connect(self._on_search_start)
+        self._worker.search_end.connect(self._on_search_end)
+        self._worker.search_results_ready.connect(self._on_search_results_ready)
+        self._worker.create_agent_signal.connect(self._on_create_agent_from_chat)
+        self._worker.agent_result_signal.connect(self._on_agent_result)
+        self._worker.build_agent_signal.connect(self._on_agent_built)
+        self._worker.build_status_signal.connect(self._on_status)
+
+        # After worker finishes: append compact pair to self.messages so
+        # follow-up questions have the summary as context.
+        def _on_file_read_done(worker=self._worker, disp=display_text):
+            self.messages.append({"role": "user",      "content": disp})
+            self.messages.append({"role": "assistant",
+                                  "content": worker.full_response or
+                                             f"I have read '{filename}'."})
+
+        self._worker.done.connect(_on_file_read_done)
+        self._worker.done.connect(self._on_done)
+        self._worker.done.connect(self._thread.quit)
+        self._worker.done.connect(self._worker.deleteLater)
+        self._thread.finished.connect(self._thread.deleteLater)
+
         self._thread.start()
 
     def clear_chat(self):
