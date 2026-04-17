@@ -8,6 +8,7 @@ from PySide6.QtCore import QObject, Signal
 from config import (
     RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY, GRAY, RESET, CYAN, GREEN, WAKE_WORD
 )
+from core.settings_store import settings as app_settings
 from core.stt import STTListener
 from core.llm import route_query, should_bypass_router, http_session
 from core.model_persistence import ensure_qwen_loaded, mark_qwen_used, unload_qwen
@@ -604,9 +605,10 @@ class VoiceAssistant(QObject):
             context_prompt = f"{context_msg}\n\nUser asked: {user_text}\n\nRespond naturally and concisely."
             self.messages.append({'role': 'user', 'content': context_prompt})
             
-            # Prepare payload
+            # Prepare payload — read model from settings so user changes take effect immediately
+            _chat_model = app_settings.get("models.chat", RESPONDER_MODEL)
             payload = {
-                "model": RESPONDER_MODEL,
+                "model": _chat_model,
                 "messages": self.messages,
                 "stream": True,
                 "think": enable_thinking,
@@ -676,9 +678,10 @@ class VoiceAssistant(QObject):
             
             self.messages.append({'role': 'user', 'content': user_text})
             
-            # Prepare payload
+            # Prepare payload — read model from settings so user changes take effect immediately
+            _chat_model = app_settings.get("models.chat", RESPONDER_MODEL)
             payload = {
-                "model": RESPONDER_MODEL,
+                "model": _chat_model,
                 "messages": self.messages,
                 "stream": True,
                 "think": enable_thinking,

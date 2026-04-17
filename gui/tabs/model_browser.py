@@ -764,32 +764,44 @@ class ModelBrowserTab(QWidget):
         return {n.split(":")[0] for n in self._installed}
 
     def _is_db_model_installed(self, hf_name: str) -> bool:
-        """Return True if a DB model (given by HF name) matches any
-        locally-installed Ollama model.
+        """Return True only when the DB model's *exact* Ollama tag is
+        present in ``self._installed``.
 
-        Two matching strategies used in order:
-          1. Exact  — _hf_to_ollama(name) == installed model name.
-          2. Base   — strip the :tag from both sides and compare.
-             Handles the very common case where a model was pulled with
-             the :latest tag or a different specific tag than the DB
-             entry expects  (e.g. qwen2.5:latest → matches qwen2.5:7b).
+        Rationale
+        ---------
+        An earlier revision used base-name matching (strip ``:tag`` and
+        compare) so that, e.g. ``qwen2.5:latest`` would match the DB entry
+        ``qwen2.5:7b``. That turned out to be *too permissive*: if the user
+        has only ``deepseek-r1:1.5b`` installed, every other DB variant
+        (``deepseek-r1:7b``, ``:8b``, ``:14b``, ``:32b``, ``:70b``) shared
+        the same base ``deepseek-r1`` and was wrongly flagged as installed.
+
+        Ollama names follow the ``model:tag`` format (Ollama API docs —
+        https://docs.ollama.com/api) and ``/api/tags`` returns each
+        installed model's *specific* tag (e.g. ``deepseek-r1:1.5b`` or
+        ``qwen2.5:latest``). We therefore require an exact match here.
+        Installed models whose tag does not correspond to any DB entry —
+        typically generic ``:latest`` pulls or custom models — are picked
+        up by ``_matched_ollama_names`` / the synthetic-row mechanism in
+        ``_apply_filters`` so they still show up in the table as
+        ``Custom`` rows with a green Installed badge.
         """
-        ol      = _hf_to_ollama(hf_name)
-        ol_base = ol.split(":")[0]
-        return ol in self._installed or ol_base in self._installed_bases()
+        return _hf_to_ollama(hf_name) in self._installed
 
     def _matched_ollama_names(self) -> set:
-        """Return installed Ollama names that are already represented by at
-        least one DB entry (exact or base-name match).  Everything NOT in
-        this set is a custom/unrecognised install that needs a synthetic row.
+        """Return the subset of ``self._installed`` whose exact Ollama tag
+        is represented by a DB entry. Everything NOT in this set is treated
+        as a custom/unrecognised install and gets a synthetic row in the
+        table (see ``_apply_filters``).
+
+        Exact matching only — see ``_is_db_model_installed`` for rationale.
         """
         matched = set()
+        installed = self._installed
         for m in self._all_models:
-            ol      = _hf_to_ollama(m.get("name", ""))
-            ol_base = ol.split(":")[0]
-            for inst in self._installed:
-                if inst == ol or inst.split(":")[0] == ol_base:
-                    matched.add(inst)
+            ol = _hf_to_ollama(m.get("name", ""))
+            if ol in installed:
+                matched.add(ol)
         return matched
 
     def _apply_filters(self):
@@ -871,9 +883,8 @@ class ModelBrowserTab(QWidget):
         RA = Qt.AlignRight | Qt.AlignVCenter
         LA = Qt.AlignLeft  | Qt.AlignVCenter
 
-        # Pre-build base-name lookup for O(1) installed checks per row
+        # Pre-bind set for O(1) installed checks per row.
         _inst_exact = self._installed
-        _inst_bases = self._installed_bases()
 
         for row, m in enumerate(models):
             name     = m.get("name","")
@@ -889,15 +900,15 @@ class ModelBrowserTab(QWidget):
             is_moe   = m.get("is_moe", False)
             rmode    = m.get("run_mode","cpu")
 
-            # FIX: raw/custom models already carry their Ollama name;
-            # DB models need the HF→Ollama conversion.
+            # Raw/custom rows already carry their Ollama name; DB rows need
+            # the HF→Ollama conversion.
             is_raw = m.get("_raw_ollama", False)
             ol     = name if is_raw else _hf_to_ollama(name)
 
-            # FIX: use same base-name logic as _apply_filters so the
-            # "Installed" badge appears for qwen2.5:latest-style installs.
-            ol_base     = ol.split(":")[0]
-            is_installed = (ol in _inst_exact) or (ol_base in _inst_bases)
+            # Exact-match only — see _is_db_model_installed for rationale.
+            # Fixes the bug where having e.g. deepseek-r1:1.5b installed
+            # incorrectly flagged every deepseek-r1:* DB variant as installed.
+            is_installed = ol in _inst_exact
 
             dname = (name.split("/")[-1] if "/" in name else name) + ("  [MoE]" if is_moe else "")
             fc    = FIT_COLOURS.get(flev, "#8b9bb4")

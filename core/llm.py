@@ -110,11 +110,14 @@ def preload_models():
 
     def load_responder():
         try:
+            # Read the user-selected model from settings (falls back to config default)
+            from core.settings_store import settings as app_settings
+            model = app_settings.get("models.chat", RESPONDER_MODEL)
             # Send a minimal prompt to force the model to fully load into VRAM
             # The keep_alive ensures it stays loaded for 30 minutes
-            print(f"{GRAY}[System] Loading responder model ({RESPONDER_MODEL})...{RESET}")
+            print(f"{GRAY}[System] Loading responder model ({model})...{RESET}")
             response = http_session.post(f"{OLLAMA_URL}/generate", json={
-                "model": RESPONDER_MODEL, 
+                "model": model,
                 "prompt": "hi",
                 "stream": False,
                 "keep_alive": "30m",

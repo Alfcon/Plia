@@ -109,30 +109,68 @@ from gui.app import MainWindow
 from qfluentwidgets import qconfig, Theme, SplashScreen
 
 
+# Resolve Ollama daemon URL + models dir from environment. Doing this up-front
+# means a spawned `ollama serve` inherits a deterministic OLLAMA_MODELS rather
+# than whatever happens to be in the Plia subprocess env — which is the root
+# cause of "I pulled in Plia but `ollama list` doesn't show it".
+from core.ollama_paths import (
+    resolve_ollama_host,
+    resolve_ollama_models_dir,
+    diagnose_alignment,
+)
+
+
 def is_ollama_running() -> bool:
-    """Check if Ollama is already running on localhost:11434."""
+    """Check if Ollama is reachable at the resolved OLLAMA_HOST."""
     try:
-        r = requests.get("http://localhost:11434/api/tags", timeout=2)
+        r = requests.get(f"{resolve_ollama_host()}/api/tags", timeout=2)
         return r.status_code == 200
     except Exception:
         return False
 
 
+def _build_ollama_env() -> dict:
+    """
+    Return the env dict used when Plia spawns `ollama serve` itself.
+
+    Starts from the current process env, then *explicitly* re-sets
+    OLLAMA_MODELS and OLLAMA_HOST so the daemon sees the same values Plia
+    resolved — even if the Plia process was launched from a GUI context
+    (Windows Start menu, shortcut, etc.) where user env vars sometimes fail
+    to propagate to child processes.
+    """
+    env = os.environ.copy()
+    # Force an explicit, resolved OLLAMA_MODELS so `ollama list` in a shell
+    # and Plia's `/api/pull` always write to / read from the same directory.
+    env["OLLAMA_MODELS"] = str(resolve_ollama_models_dir())
+    # Don't override OLLAMA_HOST if the user set it — only set a default.
+    env.setdefault("OLLAMA_HOST", resolve_ollama_host().replace("http://", ""))
+    return env
+
+
 def start_ollama():
     """
     Launch Ollama as a background process if it is not already running.
-    Works on Windows (ollama.exe) and other platforms.
+
+    When Plia spawns the daemon itself, an explicit environment is passed so
+    the daemon stores models in the directory Plia resolved for
+    ``OLLAMA_MODELS`` — ensuring parity with what ``ollama list`` sees in a
+    shell.
     """
     if is_ollama_running():
-        print("[Plia] Ollama is already running.")
+        print(f"[Plia] Ollama is already running at {resolve_ollama_host()}.")
+        _log_alignment()
         return True
 
     print("[Plia] Ollama not detected — starting Ollama server...")
+    print(f"[Plia]   OLLAMA_HOST   = {resolve_ollama_host()}")
+    print(f"[Plia]   OLLAMA_MODELS = {resolve_ollama_models_dir()}")
     try:
+        spawn_env = _build_ollama_env()
         if sys.platform == "win32":
-            # Launch without a console window
             subprocess.Popen(
                 ["ollama", "serve"],
+                env=spawn_env,
                 creationflags=subprocess.CREATE_NO_WINDOW,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
@@ -140,6 +178,7 @@ def start_ollama():
         else:
             subprocess.Popen(
                 ["ollama", "serve"],
+                env=spawn_env,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
             )
@@ -149,6 +188,7 @@ def start_ollama():
             time.sleep(1)
             if is_ollama_running():
                 print(f"[Plia] ✓ Ollama started successfully ({i+1}s)")
+                _log_alignment()
                 return True
             print(f"[Plia] Waiting for Ollama... ({i+1}s)")
 
@@ -162,6 +202,30 @@ def start_ollama():
     except Exception as e:
         print(f"[Plia] ✗ Failed to start Ollama: {e}")
         return False
+
+
+def _log_alignment() -> None:
+    """
+    Print the Plia ↔ Ollama storage alignment to the console so the user can
+    immediately see whether models pulled from the Model Browser will round-
+    trip into ``ollama list`` in a shell. A mismatch usually means the daemon
+    was started with a different OLLAMA_MODELS than Plia resolved.
+    """
+    try:
+        d = diagnose_alignment()
+        print(f"[Plia]   daemon-reachable={d['daemon_reachable']} "
+              f"api-models={d['api_model_count']} "
+              f"disk-models={d['disk_model_count']}")
+        if d["daemon_reachable"] and not d["matches"]:
+            print("[Plia] ⚠ WARNING: daemon model count differs from on-disk "
+                  "manifest count.")
+            print("[Plia]   This normally means the running Ollama daemon was "
+                  "started with a different OLLAMA_MODELS path than Plia "
+                  "resolved. Restart Ollama (quit tray app on Windows, then "
+                  "let Plia launch it) to realign.")
+    except Exception as e:
+        # Never let a diagnostic failure block startup.
+        print(f"[Plia]   (alignment check skipped: {e})")
 
 
 if __name__ == "__main__":

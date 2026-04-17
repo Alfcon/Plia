@@ -4,7 +4,23 @@ Centralized configuration for Plia.
 
 # --- Model Configuration ---
 RESPONDER_MODEL = "qwen3:1.7b"
-OLLAMA_URL = "http://localhost:11434/api"
+
+# OLLAMA_URL honours the OLLAMA_HOST environment variable (same rules as the
+# `ollama` CLI itself) so that Plia and a terminal running `ollama list`
+# always talk to the same daemon. When OLLAMA_HOST is unset the default is
+# http://localhost:11434/api — identical to the original hard-coded value.
+def _resolve_ollama_url() -> str:
+    import os
+    raw = os.environ.get("OLLAMA_HOST", "").strip()
+    if not raw:
+        return "http://localhost:11434/api"
+    if raw.startswith("http://") or raw.startswith("https://"):
+        return f"{raw.rstrip('/')}/api"
+    if ":" in raw:
+        return f"http://{raw}/api"
+    return f"http://{raw}:11434/api"
+
+OLLAMA_URL = _resolve_ollama_url()
 LOCAL_ROUTER_PATH = "./merged_model"
 HF_ROUTER_REPO = "nlouis/pocket-ai-router"  # Hugging Face repo for auto-download
 MAX_HISTORY = 20
