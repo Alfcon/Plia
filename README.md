@@ -41,7 +41,7 @@
 | Software | Purpose | Download |
 |----------|---------|----------|
 | **Python 3.11+** | Runtime (3.11 or 3.13 recommended) | [python.org](https://www.python.org/downloads/) or via Miniconda |
-| **Miniconda** (recommended) | Python environment manager | [docs.anaconda.com/miniconda](https://docs.anaconda.com/miniconda/) |
+| **Miniconda** (recommended) | Python environment manager | [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success) |
 | **Ollama** | Local AI model server | [ollama.com/download](https://ollama.com/download) |
 | **Git** | Cloning the repository | [git-scm.com](https://git-scm.com/downloads) |
 
@@ -61,9 +61,10 @@
 
 ### Step 1 — Install Miniconda (or use your existing Python 3.11+)
 
-1. Download from [docs.anaconda.com/miniconda](https://docs.anaconda.com/miniconda/)
-2. Run the installer with default options
-3. Open **Anaconda Prompt** (Windows Start menu)
+1. Download from [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success)
+   NOTE: install Miniconda NOT Anaconda Distribution.
+3. Run the installer with default options
+4. Open **Anaconda Prompt** (Windows Start menu)
 
 ### Step 2 — Install Ollama
 
