@@ -1,34 +1,12 @@
 """
 Comprehensive Settings Tab with model selection, connection settings, and preferences.
-
-FIXES applied (2026-04-16):
-  Bug 1 – update_models() used to fire _on_changed(first_model) via addItems() BEFORE
-           setCurrentText() could restore the previously-saved value.  Added blockSignals()
-           around the repopulation block so the intermediate wrong value is never persisted.
-
-  Bug 2 – Models were only fetched once at SettingsTab.__init__ time.  If the user visited
-           Model Browser, downloaded a new model, then returned to Settings, the new model
-           never appeared in the Chat / Web Agent dropdowns without a manual Refresh click.
-           Fixed by overriding showEvent() to re-fetch on every subsequent visit.
-
-  Bug 3 – _fetch_models() replaced self.model_fetcher each call, leaving the previous
-           ModelFetcher thread without a Python reference.  Python's GC could destroy the
-           QThread wrapper while the C++ thread was still running ("QThread: Destroyed while
-           thread is still running").  Fixed by keeping active threads in self._fetcher_refs.
-
-  Bug 4 – InfoBar(parent=self.window()) could fail silently if the widget wasn't yet
-           attached to the main window when the background thread replied.  Added guard.
-
-  Bug 5 – Default web_agent model "qwen2.5vl:7b" is rarely installed, so the Web Agent
-           combo started with a stale/unknown value until Refresh ran.  The combo now
-           shows a placeholder until the live Ollama list arrives.
 """
 
 from config import LOCAL_ROUTER_PATH, RESPONDER_MODEL
 
 import requests
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame, QSizePolicy
 )
 from PySide6.QtCore import Qt, QThread, Signal, Slot
 
@@ -41,7 +19,6 @@ from qfluentwidgets import (
 
 from core.settings_store import settings
 
-
 class ModelFetcher(QThread):
     """Background thread to fetch available Ollama models."""
     models_fetched = Signal(list)
@@ -53,12 +30,7 @@ class ModelFetcher(QThread):
 
     def run(self):
         try:
-            # Normalise URL — handles both "http://localhost:11434" and
-            # "http://localhost:11434/api" so we always hit /api/tags correctly.
-            base = self.ollama_url.rstrip("/")
-            if base.endswith("/api"):
-                base = base[:-4]
-            response = requests.get(f"{base}/api/tags", timeout=10)
+            response = requests.get(f"{self.ollama_url}/api/tags", timeout=10)
             if response.status_code == 200:
                 data = response.json()
                 models = [m['name'] for m in data.get('models', [])]
@@ -82,10 +54,7 @@ class ConnectionTester(QThread):
 
     def run(self):
         try:
-            base = self.url.rstrip("/")
-            if base.endswith("/api"):
-                base = base[:-4]
-            response = requests.get(f"{base}/api/tags", timeout=5)
+            response = requests.get(f"{self.url}/api/tags", timeout=5)
             if response.status_code == 200:
                 self.success.emit()
             else:
@@ -94,6 +63,28 @@ class ConnectionTester(QThread):
             self.failed.emit("Connection refused")
         except Exception as e:
             self.failed.emit(str(e))
+
+
+class GeocoderThread(QThread):
+    """
+    Calls the Open-Meteo Geocoding API in a background thread so the
+    Settings UI stays responsive during city searches.
+    """
+    results_ready = Signal(list)
+    error_occurred = Signal(str)
+
+    def __init__(self, city: str, country_code: str):
+        super().__init__()
+        self.city         = city
+        self.country_code = country_code
+
+    def run(self):
+        try:
+            from core.weather import geocode_city
+            results = geocode_city(self.city, self.country_code)
+            self.results_ready.emit(results)
+        except Exception as e:
+            self.error_occurred.emit(str(e))
 
 
 class ComboBoxCard(SettingCard):
@@ -133,10 +124,8 @@ class ModelSelectCard(SettingCard):
 
         self.combo = ComboBox(self)
         self.combo.setMinimumWidth(180)
-        self.combo.setPlaceholderText("Fetching models…")   # Bug 5 fix: informative placeholder
+        self.combo.setPlaceholderText("Select model...")
 
-        # Pre-populate with saved value so there is always *something* visible
-        # while the background Ollama fetch is in flight.
         current = settings.get(key_path, "")
         if current:
             self.combo.addItem(current)
@@ -152,33 +141,13 @@ class ModelSelectCard(SettingCard):
             self.model_changed.emit(text)
 
     def update_models(self, models: list):
-        """
-        Repopulate the combo with *models* and restore the previously-saved
-        selection if it is still available.
-
-        Bug 1 fix: blockSignals() prevents the intermediate wrong save that
-        occurred when addItems() fired currentTextChanged(first_model) before
-        setCurrentText() had a chance to restore the user's actual choice.
-        """
         current = self.combo.currentText()
-
-        # -- Block signals to prevent spurious settings writes during repopulation
-        self.combo.blockSignals(True)
-        try:
-            self.combo.clear()
-            self.combo.addItems(models)
-            if current in models:
-                self.combo.setCurrentText(current)
-            elif models:
-                self.combo.setCurrentIndex(0)
-        finally:
-            self.combo.blockSignals(False)
-
-        # Explicitly persist the final selection so settings.json is always correct.
-        final = self.combo.currentText()
-        if final:
-            settings.set(self.key_path, final)
-            self.model_changed.emit(final)
+        self.combo.clear()
+        self.combo.addItems(models)
+        if current in models:
+            self.combo.setCurrentText(current)
+        elif models:
+            self.combo.setCurrentIndex(0)
 
 
 class UrlInputCard(SettingCard):
@@ -220,9 +189,6 @@ class UrlInputCard(SettingCard):
 
     @Slot()
     def _on_test_success(self):
-        win = self.window()
-        if win is None:
-            return
         InfoBar.success(
             title="Connected",
             content="Ollama is reachable!",
@@ -230,14 +196,11 @@ class UrlInputCard(SettingCard):
             isClosable=True,
             position=InfoBarPosition.TOP,
             duration=3000,
-            parent=win
+            parent=self.window()
         )
 
     @Slot(str)
     def _on_test_failed(self, error: str):
-        win = self.window()
-        if win is None:
-            return
         InfoBar.error(
             title="Connection Failed",
             content=error,
@@ -245,7 +208,7 @@ class UrlInputCard(SettingCard):
             isClosable=True,
             position=InfoBarPosition.TOP,
             duration=5000,
-            parent=win
+            parent=self.window()
         )
 
     @Slot()
@@ -340,6 +303,369 @@ class TextInputCard(SettingCard):
             self.value_changed.emit(text)
 
 
+class WeatherLocationCard(QFrame):
+    """
+    Full-width, multi-row weather location card.
+
+    Inherits QFrame instead of SettingCard so it can use a proper
+    QVBoxLayout with every field on its own clearly visible line.
+
+    Flow:
+      1. User selects Country from dropdown — City dropdown auto-populates
+         with major cities for that country (from CITIES_BY_COUNTRY).
+      2. User selects a City from the city dropdown — geocoding fires
+         automatically via Open-Meteo Geocoding API (free, no API key).
+      3. Resolved coordinates appear in the location label.
+      4. User clicks Apply → saves weather.country, weather.city,
+         weather.latitude, weather.longitude to settings_store.
+
+      Alternative: If the desired city is not in the City dropdown, use
+      the "Not listed? Search:" text field and press Search.
+    """
+
+    location_applied = Signal(str, str, float, float)  # country, city_display, lat, lon
+
+    # ── Card-level styling ───────────────────────────────────────────────
+    _CARD_STYLE = """
+        WeatherLocationCard {
+            background-color: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
+        }
+    """
+    _LABEL_STYLE   = "color: rgba(255,255,255,0.85); font-size: 13px;"
+    _DESC_STYLE    = "color: rgba(255,255,255,0.45); font-size: 12px;"
+    _COORDS_STYLE  = (
+        "color: rgba(255,255,255,0.65); font-size: 12px; "
+        "padding: 6px 10px; "
+        "background: rgba(255,255,255,0.04); "
+        "border-radius: 4px;"
+    )
+    _DIVIDER_STYLE = "background: rgba(255,255,255,0.08);"
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName("WeatherLocationCard")
+        self.setStyleSheet(self._CARD_STYLE)
+        # Allow the card to grow vertically to show all rows — never clip
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.setMinimumHeight(320)
+        self._geocoder = None
+        self._results: list = []
+        self._initializing = False   # guard against spurious signals during init
+        self._build_ui()
+        self._restore_saved()
+
+    # ── UI construction ──────────────────────────────────────────────────
+
+    def _build_ui(self):
+        from core.weather import COUNTRIES
+        from PySide6.QtWidgets import QLayout
+
+        outer = QVBoxLayout(self)
+        outer.setSpacing(0)
+        outer.setContentsMargins(20, 14, 20, 16)
+        outer.setSizeConstraint(QLayout.SetMinimumSize)
+
+        # ── Header: icon + title + description ──────────────────────────
+        header_row = QHBoxLayout()
+        header_row.setSpacing(12)
+
+        pin_lbl = QLabel(self)
+        pin_lbl.setPixmap(FIF.PIN.icon().pixmap(18, 18))
+        pin_lbl.setFixedSize(18, 18)
+
+        title_col = QVBoxLayout()
+        title_col.setSpacing(2)
+        title_lbl = StrongBodyLabel("Weather Location", self)
+        desc_lbl = QLabel(
+            "Select your Country and City — coordinates are resolved automatically", self
+        )
+        desc_lbl.setStyleSheet(self._DESC_STYLE)
+        title_col.addWidget(title_lbl)
+        title_col.addWidget(desc_lbl)
+
+        header_row.addWidget(pin_lbl, 0, Qt.AlignTop)
+        header_row.addLayout(title_col, 1)
+        outer.addLayout(header_row)
+
+        outer.addSpacing(12)
+
+        # ── Thin horizontal divider ──────────────────────────────────────
+        divider = QFrame(self)
+        divider.setFixedHeight(1)
+        divider.setStyleSheet(self._DIVIDER_STYLE)
+        outer.addWidget(divider)
+
+        outer.addSpacing(14)
+
+        # ── Row 1: Country dropdown ──────────────────────────────────────
+        row1 = QHBoxLayout()
+        row1.setSpacing(12)
+        country_lbl = QLabel("Country:", self)
+        country_lbl.setFixedWidth(80)
+        country_lbl.setStyleSheet(self._LABEL_STYLE)
+        self.country_combo = ComboBox(self)
+        self.country_combo.setMinimumWidth(220)
+        for display_name, _ in COUNTRIES:
+            self.country_combo.addItem(display_name)
+        self.country_combo.currentIndexChanged.connect(self._on_country_changed)
+        row1.addWidget(country_lbl, 0, Qt.AlignVCenter)
+        row1.addWidget(self.country_combo, 1)
+        outer.addLayout(row1)
+
+        outer.addSpacing(10)
+
+        # ── Row 2: City dropdown (auto-populated from CITIES_BY_COUNTRY) ─
+        row2 = QHBoxLayout()
+        row2.setSpacing(12)
+        city_lbl = QLabel("City:", self)
+        city_lbl.setFixedWidth(80)
+        city_lbl.setStyleSheet(self._LABEL_STYLE)
+        self.city_combo = ComboBox(self)
+        self.city_combo.setMinimumWidth(220)
+        self.city_combo.setPlaceholderText("Select country first…")
+        # Populated by _populate_city_combo; signals connected after init guard is set
+        self.city_combo.currentIndexChanged.connect(self._on_city_combo_changed)
+        row2.addWidget(city_lbl, 0, Qt.AlignVCenter)
+        row2.addWidget(self.city_combo, 1)
+        outer.addLayout(row2)
+
+        outer.addSpacing(12)
+
+        # ── Search section: for cities not listed in the dropdown ────────
+        search_hdr = QLabel("Not listed? Search for any city:", self)
+        search_hdr.setStyleSheet(self._DESC_STYLE)
+        outer.addWidget(search_hdr)
+        outer.addSpacing(6)
+
+        row3 = QHBoxLayout()
+        row3.setSpacing(12)
+        spacer_lbl = QLabel("", self)
+        spacer_lbl.setFixedWidth(80)
+        self.city_input = LineEdit(self)
+        self.city_input.setPlaceholderText("Type any city name and press Search…")
+        self.city_input.returnPressed.connect(self._do_search)
+        self.search_btn = PrimaryPushButton("Search", self)
+        self.search_btn.setFixedWidth(90)
+        self.search_btn.clicked.connect(self._do_search)
+        row3.addWidget(spacer_lbl, 0, Qt.AlignVCenter)
+        row3.addWidget(self.city_input, 1)
+        row3.addWidget(self.search_btn, 0)
+        outer.addLayout(row3)
+
+        outer.addSpacing(10)
+
+        # ── Results dropdown (hidden until geocoding returns results) ────
+        self.results_combo = ComboBox(self)
+        self.results_combo.setPlaceholderText("Search results appear here…")
+        self.results_combo.setVisible(False)
+        self.results_combo.currentIndexChanged.connect(self._on_result_selected)
+        outer.addWidget(self.results_combo)
+
+        outer.addSpacing(8)
+
+        # ── Resolved location + coordinates ─────────────────────────────
+        self.location_label = QLabel("", self)
+        self.location_label.setWordWrap(True)
+        self.location_label.setStyleSheet(self._COORDS_STYLE)
+        self.location_label.setVisible(False)
+        outer.addWidget(self.location_label)
+
+        outer.addSpacing(12)
+
+        # ── Apply button (left-aligned) ──────────────────────────────────
+        btn_row = QHBoxLayout()
+        self.apply_btn = PrimaryPushButton("Apply Location", self)
+        self.apply_btn.setFixedWidth(150)
+        self.apply_btn.setEnabled(False)
+        self.apply_btn.clicked.connect(self._apply_location)
+        btn_row.addWidget(self.apply_btn)
+        btn_row.addStretch()
+        outer.addLayout(btn_row)
+
+    # ── City dropdown helpers ────────────────────────────────────────────
+
+    def _populate_city_combo(self, country_name: str):
+        """
+        Fill the City dropdown with major cities for *country_name*.
+        Signals are blocked during population so _on_city_combo_changed
+        is not triggered spuriously.
+        """
+        from core.weather import CITIES_BY_COUNTRY
+        self.city_combo.blockSignals(True)
+        self.city_combo.clear()
+        cities = CITIES_BY_COUNTRY.get(country_name, [])
+        if cities:
+            self.city_combo.addItems(cities)
+            self.city_combo.setPlaceholderText("Select city…")
+        else:
+            self.city_combo.setPlaceholderText("No preset cities — use Search below")
+        self.city_combo.blockSignals(False)
+
+    # ── Restore saved values on startup ─────────────────────────────────
+
+    def _restore_saved(self):
+        """Pre-fill the card from persisted settings so current location is visible."""
+        from core.weather import COUNTRIES
+        self._initializing = True
+
+        country = settings.get("weather.country", "Australia")
+        city    = settings.get("weather.city",    "Kelmscott, Western Australia, Australia")
+        lat     = settings.get("weather.latitude",  -32.1151)
+        lon     = settings.get("weather.longitude", 116.0255)
+
+        # Restore country selection
+        for i, (name, _) in enumerate(COUNTRIES):
+            if name == country:
+                self.country_combo.blockSignals(True)
+                self.country_combo.setCurrentIndex(i)
+                self.country_combo.blockSignals(False)
+                break
+
+        # Populate city dropdown for the saved country
+        self._populate_city_combo(country)
+
+        # Try to pre-select the saved city in the city dropdown
+        if city:
+            city_base = city.split(",")[0].strip()
+            idx = self.city_combo.findText(city_base)
+            if idx >= 0:
+                self.city_combo.blockSignals(True)
+                self.city_combo.setCurrentIndex(idx)
+                self.city_combo.blockSignals(False)
+            else:
+                # City is not in the preset list — show it in the search field
+                self.city_input.setText(city_base)
+
+        # Show the currently saved coordinates
+        if city and (lat or lon):
+            self.location_label.setText(
+                f"📍  {city}\n"
+                f"    Lat {float(lat):.4f}  ·  Lon {float(lon):.4f}"
+            )
+            self.location_label.setVisible(True)
+            # Apply is disabled on startup — no unsaved change pending yet
+            self.apply_btn.setEnabled(False)
+
+        self._initializing = False
+
+    # ── Slots ────────────────────────────────────────────────────────────
+
+    def _on_country_changed(self, _index: int):
+        """Update the City dropdown and clear stale results when country changes."""
+        if self._initializing:
+            return
+        country_name = self.country_combo.currentText()
+        self._populate_city_combo(country_name)
+        self._results = []
+        self.results_combo.clear()
+        self.results_combo.setVisible(False)
+        self.apply_btn.setEnabled(False)
+
+    def _on_city_combo_changed(self, index: int):
+        """Auto-geocode when the user selects a city from the City dropdown."""
+        if self._initializing:
+            return
+        city_text = self.city_combo.currentText()
+        if not city_text:
+            return
+        self._start_geocode(city_text)
+
+    def _get_country_code(self) -> str:
+        from core.weather import COUNTRIES
+        idx = self.country_combo.currentIndex()
+        if 0 <= idx < len(COUNTRIES):
+            return COUNTRIES[idx][1]   # ISO-3166-1 alpha-2, or "" for Any
+        return ""
+
+    def _do_search(self):
+        """Manual search — used when the desired city is not in the City dropdown."""
+        city_text = self.city_input.text().strip()
+        if not city_text:
+            return
+        self._start_geocode(city_text)
+
+    def _start_geocode(self, city_text: str):
+        """Kick off GeocoderThread for *city_text* filtered by the selected country."""
+        self.search_btn.setEnabled(False)
+        self.search_btn.setText("…")
+        self.results_combo.setVisible(False)
+        self.apply_btn.setEnabled(False)
+        self._results = []
+
+        self._geocoder = GeocoderThread(city_text, self._get_country_code())
+        self._geocoder.results_ready.connect(self._on_results)
+        self._geocoder.error_occurred.connect(self._on_search_error)
+        self._geocoder.finished.connect(self._on_search_done)
+        self._geocoder.start()
+
+    def _on_results(self, results: list):
+        self._results = results
+        self.results_combo.clear()
+        if results:
+            for r in results:
+                self.results_combo.addItem(r["display"])
+            self.results_combo.setVisible(True)
+            self.results_combo.setCurrentIndex(0)
+            self._on_result_selected(0)
+        else:
+            self.results_combo.addItem("No results — try a different spelling or country")
+            self.results_combo.setVisible(True)
+            self.apply_btn.setEnabled(False)
+
+    def _on_result_selected(self, index: int):
+        if 0 <= index < len(self._results):
+            r = self._results[index]
+            lat, lon = r["latitude"], r["longitude"]
+            self.location_label.setText(
+                f"📍  {r['display']}\n"
+                f"    Lat {lat:.4f}  ·  Lon {lon:.4f}"
+            )
+            self.location_label.setVisible(True)
+            self.apply_btn.setEnabled(True)
+        else:
+            self.apply_btn.setEnabled(False)
+
+    def _on_search_error(self, error: str):
+        self.results_combo.clear()
+        self.results_combo.addItem(f"Search failed: {error}")
+        self.results_combo.setVisible(True)
+        self.apply_btn.setEnabled(False)
+
+    def _on_search_done(self):
+        self.search_btn.setEnabled(True)
+        self.search_btn.setText("Search")
+
+    def _apply_location(self):
+        """Persist the selected city's coordinates and display name."""
+        idx = self.results_combo.currentIndex()
+        if not (0 <= idx < len(self._results)):
+            return
+
+        r            = self._results[idx]
+        country_name = self.country_combo.currentText()
+
+        settings.set("weather.latitude",     r["latitude"])
+        settings.set("weather.longitude",    r["longitude"])
+        settings.set("weather.city",         r["display"])
+        settings.set("weather.country",      country_name)
+        settings.set("weather.country_code", r["country_code"])
+
+        self.location_applied.emit(
+            country_name, r["display"], r["latitude"], r["longitude"]
+        )
+        InfoBar.success(
+            title="Location Saved",
+            content=f"Weather location set to {r['display']}",
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=3000,
+            parent=self.window(),
+        )
+
+
 # ---------------------------------------------------------------------------
 # Main Settings Tab
 # ---------------------------------------------------------------------------
@@ -363,31 +689,16 @@ class SettingsTab(ScrollArea):
         self.setWidget(self.scrollWidget)
         self.setWidgetResizable(True)
 
-        # Bug 3 fix: keep a list of active fetcher threads so Python's GC
-        # cannot destroy a QThread wrapper while the C++ thread is still running.
-        self._fetcher_refs: list = []
-
-        self._available_models: list = []
-
-        # Bug 2 fix: track whether the first showEvent has already triggered the
-        # initial fetch so we don't double-fetch on first open.
-        self._shown_once: bool = False
+        self.model_fetcher = None
+        self._available_models = []
 
         self._init_ui()
-        self._fetch_models()   # Kick off fetch immediately at init time
-
-    # ── Bug 2 fix: re-fetch models every time the tab becomes visible ─────
-    def showEvent(self, event):
-        super().showEvent(event)
-        if self._shown_once:
-            # Subsequent visits (e.g. user returned from Model Browser after
-            # downloading a new model) — silently refresh the combos.
-            self._fetch_models()
-        self._shown_once = True
+        self._fetch_models()
 
     def _init_ui(self):
 
         # ── Apply & Refresh ───────────────────────────────────────────────────
+        # Pinned at the top so it's always visible without scrolling
         self.apply_group = SettingCardGroup("Apply Changes", self.scrollWidget)
 
         self.apply_card = PrimaryPushSettingCard(
@@ -472,24 +783,7 @@ class SettingsTab(ScrollArea):
         # ── Voice & Audio ────────────────────────────────────────────────────
         self.voice_group = SettingCardGroup("Voice & Audio", self.scrollWidget)
 
-        self.auto_start_card = SwitchCard(
-            FIF.MICROPHONE,
-            "Auto-Start Voice on Launch",
-            "Automatically activate wake-word listening when Plia starts",
-            "voice.auto_start",
-            self.voice_group
-        )
-        self.voice_group.addSettingCard(self.auto_start_card)
-
-        self.startup_greeting_card = SwitchCard(
-            FIF.VOLUME,
-            "Startup Voice Greeting",
-            "Speak a confirmation message when voice assistant goes online at startup",
-            "voice.startup_greeting",
-            self.voice_group
-        )
-        self.voice_group.addSettingCard(self.startup_greeting_card)
-
+        # Wake word — dropdown restricted to words supported by Porcupine
         from core.stt import SUPPORTED_WAKE_WORDS
         self.wake_word_card = ComboBoxCard(
             FIF.MICROPHONE,
@@ -501,6 +795,7 @@ class SettingsTab(ScrollArea):
         )
         self.voice_group.addSettingCard(self.wake_word_card)
 
+        # Sensitivity slider (0 = strict, 100 = very sensitive)
         self.wake_sensitivity_card = SliderCard(
             FIF.SPEED_HIGH,
             "Wake Word Sensitivity",
@@ -509,6 +804,7 @@ class SettingsTab(ScrollArea):
             0, 100,
             self.voice_group
         )
+        self.voice_group.addSettingCard(self.wake_sensitivity_card)
         self.voice_group.addSettingCard(self.wake_sensitivity_card)
 
         piper_voices = [
@@ -532,6 +828,7 @@ class SettingsTab(ScrollArea):
         # ── Weather Location ─────────────────────────────────────────────────
         self.weather_group = SettingCardGroup("Weather", self.scrollWidget)
 
+        # Provider selector
         from core.weather import PROVIDER_NAMES, BOM_STATIONS
         self.weather_provider_card = ComboBoxCard(
             FIF.CLOUD,
@@ -544,6 +841,7 @@ class SettingsTab(ScrollArea):
         self.weather_provider_card.value_changed.connect(self._on_weather_provider_changed)
         self.weather_group.addSettingCard(self.weather_provider_card)
 
+        # BOM station selector (shown only for BOM provider)
         station_labels = list(BOM_STATIONS.keys())
         self.bom_station_card = ComboBoxCard(
             FIF.PIN,
@@ -556,6 +854,7 @@ class SettingsTab(ScrollArea):
         self.bom_station_card.value_changed.connect(self._on_bom_station_changed)
         self.weather_group.addSettingCard(self.bom_station_card)
 
+        # Custom URL (shown only when "Custom URL" is selected)
         self.weather_custom_url_card = TextInputCard(
             FIF.LINK,
             "Custom Weather URL",
@@ -565,10 +864,12 @@ class SettingsTab(ScrollArea):
             self.weather_group
         )
         self.weather_group.addSettingCard(self.weather_custom_url_card)
+        # Hide unless Custom URL is already selected
         provider_now = settings.get("weather.provider", "BOM (Australia)")
         self.weather_custom_url_card.setVisible(provider_now == "Custom URL")
         self.bom_station_card.setVisible(provider_now == "BOM (Australia)")
 
+        # Temperature unit
         self.weather_unit_card = ComboBoxCard(
             FIF.SPEED_HIGH,
             "Temperature Unit",
@@ -578,37 +879,14 @@ class SettingsTab(ScrollArea):
             self.weather_group
         )
         self.weather_group.addSettingCard(self.weather_unit_card)
-
-        self.city_card = TextInputCard(
-            FIF.PIN,
-            "City Name",
-            "Display name for your location",
-            "weather.city",
-            "New York, NY",
-            self.weather_group
-        )
-        self.weather_group.addSettingCard(self.city_card)
-
-        self.latitude_card = TextInputCard(
-            FIF.PIN,
-            "Latitude",
-            "Latitude coordinate (-90 to 90)",
-            "weather.latitude",
-            "40.7128",
-            self.weather_group
-        )
-        self.weather_group.addSettingCard(self.latitude_card)
-
-        self.longitude_card = TextInputCard(
-            FIF.GLOBE,
-            "Longitude",
-            "Longitude coordinate (-180 to 180)",
-            "weather.longitude",
-            "-74.0060",
-            self.weather_group
-        )
-        self.weather_group.addSettingCard(self.longitude_card)
         self.expandLayout.addWidget(self.weather_group)
+
+        # ── Weather Location ─────────────────────────────────────────────────
+        # Added directly to expandLayout — NOT via SettingCardGroup.addSettingCard,
+        # which internally clips children to a standard single-row card height.
+        # The QFrame-based WeatherLocationCard needs unrestricted vertical space.
+        self.location_card = WeatherLocationCard(self.scrollWidget)
+        self.expandLayout.addWidget(self.location_card)
 
         # ── General ──────────────────────────────────────────────────────────
         self.general_group = SettingCardGroup("General", self.scrollWidget)
@@ -636,6 +914,7 @@ class SettingsTab(ScrollArea):
         # ── News Cache Management ─────────────────────────────────────────────
         self.news_group = SettingCardGroup("News Cache", self.scrollWidget)
 
+        # Retention period dropdown
         self.news_retention_card = ComboBoxCard(
             FIF.DATE_TIME,
             "Article Retention Period",
@@ -646,6 +925,7 @@ class SettingsTab(ScrollArea):
         )
         self.news_group.addSettingCard(self.news_retention_card)
 
+        # Auto-purge on startup toggle
         self.auto_purge_card = SwitchCard(
             FIF.SYNC,
             "Auto-purge on Startup",
@@ -655,6 +935,7 @@ class SettingsTab(ScrollArea):
         )
         self.news_group.addSettingCard(self.auto_purge_card)
 
+        # Manual purge button
         self.purge_now_card = PushSettingCard(
             "Clear Now",
             FIF.DELETE,
@@ -670,6 +951,7 @@ class SettingsTab(ScrollArea):
         # ── Calendar Integration ──────────────────────────────────────────────
         self.calendar_group = SettingCardGroup("Calendar Integration", self.scrollWidget)
 
+        # ── Google Calendar ──────────────────────────────────────────────────
         self.google_enable_card = SwitchCard(
             FIF.CALENDAR,
             "Google Calendar",
@@ -719,6 +1001,7 @@ class SettingsTab(ScrollArea):
         self.google_disconnect_card.clicked.connect(self._on_google_disconnect)
         self.calendar_group.addSettingCard(self.google_disconnect_card)
 
+        # ── Outlook Calendar ─────────────────────────────────────────────────
         self.outlook_enable_card = SwitchCard(
             FIF.CALENDAR,
             "Outlook / Microsoft 365 Calendar",
@@ -842,48 +1125,56 @@ class SettingsTab(ScrollArea):
         """Apply all settings and refresh every live display immediately."""
         errors = []
 
+        # 1. Refresh dashboard weather + data feed
         try:
             main_win = self.window()
-            if main_win and hasattr(main_win, 'dashboard_view') and main_win.dashboard_view:
+            if hasattr(main_win, 'dashboard_view') and main_win.dashboard_view:
                 main_win.dashboard_view.refresh()
         except Exception as e:
             errors.append(f"Dashboard: {e}")
 
+        # 2. Refresh briefing news feed
         try:
             main_win = self.window()
-            if main_win and hasattr(main_win, 'briefing_view') and main_win.briefing_view:
+            if hasattr(main_win, 'briefing_view') and main_win.briefing_view:
                 main_win.briefing_view.load_news()
         except Exception as e:
             errors.append(f"Briefing: {e}")
 
+        # 3. Flush in-memory news cache so next fetch uses fresh settings
         try:
             from core.news import news_manager
             news_manager.cache.clear()
         except Exception as e:
             errors.append(f"News cache: {e}")
 
+        # 4. Convert sensitivity percentage to float and save
         try:
             pct = settings.get("voice.sensitivity_pct", 40)
             settings.set("voice.sensitivity", round(pct / 100.0, 2))
         except Exception as e:
             errors.append(f"Sensitivity: {e}")
 
+        # 5. Apply TTS voice change immediately
         try:
             from core.tts import tts
             new_voice = settings.get("tts.voice", "en_GB-northern_english_male-medium")
             if new_voice:
                 import threading
-                threading.Thread(target=lambda: tts.change_voice(new_voice), daemon=True).start()
+                def _change_voice():
+                    tts.change_voice(new_voice)
+                threading.Thread(target=_change_voice, daemon=True).start()
         except Exception as e:
             errors.append(f"TTS voice: {e}")
 
+        # 6. Restart STT listener with new wake word / sensitivity
         try:
             from core.voice_assistant import voice_assistant
             if voice_assistant.running:
                 voice_assistant.stop()
                 import threading, time
                 def _restart_va():
-                    time.sleep(1.5)
+                    time.sleep(1.5)   # let the old recorder shut down fully
                     if voice_assistant.initialize():
                         voice_assistant.start()
                     else:
@@ -891,10 +1182,6 @@ class SettingsTab(ScrollArea):
                 threading.Thread(target=_restart_va, daemon=True).start()
         except Exception as e:
             errors.append(f"Voice assistant: {e}")
-
-        win = self.window()
-        if win is None:
-            return
 
         if errors:
             InfoBar.warning(
@@ -904,7 +1191,7 @@ class SettingsTab(ScrollArea):
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=5000,
-                parent=win
+                parent=self.window()
             )
         else:
             InfoBar.success(
@@ -914,14 +1201,16 @@ class SettingsTab(ScrollArea):
                 isClosable=True,
                 position=InfoBarPosition.TOP,
                 duration=3000,
-                parent=win
+                parent=self.window()
             )
 
     def _on_weather_provider_changed(self, value: str):
+        """Show/hide relevant cards based on selected provider."""
         self.weather_custom_url_card.setVisible(value == "Custom URL")
         self.bom_station_card.setVisible(value == "BOM (Australia)")
 
     def _on_bom_station_changed(self, label: str):
+        """Save the BOM station ID when the user picks a station."""
         from core.weather import BOM_STATIONS
         station_id = BOM_STATIONS.get(label, "94609")
         settings.set("weather.bom_station", station_id)
@@ -932,150 +1221,105 @@ class SettingsTab(ScrollArea):
         setTheme(theme_map.get(value, Theme.DARK))
 
     def _on_delete_settings(self):
+        """Delete settings.json so it gets recreated with all current defaults on next restart."""
         import os
         from pathlib import Path
         settings_file = Path.home() / ".plia" / "settings.json"
-        win = self.window()
         try:
             if settings_file.exists():
                 settings_file.unlink()
-                if win:
-                    InfoBar.success(
-                        title="Settings File Deleted",
-                        content="Please restart Plia — a fresh settings.json will be created with all defaults.",
-                        orient=Qt.Horizontal,
-                        isClosable=True,
-                        position=InfoBarPosition.TOP,
-                        duration=8000,
-                        parent=win
-                    )
+                InfoBar.success(
+                    title="Settings File Deleted",
+                    content="Please restart Plia — a fresh settings.json will be created with all defaults.",
+                    orient=Qt.Horizontal,
+                    isClosable=True,
+                    position=InfoBarPosition.TOP,
+                    duration=8000,
+                    parent=self.window()
+                )
             else:
-                if win:
-                    InfoBar.warning(
-                        title="File Not Found",
-                        content=f"Settings file not found at {settings_file}",
-                        orient=Qt.Horizontal,
-                        isClosable=True,
-                        position=InfoBarPosition.TOP,
-                        duration=4000,
-                        parent=win
-                    )
-        except Exception as e:
-            if win:
-                InfoBar.error(
-                    title="Error",
-                    content=f"Could not delete settings file: {e}",
+                InfoBar.warning(
+                    title="File Not Found",
+                    content=f"Settings file not found at {settings_file}",
                     orient=Qt.Horizontal,
                     isClosable=True,
                     position=InfoBarPosition.TOP,
                     duration=4000,
-                    parent=win
+                    parent=self.window()
                 )
-
-    def _on_reset(self):
-        settings.reset_to_defaults()
-        win = self.window()
-        if win:
-            InfoBar.success(
-                title="Settings Reset",
-                content="All settings restored to defaults. Please restart the app.",
+        except Exception as e:
+            InfoBar.error(
+                title="Error",
+                content=f"Could not delete settings file: {e}",
                 orient=Qt.Horizontal,
                 isClosable=True,
                 position=InfoBarPosition.TOP,
-                duration=5000,
-                parent=win
+                duration=4000,
+                parent=self.window()
             )
 
+    def _on_reset(self):
+        settings.reset_to_defaults()
+        InfoBar.success(
+            title="Settings Reset",
+            content="All settings restored to defaults. Please restart the app.",
+            orient=Qt.Horizontal,
+            isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=5000,
+            parent=self.window()
+        )
+
     def _on_purge_now(self):
-        win = self.window()
+        """Immediately clear all cached news articles."""
         try:
             from gui.tabs.briefing import save_local_cache
             save_local_cache({})
-            if win:
-                InfoBar.success(
-                    title="Cache Cleared",
-                    content="All locally stored Briefing articles have been removed.",
-                    orient=Qt.Horizontal,
-                    isClosable=True,
-                    position=InfoBarPosition.TOP,
-                    duration=3000,
-                    parent=win
-                )
+            InfoBar.success(
+                title="Cache Cleared",
+                content="All locally stored Briefing articles have been removed.",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=3000,
+                parent=self.window()
+            )
         except Exception as e:
-            if win:
-                InfoBar.error(
-                    title="Error",
-                    content=f"Could not clear cache: {e}",
-                    orient=Qt.Horizontal,
-                    isClosable=True,
-                    position=InfoBarPosition.TOP,
-                    duration=4000,
-                    parent=win
-                )
-
-    # ── Model fetching ────────────────────────────────────────────────────────
+            InfoBar.error(
+                title="Error",
+                content=f"Could not clear cache: {e}",
+                orient=Qt.Horizontal,
+                isClosable=True,
+                position=InfoBarPosition.TOP,
+                duration=4000,
+                parent=self.window()
+            )
 
     def _fetch_models(self):
-        """
-        Start a background thread to fetch the list of Ollama models.
-
-        Bug 3 fix: append each new ModelFetcher to self._fetcher_refs so Python
-        cannot GC the wrapper while the C++ thread is still running.  Each thread
-        removes itself from the list via its finished signal once Qt is done with it.
-        """
         url = settings.get("ollama_url", "http://localhost:11434")
-        fetcher = ModelFetcher(url)
-        fetcher.models_fetched.connect(self._on_models_fetched)
-        fetcher.error_occurred.connect(self._on_models_error)
-
-        # Bug 3 fix: keep Python reference alive until the Qt thread is fully done.
-        self._fetcher_refs.append(fetcher)
-        fetcher.finished.connect(
-            lambda f=fetcher: self._fetcher_refs.remove(f)
-            if f in self._fetcher_refs else None
-        )
-
-        fetcher.start()
-        # Keep compat attribute for any code that checked self.model_fetcher
-        self.model_fetcher = fetcher
+        self.model_fetcher = ModelFetcher(url)
+        self.model_fetcher.models_fetched.connect(self._on_models_fetched)
+        self.model_fetcher.error_occurred.connect(self._on_models_error)
+        self.model_fetcher.start()
 
     @Slot(list)
     def _on_models_fetched(self, models: list):
-        """
-        Populate all ModelSelectCard combos with the fresh model list.
-        Bug 1 fix is inside ModelSelectCard.update_models (blockSignals).
-        Bug 4 fix: guard self.window() before calling InfoBar.
-        """
         self._available_models = models
         self.chat_model_card.update_models(models)
         self.web_agent_model_card.update_models(models)
         self.desktop_model_card.update_models(models)
-
-        # Bug 4 fix: only call InfoBar if the widget is attached to a window.
-        win = self.window()
-        if win is None:
-            return
         InfoBar.success(
             title="Models Loaded",
-            content=f"Found {len(models)} model(s)",
+            content=f"Found {len(models)} models",
             orient=Qt.Horizontal,
             isClosable=True,
             position=InfoBarPosition.TOP,
             duration=2000,
-            parent=win
+            parent=self.window()
         )
 
     @Slot(str)
     def _on_models_error(self, error: str):
-        """
-        Show an error toast if Ollama could not be reached.
-        Bug 4 fix: guard self.window().
-        """
-        win = self.window()
-        if win is None:
-            # Widget not yet in a window — log and move on.
-            print(f"[Settings] Could not fetch models (no window yet): {error}")
-            return
         InfoBar.warning(
             title="Could not fetch models",
             content=error,
@@ -1083,129 +1327,119 @@ class SettingsTab(ScrollArea):
             isClosable=True,
             position=InfoBarPosition.TOP,
             duration=4000,
-            parent=win
+            parent=self.window()
         )
 
     # ── Calendar handlers ─────────────────────────────────────────────────────
 
     def _on_google_connect(self):
+        """Launch Google OAuth flow in a background thread."""
         client_id = settings.get("calendar.google.client_id", "").strip()
         client_secret = settings.get("calendar.google.client_secret", "").strip()
-        win = self.window()
 
         if not client_id or not client_secret:
-            if win:
-                InfoBar.warning(
-                    title="Missing Credentials",
-                    content="Please enter your Google Client ID and Client Secret first.",
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=4000,
-                    parent=win
-                )
+            InfoBar.warning(
+                title="Missing Credentials",
+                content="Please enter your Google Client ID and Client Secret first.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000,
+                parent=self.window()
+            )
             return
 
         try:
             from core.calendar_sync import google_auth_flow
             google_auth_flow(client_id, client_secret)
-            if win:
-                InfoBar.success(
-                    title="Google Calendar Connected",
-                    content="Authorisation complete. Events will appear in the Planner.",
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=4000,
-                    parent=win
-                )
+            InfoBar.success(
+                title="Google Calendar Connected",
+                content="Authorisation complete. Events will appear in the Planner.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000,
+                parent=self.window()
+            )
         except Exception as e:
-            if win:
-                InfoBar.error(
-                    title="Google Auth Failed",
-                    content=str(e),
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=6000,
-                    parent=win
-                )
+            InfoBar.error(
+                title="Google Auth Failed",
+                content=str(e),
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=6000,
+                parent=self.window()
+            )
 
     def _on_google_disconnect(self):
-        win = self.window()
+        """Delete stored Google tokens."""
         try:
             from core.calendar_sync import google_revoke
             google_revoke()
             settings.set("calendar.google.enabled", False)
             self.google_enable_card.switch.setChecked(False)
-            if win:
-                InfoBar.success(
-                    title="Google Calendar Removed",
-                    content="Stored tokens deleted. Calendar no longer synced.",
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=3000,
-                    parent=win
-                )
+            InfoBar.success(
+                title="Google Calendar Removed",
+                content="Stored tokens deleted. Calendar no longer synced.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=3000,
+                parent=self.window()
+            )
         except Exception as e:
-            if win:
-                InfoBar.error(
-                    title="Error", content=str(e),
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=4000,
-                    parent=win
-                )
+            InfoBar.error(
+                title="Error", content=str(e),
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000,
+                parent=self.window()
+            )
 
     def _on_outlook_connect(self):
+        """Launch Outlook OAuth flow."""
         client_id = settings.get("calendar.outlook.client_id", "").strip()
         tenant_id = settings.get("calendar.outlook.tenant_id", "common").strip()
-        win = self.window()
 
         if not client_id:
-            if win:
-                InfoBar.warning(
-                    title="Missing Credentials",
-                    content="Please enter your Outlook Application (Client) ID first.",
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=4000,
-                    parent=win
-                )
+            InfoBar.warning(
+                title="Missing Credentials",
+                content="Please enter your Outlook Application (Client) ID first.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000,
+                parent=self.window()
+            )
             return
 
         try:
             from core.calendar_sync import outlook_auth_flow
             outlook_auth_flow(client_id, tenant_id)
-            if win:
-                InfoBar.success(
-                    title="Outlook Calendar Connected",
-                    content="Authorisation complete. Events will appear in the Planner.",
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=4000,
-                    parent=win
-                )
+            InfoBar.success(
+                title="Outlook Calendar Connected",
+                content="Authorisation complete. Events will appear in the Planner.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000,
+                parent=self.window()
+            )
         except Exception as e:
-            if win:
-                InfoBar.error(
-                    title="Outlook Auth Failed",
-                    content=str(e),
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=6000,
-                    parent=win
-                )
+            InfoBar.error(
+                title="Outlook Auth Failed",
+                content=str(e),
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=6000,
+                parent=self.window()
+            )
 
     def _on_outlook_disconnect(self):
-        win = self.window()
+        """Delete stored Outlook tokens."""
         try:
             from core.calendar_sync import outlook_revoke
             outlook_revoke()
             settings.set("calendar.outlook.enabled", False)
             self.outlook_enable_card.switch.setChecked(False)
-            if win:
-                InfoBar.success(
-                    title="Outlook Calendar Removed",
-                    content="Stored tokens deleted. Calendar no longer synced.",
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=3000,
-                    parent=win
-                )
+            InfoBar.success(
+                title="Outlook Calendar Removed",
+                content="Stored tokens deleted. Calendar no longer synced.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=3000,
+                parent=self.window()
+            )
         except Exception as e:
-            if win:
-                InfoBar.error(
-                    title="Error", content=str(e),
-                    orient=Qt.Horizontal, isClosable=True,
-                    position=InfoBarPosition.TOP, duration=4000,
-                    parent=win
-                )
+            InfoBar.error(
+                title="Error", content=str(e),
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000,
+                parent=self.window()
+            )

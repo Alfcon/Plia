@@ -63,7 +63,9 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "weather": {
         "latitude":         -32.1151,
         "longitude":        116.0255,
-        "city":             "Kelmscott, WA",
+        "city":             "Kelmscott, Western Australia, Australia",
+        "country":          "Australia",
+        "country_code":     "AU",
         "provider":         "BOM (Australia)",
         "bom_station":      "94609",
         "temperature_unit": "celsius",

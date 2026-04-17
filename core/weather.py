@@ -55,6 +55,291 @@ PROVIDER_NAMES = list(PROVIDERS.keys())
 # ---------------------------------------------------------------------------
 # Condition text mapping from BOM weather description strings
 # ---------------------------------------------------------------------------
+# ---------------------------------------------------------------------------
+# Open-Meteo Geocoding API — free, no key required
+# ---------------------------------------------------------------------------
+GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
+
+# (display_name, ISO-3166-1 alpha-2 code) — used for city search filtering.
+# "Any Country" (empty code) disables country filtering.
+COUNTRIES = [
+    ("Any Country",           ""),
+    ("Afghanistan",           "AF"),
+    ("Albania",               "AL"),
+    ("Algeria",               "DZ"),
+    ("Argentina",             "AR"),
+    ("Australia",             "AU"),
+    ("Austria",               "AT"),
+    ("Bangladesh",            "BD"),
+    ("Belgium",               "BE"),
+    ("Bolivia",               "BO"),
+    ("Brazil",                "BR"),
+    ("Bulgaria",              "BG"),
+    ("Canada",                "CA"),
+    ("Chile",                 "CL"),
+    ("China",                 "CN"),
+    ("Colombia",              "CO"),
+    ("Croatia",               "HR"),
+    ("Czech Republic",        "CZ"),
+    ("Denmark",               "DK"),
+    ("Ecuador",               "EC"),
+    ("Egypt",                 "EG"),
+    ("Ethiopia",              "ET"),
+    ("Finland",               "FI"),
+    ("France",                "FR"),
+    ("Germany",               "DE"),
+    ("Ghana",                 "GH"),
+    ("Greece",                "GR"),
+    ("Hungary",               "HU"),
+    ("India",                 "IN"),
+    ("Indonesia",             "ID"),
+    ("Iran",                  "IR"),
+    ("Iraq",                  "IQ"),
+    ("Ireland",               "IE"),
+    ("Israel",                "IL"),
+    ("Italy",                 "IT"),
+    ("Japan",                 "JP"),
+    ("Jordan",                "JO"),
+    ("Kenya",                 "KE"),
+    ("Malaysia",              "MY"),
+    ("Mexico",                "MX"),
+    ("Morocco",               "MA"),
+    ("Netherlands",           "NL"),
+    ("New Zealand",           "NZ"),
+    ("Nigeria",               "NG"),
+    ("Norway",                "NO"),
+    ("Pakistan",              "PK"),
+    ("Peru",                  "PE"),
+    ("Philippines",           "PH"),
+    ("Poland",                "PL"),
+    ("Portugal",              "PT"),
+    ("Romania",               "RO"),
+    ("Russia",                "RU"),
+    ("Saudi Arabia",          "SA"),
+    ("Serbia",                "RS"),
+    ("Singapore",             "SG"),
+    ("South Africa",          "ZA"),
+    ("South Korea",           "KR"),
+    ("Spain",                 "ES"),
+    ("Sri Lanka",             "LK"),
+    ("Sweden",                "SE"),
+    ("Switzerland",           "CH"),
+    ("Taiwan",                "TW"),
+    ("Tanzania",              "TZ"),
+    ("Thailand",              "TH"),
+    ("Turkey",                "TR"),
+    ("Ukraine",               "UA"),
+    ("United Arab Emirates",  "AE"),
+    ("United Kingdom",        "GB"),
+    ("United States",         "US"),
+    ("Uruguay",               "UY"),
+    ("Venezuela",             "VE"),
+    ("Vietnam",               "VN"),
+    ("Zimbabwe",              "ZW"),
+]
+
+
+# ---------------------------------------------------------------------------
+# Major cities per country — used to pre-populate the City dropdown in Settings.
+# Keys must match the display names in COUNTRIES exactly.
+# ---------------------------------------------------------------------------
+CITIES_BY_COUNTRY: dict[str, list[str]] = {
+    "Any Country":           [],
+    "Afghanistan":           ["Kabul", "Kandahar", "Herat", "Mazar-i-Sharif", "Jalalabad", "Kunduz"],
+    "Albania":               ["Tirana", "Durrës", "Vlorë", "Elbasan", "Shkodër", "Fier"],
+    "Algeria":               ["Algiers", "Oran", "Constantine", "Annaba", "Blida", "Setif"],
+    "Argentina":             ["Buenos Aires", "Córdoba", "Rosario", "Mendoza", "La Plata", "Tucumán",
+                              "Mar del Plata", "Salta", "Santa Fe", "San Juan"],
+    "Australia":             ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Gold Coast",
+                              "Canberra", "Newcastle", "Hobart", "Darwin", "Kelmscott", "Fremantle",
+                              "Rockingham", "Mandurah", "Bunbury", "Joondalup", "Armadale",
+                              "Ballarat", "Geelong", "Townsville", "Cairns", "Toowoomba",
+                              "Launceston", "Wollongong", "Sunshine Coast"],
+    "Austria":               ["Vienna", "Graz", "Linz", "Salzburg", "Innsbruck", "Klagenfurt"],
+    "Bangladesh":            ["Dhaka", "Chittagong", "Sylhet", "Rajshahi", "Khulna", "Comilla"],
+    "Belgium":               ["Brussels", "Antwerp", "Ghent", "Bruges", "Liège", "Namur"],
+    "Bolivia":               ["La Paz", "Santa Cruz", "Cochabamba", "Sucre", "Oruro", "El Alto"],
+    "Brazil":                ["São Paulo", "Rio de Janeiro", "Brasília", "Salvador", "Fortaleza",
+                              "Belo Horizonte", "Manaus", "Curitiba", "Recife", "Porto Alegre",
+                              "Belém", "Goiânia", "Guarulhos", "Campinas", "Maceió"],
+    "Bulgaria":              ["Sofia", "Plovdiv", "Varna", "Burgas", "Ruse", "Stara Zagora"],
+    "Canada":                ["Toronto", "Montreal", "Vancouver", "Calgary", "Edmonton", "Ottawa",
+                              "Winnipeg", "Quebec City", "Hamilton", "Halifax", "Victoria",
+                              "Saskatoon", "Regina", "Kitchener", "Windsor"],
+    "Chile":                 ["Santiago", "Valparaíso", "Concepción", "Antofagasta", "Temuco",
+                              "Arica", "Iquique", "Rancagua", "Puerto Montt"],
+    "China":                 ["Beijing", "Shanghai", "Guangzhou", "Shenzhen", "Chengdu",
+                              "Chongqing", "Xi'an", "Hangzhou", "Wuhan", "Nanjing",
+                              "Tianjin", "Dongguan", "Foshan", "Harbin", "Shenyang",
+                              "Qingdao", "Zhengzhou", "Dalian", "Changsha", "Kunming"],
+    "Colombia":              ["Bogotá", "Medellín", "Cali", "Barranquilla", "Cartagena",
+                              "Bucaramanga", "Cúcuta", "Ibagué", "Manizales"],
+    "Croatia":               ["Zagreb", "Split", "Rijeka", "Osijek", "Zadar", "Pula"],
+    "Czech Republic":        ["Prague", "Brno", "Ostrava", "Plzeň", "Liberec", "Olomouc"],
+    "Denmark":               ["Copenhagen", "Aarhus", "Odense", "Aalborg", "Frederiksberg", "Esbjerg"],
+    "Ecuador":               ["Quito", "Guayaquil", "Cuenca", "Ambato", "Manta", "Santo Domingo"],
+    "Egypt":                 ["Cairo", "Alexandria", "Giza", "Shubra el-Kheima", "Port Said",
+                              "Luxor", "Aswan", "Suez", "Hurghada", "Sharm el-Sheikh"],
+    "Ethiopia":              ["Addis Ababa", "Dire Dawa", "Mek'ele", "Gondar", "Hawassa", "Bahir Dar"],
+    "Finland":               ["Helsinki", "Espoo", "Tampere", "Vantaa", "Oulu", "Turku", "Jyväskylä"],
+    "France":                ["Paris", "Lyon", "Marseille", "Toulouse", "Bordeaux", "Nantes",
+                              "Strasbourg", "Lille", "Nice", "Rennes", "Montpellier", "Grenoble"],
+    "Germany":               ["Berlin", "Hamburg", "Munich", "Cologne", "Frankfurt", "Stuttgart",
+                              "Düsseldorf", "Leipzig", "Dortmund", "Dresden", "Bremen", "Hanover",
+                              "Nuremberg", "Duisburg", "Bochum"],
+    "Ghana":                 ["Accra", "Kumasi", "Tamale", "Sekondi-Takoradi", "Cape Coast", "Obuasi"],
+    "Greece":                ["Athens", "Thessaloniki", "Patra", "Heraklion", "Piraeus", "Larissa"],
+    "Hungary":               ["Budapest", "Debrecen", "Miskolc", "Szeged", "Pécs", "Győr"],
+    "India":                 ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata",
+                              "Pune", "Ahmedabad", "Jaipur", "Surat", "Lucknow", "Kanpur",
+                              "Nagpur", "Visakhapatnam", "Bhopal", "Patna", "Vadodara", "Agra",
+                              "Ludhiana", "Coimbatore", "Kochi", "Chandigarh", "Goa"],
+    "Indonesia":             ["Jakarta", "Surabaya", "Bandung", "Medan", "Bekasi", "Makassar",
+                              "Semarang", "Palembang", "Bali (Denpasar)", "Yogyakarta", "Malang"],
+    "Iran":                  ["Tehran", "Mashhad", "Isfahan", "Karaj", "Tabriz", "Shiraz",
+                              "Ahvaz", "Qom", "Kermanshah", "Urmia"],
+    "Iraq":                  ["Baghdad", "Basra", "Mosul", "Erbil", "Najaf", "Karbala", "Sulaymaniyah"],
+    "Ireland":               ["Dublin", "Cork", "Limerick", "Galway", "Waterford", "Drogheda"],
+    "Israel":                ["Jerusalem", "Tel Aviv", "Haifa", "Rishon LeZion", "Petah Tikva",
+                              "Beer Sheva", "Ashdod", "Netanya"],
+    "Italy":                 ["Rome", "Milan", "Naples", "Turin", "Palermo", "Genoa", "Bologna",
+                              "Florence", "Venice", "Bari", "Catania", "Verona", "Messina"],
+    "Japan":                 ["Tokyo", "Yokohama", "Osaka", "Nagoya", "Sapporo", "Kobe", "Kyoto",
+                              "Fukuoka", "Hiroshima", "Sendai", "Kawasaki", "Chiba", "Saitama",
+                              "Kitakyushu", "Sakai", "Nara", "Hamamatsu"],
+    "Jordan":                ["Amman", "Zarqa", "Irbid", "Aqaba", "Madaba", "Jerash"],
+    "Kenya":                 ["Nairobi", "Mombasa", "Nakuru", "Kisumu", "Eldoret", "Malindi"],
+    "Malaysia":              ["Kuala Lumpur", "George Town", "Ipoh", "Shah Alam", "Johor Bahru",
+                              "Kota Kinabalu", "Kuching", "Petaling Jaya", "Subang Jaya"],
+    "Mexico":                ["Mexico City", "Guadalajara", "Monterrey", "Puebla", "Tijuana",
+                              "León", "Cancún", "Acapulco", "Mérida", "San Luis Potosí",
+                              "Juárez", "Querétaro", "Hermosillo", "Aguascalientes"],
+    "Morocco":               ["Casablanca", "Rabat", "Fez", "Marrakesh", "Agadir", "Tangier",
+                              "Meknès", "Oujda", "Kenitra"],
+    "Netherlands":           ["Amsterdam", "Rotterdam", "The Hague", "Utrecht", "Eindhoven",
+                              "Groningen", "Tilburg", "Almere", "Breda"],
+    "New Zealand":           ["Auckland", "Wellington", "Christchurch", "Hamilton", "Tauranga",
+                              "Dunedin", "Palmerston North", "Rotorua", "New Plymouth", "Napier"],
+    "Nigeria":               ["Lagos", "Kano", "Abuja", "Ibadan", "Port Harcourt", "Benin City",
+                              "Maiduguri", "Zaria", "Aba", "Enugu"],
+    "Norway":                ["Oslo", "Bergen", "Trondheim", "Stavanger", "Tromsø", "Drammen"],
+    "Pakistan":              ["Karachi", "Lahore", "Faisalabad", "Rawalpindi", "Islamabad",
+                              "Gujranwala", "Peshawar", "Quetta", "Multan", "Hyderabad"],
+    "Peru":                  ["Lima", "Arequipa", "Trujillo", "Chiclayo", "Cusco", "Iquitos", "Piura"],
+    "Philippines":           ["Manila", "Quezon City", "Cebu City", "Davao", "Zamboanga",
+                              "Antipolo", "Taguig", "Makati", "Cagayan de Oro"],
+    "Poland":                ["Warsaw", "Kraków", "Łódź", "Wrocław", "Poznań", "Gdańsk",
+                              "Szczecin", "Bydgoszcz", "Lublin", "Katowice"],
+    "Portugal":              ["Lisbon", "Porto", "Braga", "Amadora", "Setúbal", "Funchal",
+                              "Coimbra", "Almada", "Aveiro"],
+    "Romania":               ["Bucharest", "Cluj-Napoca", "Timișoara", "Iași", "Constanța",
+                              "Craiova", "Brașov", "Galați"],
+    "Russia":                ["Moscow", "Saint Petersburg", "Novosibirsk", "Yekaterinburg",
+                              "Kazan", "Nizhny Novgorod", "Vladivostok", "Omsk", "Samara",
+                              "Rostov-on-Don", "Ufa", "Krasnoyarsk", "Volgograd"],
+    "Saudi Arabia":          ["Riyadh", "Jeddah", "Mecca", "Medina", "Dammam", "Khobar",
+                              "Taif", "Tabuk", "Abha"],
+    "Serbia":                ["Belgrade", "Novi Sad", "Niš", "Kragujevac", "Subotica"],
+    "Singapore":             ["Singapore"],
+    "South Africa":          ["Johannesburg", "Cape Town", "Durban", "Pretoria", "Port Elizabeth",
+                              "Bloemfontein", "Soweto", "East London", "Pietermaritzburg"],
+    "South Korea":           ["Seoul", "Busan", "Incheon", "Daegu", "Daejeon", "Gwangju",
+                              "Suwon", "Ulsan", "Changwon", "Seongnam"],
+    "Spain":                 ["Madrid", "Barcelona", "Valencia", "Seville", "Bilbao", "Málaga",
+                              "Zaragoza", "Granada", "Murcia", "Palma", "Alicante", "Córdoba"],
+    "Sri Lanka":             ["Colombo", "Kandy", "Galle", "Jaffna", "Negombo", "Trincomalee"],
+    "Sweden":                ["Stockholm", "Gothenburg", "Malmö", "Uppsala", "Västerås",
+                              "Örebro", "Linköping", "Helsingborg", "Norrköping"],
+    "Switzerland":           ["Zurich", "Geneva", "Bern", "Basel", "Lausanne", "Lucerne", "Winterthur"],
+    "Taiwan":                ["Taipei", "Kaohsiung", "Taichung", "Tainan", "Hsinchu", "Keelung"],
+    "Tanzania":              ["Dar es Salaam", "Mwanza", "Zanzibar", "Arusha", "Dodoma", "Mbeya"],
+    "Thailand":              ["Bangkok", "Chiang Mai", "Chiang Rai", "Pattaya", "Phuket",
+                              "Hat Yai", "Nakhon Ratchasima", "Khon Kaen", "Udon Thani"],
+    "Turkey":                ["Istanbul", "Ankara", "Izmir", "Bursa", "Adana", "Antalya",
+                              "Gaziantep", "Konya", "Kayseri", "Mersin"],
+    "Ukraine":               ["Kyiv", "Kharkiv", "Odessa", "Dnipro", "Lviv", "Zaporizhzhia",
+                              "Kryvyi Rih", "Mykolaiv", "Mariupol"],
+    "United Arab Emirates":  ["Dubai", "Abu Dhabi", "Sharjah", "Al Ain", "Ajman",
+                              "Ras Al Khaimah", "Fujairah"],
+    "United Kingdom":        ["London", "Birmingham", "Manchester", "Glasgow", "Leeds",
+                              "Liverpool", "Sheffield", "Edinburgh", "Bristol", "Cardiff",
+                              "Belfast", "Leicester", "Coventry", "Bradford", "Nottingham",
+                              "Newcastle", "Southampton", "Portsmouth", "Brighton", "Oxford"],
+    "United States":         ["New York", "Los Angeles", "Chicago", "Houston", "Phoenix",
+                              "Philadelphia", "San Antonio", "San Diego", "Dallas", "San Jose",
+                              "Austin", "Seattle", "Denver", "Miami", "Boston", "Atlanta",
+                              "Portland", "Las Vegas", "Detroit", "Nashville", "Memphis",
+                              "Louisville", "Baltimore", "Milwaukee", "Albuquerque",
+                              "Tucson", "Fresno", "Sacramento", "Mesa", "Kansas City",
+                              "Omaha", "Raleigh", "Cleveland", "Minneapolis", "Honolulu"],
+    "Uruguay":               ["Montevideo", "Salto", "Ciudad de la Costa", "Paysandú", "Rivera"],
+    "Venezuela":             ["Caracas", "Maracaibo", "Valencia", "Barquisimeto", "Maracay",
+                              "Ciudad Guayana", "Barcelona", "Maturín"],
+    "Vietnam":               ["Ho Chi Minh City", "Hanoi", "Da Nang", "Haiphong", "Biên Hòa",
+                              "Hue", "Nha Trang", "Can Tho", "Buon Ma Thuot"],
+    "Zimbabwe":              ["Harare", "Bulawayo", "Chitungwiza", "Mutare", "Gweru", "Kwekwe"],
+}
+
+
+def geocode_city(city_name: str, country_code: str = "") -> list:
+    """
+    Search for cities by name using the Open-Meteo Geocoding API.
+    No API key required.  Returns up to 20 results, optionally filtered
+    by ISO country code.
+
+    Each result dict contains:
+        name, country, country_code, admin1 (state/province),
+        latitude, longitude, display (human-readable label).
+    """
+    if not city_name:
+        return []
+    params = {
+        "name":     city_name,
+        "count":    20,
+        "language": "en",
+        "format":   "json",
+    }
+    try:
+        resp = requests.get(GEOCODING_URL, params=params, timeout=8)
+        resp.raise_for_status()
+        raw = resp.json().get("results", [])
+
+        # Client-side country filter (API does not support country_code param)
+        if country_code:
+            raw = [r for r in raw
+                   if r.get("country_code", "").upper() == country_code.upper()]
+
+        output = []
+        for r in raw:
+            name    = r.get("name", "")
+            country = r.get("country", "")
+            cc      = r.get("country_code", "")
+            admin1  = r.get("admin1", "")
+            lat     = float(r.get("latitude",  0.0))
+            lon     = float(r.get("longitude", 0.0))
+
+            parts = [name]
+            if admin1:
+                parts.append(admin1)
+            parts.append(country)
+
+            output.append({
+                "name":         name,
+                "country":      country,
+                "country_code": cc,
+                "admin1":       admin1,
+                "latitude":     lat,
+                "longitude":    lon,
+                "display":      ", ".join(parts),
+            })
+        print(f"[Weather] Geocoded '{city_name}' ({country_code}): {len(output)} results")
+        return output
+
+    except Exception as e:
+        print(f"[Weather] Geocoding error for '{city_name}': {e}")
+        return []
+
+
 BOM_CONDITION_MAP = {
     "clear": "Clear", "sunny": "Clear", "fine": "Clear",
     "cloud": "Cloudy", "overcast": "Cloudy", "grey": "Cloudy",

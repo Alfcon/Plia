@@ -28,13 +28,20 @@ Torchaudio note:
   module-load time.  On Windows, if torchaudio and torch were built for
   different CUDA versions, this triggers:
       OSError: [WinError 127] The specified procedure could not be found
-  Additionally, if torch itself failed to initialise in a parallel
-  thread (e.g. via the torch.hub/tqdm circular-import bug fixed in
-  router.py), the broken sys.modules state can produce:
+  When the DLL fails, Python's import machinery leaves a broken module
+  object in sys.modules with __spec__ = None.  Any subsequent call to
+  importlib.util.find_spec("torchaudio") — which torch.hub.load() makes
+  when loading Silero VAD — then raises:
+      ValueError: torchaudio.__spec__ is None
+  This crash bypasses the silero_sensitivity=0.0 guard and kills the
+  entire STT init.  Additionally, if torch itself failed to initialise in
+  a parallel thread (e.g. via the torch.hub/tqdm circular-import bug fixed
+  in router.py), the broken sys.modules state can produce:
       KeyError: 'torch'
 
-  _patch_torchaudio_if_broken() below intercepts ALL of these failures
-  and injects a minimal stub so that silero_vad can import cleanly.
+  _patch_torchaudio_if_broken() below intercepts ALL of these failures.
+  _inject_torchaudio_stub() now sets __spec__ to a proper ModuleSpec on
+  every stub module so that find_spec() never sees __spec__ = None.
   Silero inference itself runs on raw PyTorch tensors and does NOT need
   the torchaudio native extension; WebRTC VAD handles all activity
   detection when silero_sensitivity=0.0.
@@ -58,6 +65,8 @@ import time
 import types
 import logging
 import os
+import importlib.machinery   # required for ModuleSpec in _inject_torchaudio_stub
+import importlib.util        # required for find_spec pre-check in _patch_torchaudio_if_broken
 from typing import Callable
 
 from config import (
@@ -158,15 +167,48 @@ WAKE_WORDS: list[str] = [
 
 # ── Torchaudio pre-flight patch ────────────────────────────────────────────
 
+def _purge_broken_torchaudio() -> None:
+    """
+    Remove any broken/partially-loaded torchaudio entries from sys.modules.
+
+    When the torchaudio DLL fails to load, Python's import machinery may
+    leave a half-initialised module object in sys.modules with __spec__ = None.
+    Any subsequent call to importlib.util.find_spec("torchaudio") will then
+    raise ValueError: torchaudio.__spec__ is None.
+
+    This helper removes all such entries so that a subsequent `import torchaudio`
+    starts with a clean slate, and so that _inject_torchaudio_stub() can safely
+    replace them with a well-formed stub.
+    """
+    to_del = [
+        key for key in sys.modules
+        if key == "torchaudio" or key.startswith("torchaudio.")
+    ]
+    existing = sys.modules.get("torchaudio")
+    if existing is not None:
+        # Only purge if it is NOT our own stub (stub has __version__ == "0.0.0+stub")
+        if getattr(existing, "__version__", None) != "0.0.0+stub":
+            for key in to_del:
+                sys.modules.pop(key, None)
+
+
 def _patch_torchaudio_if_broken() -> bool:
     """
-    Try importing torchaudio.  Three classes of failure are handled:
+    Try importing torchaudio.  Four classes of failure are handled:
 
     1. OSError [WinError 127]
        torch and torchaudio DLLs were compiled for different CUDA versions.
        Classic environment mismatch; inject stub.
 
-    2. KeyError('torch')
+    2. ValueError: torchaudio.__spec__ is None
+       The DLL failed earlier (WinError 127) leaving a broken module object
+       in sys.modules with __spec__ = None.  Any call to
+       importlib.util.find_spec("torchaudio") then raises ValueError.
+       torch.hub.load() (used by RealtimeSTT for Silero VAD) does exactly
+       this check, which is why STT init crashes even after silero_sensitivity
+       is set to 0.0.  Purge the broken entry and inject a well-formed stub.
+
+    3. KeyError('torch')
        torch itself failed to initialise in a parallel thread (e.g. the
        torch.hub/tqdm circular-import bug that was fixed in router.py by
        making torch a lazy import).  The broken partial-load can leave
@@ -174,7 +216,7 @@ def _patch_torchaudio_if_broken() -> bool:
        raises KeyError inside the frozen importlib bootstrap.
        Inject stub.
 
-    3. Any other Exception
+    4. Any other Exception
        Unexpected torchaudio import failure (missing DLL, broken install,
        etc.).  Inject stub so the rest of Plia can still function.
 
@@ -185,6 +227,11 @@ def _patch_torchaudio_if_broken() -> bool:
     Returns True  if torchaudio imported cleanly (no action taken).
     Returns False if a stub was injected or torchaudio is absent.
     """
+    # Pre-flight: purge any pre-existing broken torchaudio from sys.modules
+    # so the import attempt below starts clean.  If the stub is already
+    # present this is a no-op.
+    _purge_broken_torchaudio()
+
     try:
         import torchaudio  # noqa: F401
         return True
@@ -211,6 +258,39 @@ def _patch_torchaudio_if_broken() -> bool:
         print(
             f"{YELLOW}[STT] ⚠  torchaudio OSError ({exc}).{RESET}"
         )
+        _inject_torchaudio_stub()
+        return False
+
+    except ValueError as exc:
+        # ValueError: torchaudio.__spec__ is None
+        #
+        # Root cause: the torchaudio DLL already failed in a previous import
+        # attempt (WinError 127), leaving a partially-initialised module in
+        # sys.modules whose __spec__ attribute is None.  When torch.hub.load()
+        # inside RealtimeSTT calls importlib.util.find_spec("torchaudio"),
+        # Python's frozen importlib raises this ValueError — bypassing the
+        # silero_sensitivity=0.0 guard and crashing the entire STT init.
+        #
+        # Fix: purge the broken entry and replace it with a well-formed stub.
+        print(
+            f"{YELLOW}[STT] ⚠  torchaudio.__spec__ is None — "
+            f"broken module detected in sys.modules.{RESET}"
+        )
+        print(
+            f"{YELLOW}[STT]    Purging broken entry and injecting stub — "
+            f"WebRTC VAD active.{RESET}"
+        )
+        print(
+            f"{YELLOW}[STT]    To fix permanently, run inside (plia):{RESET}"
+        )
+        print(
+            f"{YELLOW}[STT]      pip install torch==2.6.0+cu124 torchaudio==2.6.0+cu124 "
+            f"--index-url https://download.pytorch.org/whl/cu124{RESET}"
+        )
+        # Force-purge anything torchaudio-related before injecting the stub
+        for _key in list(sys.modules.keys()):
+            if _key == "torchaudio" or _key.startswith("torchaudio."):
+                sys.modules.pop(_key, None)
         _inject_torchaudio_stub()
         return False
 
@@ -265,6 +345,16 @@ def _inject_torchaudio_stub() -> None:
         import torchaudio
     If the parent is stubbed but sub-packages are absent, a second
     import of a sub-module would raise ImportError.
+
+    CRITICAL — __spec__ must be set on every stub module:
+        Python's importlib.util.find_spec() checks sys.modules first.
+        If a module is found there with __spec__ = None (the default for
+        types.ModuleType), find_spec raises:
+            ValueError: torchaudio.__spec__ is None
+        torch.hub.load() calls find_spec when loading Silero VAD, so an
+        unset __spec__ bypasses the silero_sensitivity=0.0 guard and
+        crashes the entire STT initialisation.  Setting __spec__ to a
+        proper ModuleSpec prevents this.
     """
     _STUB_SUBMODULES = [
         "torchaudio._extension",
@@ -286,10 +376,19 @@ def _inject_torchaudio_stub() -> None:
     stub_root = types.ModuleType("torchaudio")
     stub_root.__version__ = "0.0.0+stub"
     stub_root.__path__ = []  # mark as package
+    # Set __spec__ so importlib.util.find_spec("torchaudio") returns a valid
+    # object instead of raising ValueError: torchaudio.__spec__ is None.
+    stub_root.__spec__ = importlib.machinery.ModuleSpec(
+        "torchaudio", loader=None, origin="stub"
+    )
     sys.modules["torchaudio"] = stub_root
 
     for name in _STUB_SUBMODULES:
         sub = types.ModuleType(name)
+        # Each submodule also needs a proper __spec__ for the same reason.
+        sub.__spec__ = importlib.machinery.ModuleSpec(
+            name, loader=None, origin="stub"
+        )
         sys.modules[name] = sub
         # Attach as attribute on the parent (e.g. torchaudio._extension)
         parts = name.split(".")

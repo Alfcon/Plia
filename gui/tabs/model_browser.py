@@ -470,7 +470,6 @@ class OllamaDeleteThread(QThread):
         except Exception as e:
             self.failed.emit(self.ollama_name, str(e))
 
-
 # ---------------------------------------------------------------------------
 # Columns
 # ---------------------------------------------------------------------------
@@ -478,9 +477,9 @@ COLUMNS = [
     ("Model",     260), ("Provider", 105), ("Params",   68),
     ("Use Case",   95), ("Fit",       88), ("Quant",    78),
     ("File Size",  82), ("VRAM",      72), ("Speed",    72),
+    ("Path",      230),                    # manifest path for installed models
     ("",          168),   # wide enough for Pull (80) or Installed+Delete (74+74)
 ]
-
 
 # ---------------------------------------------------------------------------
 # Main widget
@@ -499,7 +498,8 @@ class ModelBrowserTab(QWidget):
         self._hw          = None
         self._dl_threads  = {}
         self._del_threads = {}   # tracks in-progress deletions
-        self._installed   = set()
+        self._installed      = set()
+        self._install_paths  = {}   # model_tag → manifest file path
         self._db_thread   = None
         self._loaded      = False  # FIX: guard — filters must not run before data arrives
 
@@ -603,10 +603,12 @@ class ModelBrowserTab(QWidget):
                 border-bottom:1px solid #1a2236; padding:5px 8px; font-size:11px; font-weight:bold; }
         """)
         h = self._table.horizontalHeader()
+        h.setMinimumSectionSize(40)          # prevent columns collapsing to zero
+        h.setSectionsMovable(False)          # lock order — prevents header/data misalignment
         for i, (_, w) in enumerate(COLUMNS):
-            h.resizeSection(i, w)
+            h.setSectionResizeMode(i, QHeaderView.Interactive)  # all cols draggable
+            h.resizeSection(i, w)            # apply the initial widths from COLUMNS
         h.setStretchLastSection(False)
-        h.setSectionResizeMode(0, QHeaderView.Stretch)
         root.addWidget(self._table)
 
     def _stat(self, label: str, value: str) -> QFrame:
@@ -706,6 +708,28 @@ class ModelBrowserTab(QWidget):
         def _go():
             # ── 1. Filesystem scan (works even if Ollama daemon is offline) ──
             found = self._scan_ollama_dir()
+
+            # ── Build path map: model_tag → manifest file path (str) ────────
+            manifests_root = Path.home() / ".ollama" / "models" / "manifests"
+            paths: dict[str, str] = {}
+            if manifests_root.exists():
+                try:
+                    for registry in manifests_root.iterdir():
+                        if not registry.is_dir():
+                            continue
+                        for namespace in registry.iterdir():
+                            if not namespace.is_dir():
+                                continue
+                            for model_dir in namespace.iterdir():
+                                if not model_dir.is_dir():
+                                    continue
+                                for tag_file in model_dir.iterdir():
+                                    if tag_file.is_file():
+                                        key = f"{model_dir.name}:{tag_file.name}"
+                                        paths[key] = str(tag_file)
+                except Exception:
+                    pass
+            self._install_paths = paths
 
             # ── 2. REST API (authoritative, adds any non-library-registry models) ──
             try:
@@ -896,6 +920,19 @@ class ModelBrowserTab(QWidget):
                                             "#ffb300" if rmode=="cpu" else None))
             self._table.setItem(row, 8, mk(f"{tps:.0f} t/s" if tps  else "—", RA))
 
+            # Path column (col 9) — manifest file path for installed models
+            if is_installed:
+                actual    = self._resolve_install_name(ol)
+                raw_path  = self._install_paths.get(actual, "")
+                disp_path = raw_path.replace(str(Path.home()), "~") if raw_path else "—"
+            else:
+                actual    = ""
+                raw_path  = ""
+                disp_path = "—"
+            path_item = mk(disp_path, LA, "#8b9bb4")
+            path_item.setToolTip(raw_path)
+            self._table.setItem(row, 9, path_item)
+
             # Button
             bw = QWidget()
             bw.setStyleSheet("background:transparent;")
@@ -917,7 +954,7 @@ class ModelBrowserTab(QWidget):
                     "QPushButton:disabled{color:#555e70;border-color:#555e70;}"
                 )
                 _ol = ol
-                del_btn.clicked.connect(lambda _=False, n=_ol: self._delete_model(n))
+                del_btn.clicked.connect(lambda _=False, n=_ol: self._delete_model(self._resolve_install_name(n)))
                 if ol in self._del_threads:
                     del_btn.setEnabled(False)
                     del_btn.setText("Deleting…")
@@ -939,10 +976,19 @@ class ModelBrowserTab(QWidget):
                 _ol = ol
                 btn.clicked.connect(lambda _=False, n=_ol: self._download(n))
                 bl.addWidget(btn)
-            self._table.setCellWidget(row, 9, bw)
+            self._table.setCellWidget(row, 10, bw)
             self._table.setRowHeight(row, 40)
 
         self._table.setSortingEnabled(True)
+        # Re-enforce Interactive resize on every column.
+        # Qt internally resets QHeaderView section modes when toggling
+        # setSortingEnabled — without this, some titles stop tracking their
+        # columns after the first populate.
+        _h = self._table.horizontalHeader()
+        _h.setStretchLastSection(False)
+        _h.setSectionsMovable(False)
+        for _i in range(len(COLUMNS)):
+            _h.setSectionResizeMode(_i, QHeaderView.Interactive)
 
     # ── Download ──────────────────────────────────────────────────────────
 
@@ -987,6 +1033,17 @@ class ModelBrowserTab(QWidget):
                       orient=Qt.Horizontal, isClosable=True,
                       position=InfoBarPosition.TOP_RIGHT, duration=6000, parent=self.window())
 
+    def _resolve_install_name(self, mapped_name: str) -> str:
+        """Given a mapped name like 'qwen2.5:7b', return the actual installed
+        Ollama tag (e.g. 'qwen2.5:7b-instruct-q8_0') from self._installed."""
+        if mapped_name in self._installed:
+            return mapped_name
+        base = mapped_name.split(":")[0]
+        for inst in self._installed:
+            if inst.split(":")[0] == base:
+                return inst
+        return mapped_name
+        
     # ── Delete ────────────────────────────────────────────────────────────
 
     def _delete_model(self, name: str):
