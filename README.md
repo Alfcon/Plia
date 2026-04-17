@@ -61,7 +61,7 @@
 
 ### Step 1 — Install Miniconda (or use your existing Python 3.11+)
 
-1. Download from [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success)
+1. Download from [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success).
    NOTE: install Miniconda NOT Anaconda Distribution.
 3. Run the installer with default options
 4. Open **Anaconda Prompt** (Windows Start menu)
@@ -117,7 +117,7 @@ pip install -r requirements.txt
 
 > ℹ️ **OpenAI & DuckDuckGo** packages are included in `requirements.txt`. An OpenAI API key is only required for Agent Builder agents that use GPT-4o. Set your key in the Plia **Settings** tab under "OpenAI API Key". Core functions (chat, voice, weather, search) do **not** require an OpenAI key.
 
-### Step 5 — NVIDIA GPU Setup (Optional but Recommended)
+### Step 5 — GPU Setup (Optional but Recommended)
 
 If you have an NVIDIA GPU, install PyTorch with CUDA for significantly faster inference:
 
