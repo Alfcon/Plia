@@ -40,10 +40,12 @@
 
 | Software | Purpose | Download |
 |----------|---------|----------|
-| **Miniconda** (recommended) | Python environment manager via Miniconda | via Miniconda [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success) |
-| or|
+| **Miniconda** (recommended) | Python environment manager via Miniconda | Miniconda [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success) |
+| **or** |
 | **Python 3.11+** | Runtime (3.11 or 3.13 recommended) |  [python.org](https://www.python.org/downloads/) |
+| |
 | **Ollama** | Local AI model server | [ollama.com/download](https://ollama.com/download) |
+| |
 | **Git** | Cloning the repository | [git-scm.com](https://git-scm.com/downloads) |
 
 ### Hardware Recommendations
