@@ -78,9 +78,7 @@
 
 > ✅ No need to start Ollama manually — Plia will detect it or launch it automatically on startup.
 
-### Step 3 — Download an AI Model
-
-Open a terminal and pull your preferred model:
+3. Once Ollama is installed, open a terminal and pull your preferred model:
 
 **🔹 Option A: Qwen3 1.7B (Recommended — fast, balanced)**
 ```bash
@@ -102,6 +100,13 @@ Verify your model is installed:
 ```bash
 ollama list
 ```
+
+### Step 3 — Install Git
+
+Git	Cloning the repository	git-scm.com
+keep everything as default and instal.
+
+
 
 ### Step 4 — Clone & Set Up Plia
 
