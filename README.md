@@ -69,7 +69,8 @@
 ### Step 2 — Install Ollama
 
 1. Download and install from [ollama.com/download](https://ollama.com/download)
-2. Ollama starts automatically as a background service after installation
+2. Close the Ollama app
+3. Ollama starts automatically as a background service after installation
 
 > ✅ No need to start Ollama manually — Plia will detect it or launch it automatically on startup.
 
