@@ -65,7 +65,9 @@
 ### Step 1 — Install Miniconda (or use your existing Python 3.11+)
 
 1. Download from [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success)
+
    NOTE: install Miniconda NOT Anaconda Distribution.
+   
 3. Run the installer with default options
 4. Open **Anaconda Prompt** (Windows Start menu)
 
