@@ -40,7 +40,7 @@
 
 | Software | Purpose | Download |
 |----------|---------|----------|
-| **Python 3.11+** | Runtime (3.11 or 3.13 recommended) | [python.org](https://www.python.org/downloads/) or via Miniconda |
+| **Python 3.11+** | Runtime (3.11 or 3.13) | [python.org](https://www.python.org/downloads/) or via Miniconda (recommended) |
 | **Miniconda** (recommended) | Python environment manager | [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success) |
 | **Ollama** | Local AI model server | [ollama.com/download](https://ollama.com/download) |
 | **Git** | Cloning the repository | [git-scm.com](https://git-scm.com/downloads) |
@@ -63,8 +63,8 @@
 
 1. Download from [docs.anaconda.com/miniconda](https://www.anaconda.com/download/success).
    NOTE: install Miniconda NOT Anaconda Distribution.
-3. Run the installer with default options
-4. Open **Anaconda Prompt** (Windows Start menu)
+
+2. Run the installer with default options
 
 ### Step 2 — Install Ollama
 
@@ -73,7 +73,7 @@
 
 > ✅ No need to start Ollama manually — Plia will detect it or launch it automatically on startup.
 
-### Step 3 — Download an AI Model
+**Download an AI Model**
 
 Open a terminal and pull your preferred model:
 
@@ -97,6 +97,12 @@ Verify your model is installed:
 ```bash
 ollama list
 ```
+
+### Step 3 — Download and install Git
+
+1. Download and install from  [git-scm.com](https://git-scm.com/downloads)
+
+2. Run the installer with default options
 
 ### Step 4 — Clone & Set Up Plia
 
