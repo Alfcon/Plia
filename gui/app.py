@@ -23,6 +23,7 @@ from gui.tabs.planner import PlannerTab
 from gui.tabs.settings import SettingsTab
 from gui.tabs.briefing import BriefingView
 from gui.tabs.agents import AgentsTab
+from gui.tabs.agent_list import AgentListTab
 from gui.tabs.model_browser import ModelBrowserTab
 from gui.components.system_monitor import SystemMonitor
 from gui.components.weather_window import WeatherWindow
@@ -887,6 +888,7 @@ class MainWindow(FluentWindow):
         self.briefing_view.setObjectName("briefingInterface")
 
         self.agents_lazy = LazyTab(AgentsTab, "agentsInterface")
+        self.agent_list_lazy = LazyTab(AgentListTab, "agentListInterface")
         self.model_browser_lazy = LazyTab(ModelBrowserTab, "modelBrowserInterface")
         self.reading_files_lazy = LazyTab(ReadingFilesTab, "readingFilesInterface")
 
@@ -894,6 +896,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
         self.addSubInterface(self.briefing_view, FIF.DATE_TIME, "Briefing")
         self.addSubInterface(self.agents_lazy, FIF.ROBOT, "Active Agents")
+        self.addSubInterface(self.agent_list_lazy, FIF.ROBOT, "Agent List")
         self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
         self.addSubInterface(self.reading_files_lazy, FIF.FOLDER, "Reading Files")
         
@@ -1070,6 +1073,8 @@ class MainWindow(FluentWindow):
                 self.briefing_view = real_widget
             elif obj_name == "agentsInterface":
                 pass  # AgentsTab self-initialises
+            elif obj_name == "agentListInterface":
+                pass  # Agent List self-initialises
             elif obj_name == "modelBrowserInterface":
                 pass  # ModelBrowserTab self-initialises
                 

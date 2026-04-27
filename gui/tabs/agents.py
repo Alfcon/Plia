@@ -46,6 +46,8 @@ from qfluentwidgets import (
 
 from config import OLLAMA_URL, LOCAL_ROUTER_PATH, VOICE_ASSISTANT_ENABLED, RESPONDER_MODEL
 from core.agent_registry import agent_registry
+from core.multi_agent import multi_agent_system
+from gui.tabs.agent_editor import AgentEditorWindow
 
 
 # ---------------------------------------------------------------------------
@@ -261,9 +263,10 @@ class AgentRow(QFrame):
 # ---------------------------------------------------------------------------
 
 class CustomAgentRow(QFrame):
-    """Row for a user-created custom agent with Run and Delete actions."""
+    """Row for a user-created custom agent with Run, Edit, and Delete actions."""
 
-    run_requested    = Signal(str)   # agent name
+    run_requested = Signal(str)   # agent name
+    edit_requested = Signal(str)   # agent name
     delete_requested = Signal(str)   # agent name
 
     def __init__(self, agent: dict, parent=None):
@@ -315,15 +318,21 @@ class CustomAgentRow(QFrame):
         layout.addWidget(desc_lbl, stretch=2)
 
         # ── Run button ────────────────────────────────────────────────────
-        # Uses minimum width so "▷ Run" is never cropped; grows with content.
         run_btn = PushButton(FIF.PLAY, "Run")
         run_btn.setMinimumWidth(88)
         run_btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         run_btn.clicked.connect(lambda: self.run_requested.emit(self._name))
         layout.addWidget(run_btn)
 
+        # ── Edit button ──────────────────────────────────────────────────
+        edit_btn = PushButton(FIF.EDIT, "Edit")
+        edit_btn.setMinimumWidth(88)
+        edit_btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        edit_btn.setToolTip("Edit this agent")
+        edit_btn.clicked.connect(lambda: self.edit_requested.emit(self._name))
+        layout.addWidget(edit_btn)
+
         # ── Delete button ─────────────────────────────────────────────────
-        # Shows both icon AND label so text is always readable.
         del_btn = PushButton(FIF.DELETE, "Delete")
         del_btn.setMinimumWidth(88)
         del_btn.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -900,11 +909,6 @@ class AgentsTab(QWidget):
         header.addLayout(title_col)
         header.addStretch()
 
-        # Create Agent button
-        self._create_btn = PrimaryPushButton(FIF.ADD, "Create Agent")
-        self._create_btn.clicked.connect(self._on_create_agent)
-        header.addWidget(self._create_btn)
-
         self._refresh_btn = PushButton(FIF.SYNC, "Refresh")
         self._refresh_btn.clicked.connect(self.refresh)
         header.addWidget(self._refresh_btn)
@@ -948,7 +952,10 @@ class AgentsTab(QWidget):
         self._add_row(lay3, "desktop_agent",   "Desktop Agent",   "control_desktop — VLM screenshot + mouse/keyboard control")
         self._content.addWidget(card3)
 
-        # ── Section 4: Custom Agents (dynamic) ──────────────────────────
+        # ── Section 4: Multi-Agent System ───────────────────────────────
+        self._build_multi_agent_section()
+
+        # ── Section 5: Agent List (dynamic) ────────────────────────────
         self._build_custom_section()
 
         scroll.setWidget(container)
@@ -965,8 +972,54 @@ class AgentsTab(QWidget):
 
     # ── Custom Agents Section ─────────────────────────────────────────────
 
+    def _build_multi_agent_section(self):
+        """Build or rebuild the Jarvis-style multi-agent snapshot section."""
+        snapshot = multi_agent_system.snapshot()
+
+        if hasattr(self, "_multi_card") and self._multi_card is not None:
+            self._content.removeWidget(self._multi_card)
+            self._multi_card.deleteLater()
+            self._multi_card = None
+
+        agents = snapshot.get("agents", [])
+        tasks = snapshot.get("tasks", [])
+        roles = snapshot.get("roles", [])
+
+        heading = f"Multi-Agent System  ({len(agents)} agents, {len(tasks)} tasks, {len(roles)} roles)"
+        card, lay = _make_section(heading)
+        self._multi_card = card
+
+        primary = snapshot.get("primary")
+        if primary:
+            primary_lbl = CaptionLabel(
+                f"Primary Agent: {primary.get('role', {}).get('name', primary.get('id', 'unknown'))} "
+                f"· Status: {primary.get('status', 'unknown')}"
+            )
+            primary_lbl.setWordWrap(True)
+            primary_lbl.setStyleSheet("color: #8a9ab5; padding: 12px;")
+            lay.addWidget(primary_lbl)
+        else:
+            empty_lbl = CaptionLabel("  No primary agent has been created yet.")
+            empty_lbl.setStyleSheet("color: #555e70; padding: 12px 12px 8px 12px;")
+            lay.addWidget(empty_lbl)
+
+        for agent in agents[:8]:
+            row = AgentRow(
+                agent.get("role", {}).get("name", agent.get("id", "agent")),
+                f"Status: {agent.get('status', 'unknown')} · Children: {len(agent.get('child_ids', []))}",
+            )
+            lay.addWidget(row)
+
+        if tasks:
+            task_lbl = CaptionLabel(f"  Active Tasks: {len(tasks)}")
+            task_lbl.setStyleSheet("color: #33b5e5; padding: 8px 12px 4px 12px;")
+            task_lbl.setWordWrap(True)
+            lay.addWidget(task_lbl)
+
+        self._content.addWidget(card)
+
     def _build_custom_section(self):
-        """Build or rebuild the Custom Agents card."""
+        """Build or rebuild the Agent List card."""
         agents = agent_registry.all_agents()
 
         if self._custom_card is not None:
@@ -975,14 +1028,21 @@ class AgentsTab(QWidget):
             self._custom_card = None
 
         count   = len(agents)
-        heading = f"Custom Agents  ({count} created)" if count else "Custom Agents"
+        heading = f"Agent List  ({count} available)" if count else "Agent List"
         card, lay = _make_section(heading)
         self._custom_card   = card
         self._custom_layout = lay
 
+        header_row = QHBoxLayout()
+        header_row.addStretch()
+        add_btn = PrimaryPushButton(FIF.ADD, "Add Agent")
+        add_btn.clicked.connect(self._on_create_agent)
+        header_row.addWidget(add_btn)
+        lay.addLayout(header_row)
+
         if not agents:
             empty_lbl = CaptionLabel(
-                "  No custom agents yet.  Click Create Agent above, or ask Plia in chat:\n"
+                "  No agents yet. Use the Add Agent button in this list, or ask Plia in chat:\n"
                 "  create an agent that summarises emails"
             )
             empty_lbl.setStyleSheet("color: #555e70; padding: 12px 12px 8px 12px;")
@@ -992,6 +1052,7 @@ class AgentsTab(QWidget):
             for agent in agents:
                 row = CustomAgentRow(agent)
                 row.run_requested.connect(self._on_run_agent)
+                row.edit_requested.connect(self._on_edit_agent)
                 row.delete_requested.connect(self._on_delete_agent)
                 lay.addWidget(row)
                 sep = QFrame()
@@ -1003,6 +1064,7 @@ class AgentsTab(QWidget):
 
     def _rebuild_custom_section(self):
         """Slot connected to agent_registry.agents_changed."""
+        self._build_multi_agent_section()
         self._build_custom_section()
 
     # ── Create Agent ──────────────────────────────────────────────────────
@@ -1078,6 +1140,24 @@ class AgentsTab(QWidget):
         Opens the dialog pre-filled with AI-parsed values so user can confirm.
         """
         self._on_create_agent(prefill=prefill)
+
+    def _on_edit_agent(self, name: str):
+        agent = agent_registry.get_agent(name)
+        if not agent:
+            QMessageBox.warning(self, "Agent Not Found", "Could not find the selected agent.")
+            return
+        editor = AgentEditorWindow(self, agent_name=name)
+        if editor.exec() == QDialog.Accepted:
+            agent_registry.reload_agents()
+            multi_agent_system.reload_roles()
+            self._rebuild_custom_section()
+            InfoBar.success(
+                title="Agent Updated",
+                content=f"'{agent.get('display_name', name)}' was updated successfully.",
+                parent=self,
+                position=InfoBarPosition.TOP_RIGHT,
+                duration=4000,
+            )
 
     # ── Run Agent ─────────────────────────────────────────────────────────
 
@@ -1162,6 +1242,7 @@ class AgentsTab(QWidget):
     # ── Status refresh logic ───────────────────────────────────────────────
 
     def refresh(self):
+        self._build_multi_agent_section()
         if self._thread and self._thread.isRunning():
             return
         self._refresh_btn.setEnabled(False)
