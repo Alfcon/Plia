@@ -3,9 +3,10 @@ Plia Voice Indicator — shows the Plia logo with an animated speaking mouth
 when the voice assistant is active.
 
 States:
-  - Hidden          : voice assistant idle
-  - Listening       : wake word detected, pulsing glow ring around logo
-  - Speaking        : AI is responding, robot mouth animates open/close
+  - Hidden/Idle     : voice assistant idle
+  - Listening       : wake word detected, pulsing cyan glow ring around logo
+  - Processing      : speech captured, AI generating response — amber pulse
+  - Speaking        : TTS playback — robot mouth animates open/close
 """
 
 import os
@@ -44,6 +45,7 @@ class VoiceIndicator(QWidget):
     STATE_HIDDEN    = 0
     STATE_LISTENING = 1
     STATE_SPEAKING  = 2
+    STATE_PROCESSING = 3
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -156,6 +158,18 @@ class VoiceIndicator(QWidget):
         self.show()
         self._fade_in.start()
 
+    def show_processing(self):
+        """Show amber pulsing glow — speech captured, AI generating response."""
+        if self._state == self.STATE_HIDDEN:
+            self.show()
+            self._fade_in.start()
+        self._state      = self.STATE_PROCESSING
+        self._label_text = "Thinking..."
+        self._mouth_timer.stop()
+        self._pulse_anim.start()
+        self._position_window()
+        self.update()
+
     def show_speaking(self):
         """Switch to speaking animation — AI is responding."""
         if self._state == self.STATE_HIDDEN:
@@ -208,8 +222,8 @@ class VoiceIndicator(QWidget):
         logo_x = (w - logo_size) // 2
         logo_y = 10
 
-        # 1. Pulsing glow ring (listening state)
-        if self._state == self.STATE_LISTENING:
+        # 1. Pulsing glow ring (listening / processing)
+        if self._state in (self.STATE_LISTENING, self.STATE_PROCESSING):
             self._draw_glow(painter, logo_x, logo_y, logo_size)
 
         # 2. Logo
@@ -228,21 +242,29 @@ class VoiceIndicator(QWidget):
         self._draw_label(painter, w, logo_y + logo_size + 6, h)
 
     def _draw_glow(self, painter, lx, ly, ls):
-        """Draw animated pulsing cyan glow ring around the logo."""
+        """Draw animated pulsing glow ring around the logo.
+
+        Uses cyan for LISTENING and amber/gold for PROCESSING.
+        """
         cx = lx + ls // 2
         cy = ly + ls // 2
         base_r = ls // 2 + 4
         pulse_r = base_r + int(self._pulse * 22)
         alpha   = int(200 * (1.0 - self._pulse))
 
+        if self._state == self.STATE_PROCESSING:
+            r, g, b = 255, 193, 7      # amber/gold
+        else:
+            r, g, b = 51, 181, 229     # cyan
+
         # Outer pulse ring
-        color = QColor(51, 181, 229, alpha)
+        color = QColor(r, g, b, alpha)
         painter.setPen(QPen(color, 3))
         painter.setBrush(Qt.NoBrush)
         painter.drawEllipse(QPoint(cx, cy), pulse_r, pulse_r)
 
         # Inner steady ring
-        inner_color = QColor(51, 181, 229, 160)
+        inner_color = QColor(r, g, b, 160)
         painter.setPen(QPen(inner_color, 2))
         painter.drawEllipse(QPoint(cx, cy), base_r, base_r)
 
@@ -304,7 +326,11 @@ class VoiceIndicator(QWidget):
 
     def _draw_label(self, painter, w, y, h):
         """Draw the status text below the logo."""
-        painter.setPen(QColor(51, 181, 229, 230))
+        if self._state == self.STATE_PROCESSING:
+            label_color = QColor(255, 193, 7, 230)
+        else:
+            label_color = QColor(51, 181, 229, 230)
+        painter.setPen(label_color)
         painter.setFont(QFont("Segoe UI", 10, QFont.Bold))
         painter.drawText(
             QRect(0, y, w, h - y),
@@ -335,12 +361,14 @@ class EmbeddedVoiceWidget(QWidget):
     States:
       IDLE      — logo shown with closed smile, no animation
       LISTENING — pulsing cyan glow ring
+      PROCESSING — pulsing amber glow ring (AI generating response)
       SPEAKING  — animated open/close mouth
     """
 
     STATE_IDLE      = 0
     STATE_LISTENING = 1
     STATE_SPEAKING  = 2
+    STATE_PROCESSING = 3
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -409,6 +437,13 @@ class EmbeddedVoiceWidget(QWidget):
         self._pulse_anim.start()
         self.update()
 
+    def show_processing(self):
+        self._state      = self.STATE_PROCESSING
+        self._label_text = "Thinking..."
+        self._mouth_timer.stop()
+        self._pulse_anim.start()
+        self.update()
+
     def show_speaking(self):
         self._state      = self.STATE_SPEAKING
         self._label_text = "Speaking..."
@@ -439,8 +474,8 @@ class EmbeddedVoiceWidget(QWidget):
         logo_x = (w - logo_size) // 2
         logo_y = 10
 
-        # 1. Glow ring (listening)
-        if self._state == self.STATE_LISTENING:
+        # 1. Glow ring (listening / processing)
+        if self._state in (self.STATE_LISTENING, self.STATE_PROCESSING):
             self._draw_glow(painter, logo_x, logo_y, logo_size)
 
         # 2. Logo
@@ -456,7 +491,11 @@ class EmbeddedVoiceWidget(QWidget):
 
         # 4. Status label
         if self._label_text:
-            painter.setPen(QColor(51, 181, 229, 230))
+            if self._state == self.STATE_PROCESSING:
+                lbl_color = QColor(255, 193, 7, 230)
+            else:
+                lbl_color = QColor(51, 181, 229, 230)
+            painter.setPen(lbl_color)
             painter.setFont(QFont("Segoe UI", 9, QFont.Bold))
             painter.drawText(
                 QRect(0, logo_y + logo_size + 4, w, 20),
@@ -471,11 +510,16 @@ class EmbeddedVoiceWidget(QWidget):
         pulse_r = base_r + int(self._pulse * 20)
         alpha   = int(200 * (1.0 - self._pulse))
 
-        painter.setPen(QPen(QColor(51, 181, 229, alpha), 3))
+        if self._state == self.STATE_PROCESSING:
+            r, g, b = 255, 193, 7      # amber/gold
+        else:
+            r, g, b = 51, 181, 229     # cyan
+
+        painter.setPen(QPen(QColor(r, g, b, alpha), 3))
         painter.setBrush(Qt.NoBrush)
         painter.drawEllipse(QPoint(cx, cy), pulse_r, pulse_r)
 
-        painter.setPen(QPen(QColor(51, 181, 229, 160), 2))
+        painter.setPen(QPen(QColor(r, g, b, 160), 2))
         painter.drawEllipse(QPoint(cx, cy), base_r, base_r)
 
     def _draw_mouth(self, painter, lx, ly, ls):

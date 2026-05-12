@@ -214,17 +214,11 @@ class SystemMonitor(QFrame):
         layout.addStretch()
     
     def _init_voice_indicator(self):
-        """Initialize voice listening indicator animation."""
-        from PySide6.QtCore import QPropertyAnimation, QEasingCurve, QTimer
+        """Initialize voice listening / speaking indicator animations."""
+        from PySide6.QtCore import QPropertyAnimation, QEasingCurve
         
-        # Create pulsing animation for the indicator
-        self.voice_animation = QPropertyAnimation(self.voice_indicator, b"styleSheet")
-        self.voice_animation.setDuration(1000)
-        self.voice_animation.setLoopCount(-1)  # Infinite
-        self.voice_animation.setEasingCurve(QEasingCurve.InOutSine)
-        
-        # Animation values (glowing effect)
-        self.voice_animation.setStartValue("""
+        # ── Listening animation (cyan pulse) ─────────────────────────────
+        self._listen_anim_start = """
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 rgba(51, 181, 229, 150),
@@ -232,8 +226,8 @@ class SystemMonitor(QFrame):
                     stop:1 rgba(51, 181, 229, 150));
                 border-radius: 2px;
             }
-        """)
-        self.voice_animation.setEndValue("""
+        """
+        self._listen_anim_end = """
             QFrame {
                 background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
                     stop:0 rgba(51, 181, 229, 255),
@@ -241,16 +235,55 @@ class SystemMonitor(QFrame):
                     stop:1 rgba(51, 181, 229, 255));
                 border-radius: 2px;
             }
-        """)
+        """
+
+        self.voice_animation = QPropertyAnimation(self.voice_indicator, b"styleSheet")
+        self.voice_animation.setDuration(1000)
+        self.voice_animation.setLoopCount(-1)
+        self.voice_animation.setEasingCurve(QEasingCurve.InOutSine)
+        self.voice_animation.setStartValue(self._listen_anim_start)
+        self.voice_animation.setEndValue(self._listen_anim_end)
+
+        # ── Speaking animation (green pulse) ─────────────────────────────
+        self._speak_anim_start = """
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgba(46, 196, 182, 150),
+                    stop:0.5 rgba(46, 196, 182, 255),
+                    stop:1 rgba(46, 196, 182, 150));
+                border-radius: 2px;
+            }
+        """
+        self._speak_anim_end = """
+            QFrame {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
+                    stop:0 rgba(46, 196, 182, 255),
+                    stop:0.5 rgba(46, 196, 182, 150),
+                    stop:1 rgba(46, 196, 182, 255));
+                border-radius: 2px;
+            }
+        """
     
     def show_listening(self):
-        """Show the voice listening indicator."""
+        """Show the voice listening indicator (cyan pulse)."""
         if not self.voice_indicator.isVisible():
+            self.voice_animation.stop()
+            self.voice_animation.setStartValue(self._listen_anim_start)
+            self.voice_animation.setEndValue(self._listen_anim_end)
+            self.voice_indicator.show()
+            self.voice_animation.start()
+    
+    def show_speaking(self):
+        """Show the voice speaking indicator (green pulse)."""
+        if not self.voice_indicator.isVisible():
+            self.voice_animation.stop()
+            self.voice_animation.setStartValue(self._speak_anim_start)
+            self.voice_animation.setEndValue(self._speak_anim_end)
             self.voice_indicator.show()
             self.voice_animation.start()
     
     def hide_listening(self):
-        """Hide the voice listening indicator."""
+        """Hide the voice indicator."""
         self.voice_animation.stop()
         self.voice_indicator.hide()
     

@@ -43,6 +43,8 @@ from PySide6.QtGui import (
     QTextCursor, QPainterPath,
 )
 
+from gui.components.voice_indicator import EmbeddedVoiceWidget
+
 # ── GPU monitoring ────────────────────────────────────────────
 try:
     import pynvml
@@ -672,11 +674,11 @@ class DashboardView(QWidget):
 
     def _build_top_bar(self) -> QFrame:
         bar = QFrame()
-        bar.setFixedHeight(40)
+        bar.setFixedHeight(170)
         bar.setStyleSheet("background: #060610; border: none;")
 
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(15, 0, 15, 0)
+        lay.setContentsMargins(15, 6, 15, 6)
         lay.setSpacing(20)
 
         title = QLabel("◆ P.L.I.A.")
@@ -688,6 +690,9 @@ class DashboardView(QWidget):
         self._status_lbl.setFont(QFont("Consolas", 10))
         self._status_lbl.setStyleSheet(f"color: {C_SUCCESS};")
         lay.addWidget(self._status_lbl)
+
+        self.voice_widget = EmbeddedVoiceWidget()
+        lay.addWidget(self.voice_widget)
 
         lay.addStretch()
 

@@ -17,6 +17,9 @@ from core.agent_builder import detect_build_intent, build_agent
 ACTION_FUNCTIONS = {
     "control_light", "set_timer", "set_alarm", "create_calendar_event",
     "add_task", "web_search", "control_desktop",
+    "system_command", "manage_notes", "send_email", "read_emails",
+    "clipboard_action", "file_operations", "get_stock_price",
+    "convert_currency", "translate_text", "control_media", "network_tools",
 }
 
 
