@@ -120,6 +120,8 @@ conda activate plia
 pip install -r requirements.txt
 ```
 
+> 🐧 **Linux users**: If PyAudio fails to build, run `sudo apt install portaudio19-dev` first, then retry `pip install -r requirements.txt`. Alternatively, `conda install -c conda-forge pyaudio` installs a pre-built binary.
+
 > ⏱️ First install may take 5–15 minutes — PyTorch and AI packages are large downloads.
 
 > ℹ️ **OpenAI & DuckDuckGo** packages are included in `requirements.txt`. An OpenAI API key is only required for Agent Builder agents that use GPT-4o. Set your key in the Plia **Settings** tab under "OpenAI API Key". Core functions (chat, voice, weather, search) do **not** require an OpenAI key.
@@ -145,7 +147,7 @@ python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 Playwright is used for the web search results browser panel. After pip install, run:
 
 ```bash
-playwright install
+sudo apt install node-playwright
 ```
 
 > You only need to do this once. It downloads ~300 MB of browser binaries.
@@ -176,7 +178,9 @@ The full `requirements.txt` installs these packages. This table shows what each 
 | `soundfile>=0.13.0` | Audio file I/O |
 | `numpy>=2.0.0` | Numerical computing / audio processing |
 | `realtimestt>=0.3.0` | Real-time speech-to-text + wake word |
-| `PyAudio>=0.2.14` | Microphone access |
+| `faster-whisper>=1.0.0` | RealtimeSTT transcription engine |
+| `pvporcupine>=1.9.0` | Porcupine wake word detection |
+| `PyAudio>=0.2.14` | Microphone access (Linux: `apt install portaudio19-dev` first) |
 | `playwright>=1.57.0` | Browser automation for web agent |
 | `playwright-stealth>=2.0.0` | Stealth mode for browser automation |
 | `python-kasa>=0.10.0` | TP-Link Kasa smart device control (optional) |
@@ -190,7 +194,7 @@ The full `requirements.txt` installs these packages. This table shows what each 
 | `mss>=9.0.0` | Multi-monitor screenshot capture |
 | `pyautogui>=0.9.54` | Mouse and keyboard automation |
 | `Pillow>=10.0.0` | Image processing |
-| `pywin32>=306` | Windows API (window focus) |
+| `pywin32>=306` | Windows API (window focus; Linux/macOS: skip) |
 | `pyperclip>=1.8.0` | Clipboard access |
 | `openai>=2.0.0` | **OpenAI API — used by Agent Builder** |
 | `markdown>=3.4.0` | Markdown rendering in chat |
@@ -229,11 +233,25 @@ Downloaded models are stored in `~/.plia_ai/` (i.e., `C:\Users\<YourName>\.plia_
 
 Plia includes Alexa-style voice control with customisable wake word detection.
 
+### Visual Indicator States
+
+| State | Icon | Description |
+|-------|------|-------------|
+| **Idle** | Closed smile on logo | Assistant is ready, waiting for wake word |
+| **Listening** | Pulsing cyan glow ring | Wake word detected — speak your command |
+| **Processing** | Pulsing amber/gold glow | Speech captured — AI is generating response |
+| **Speaking** | Animated opening/closing mouth | TTS is playing the response aloud |
+
 ### How It Works
 
 1. Say **"Jarvis"** to activate the assistant
+   → *Dashboard logo shows a pulsing cyan glow ring — "Listening..."*
 2. Speak your command naturally
+   → *Glow turns amber — "Thinking..."*
 3. Plia classifies your intent, runs the action, and speaks the response
+   → *Logo mouth animates — "Speaking..." while AI talks*
+4. When finished, the indicator returns to idle
+   → *Closed smile, status returns to "ONLINE"*
 
 ### Example Voice Commands
 
@@ -637,11 +655,21 @@ Agents that only use local Ollama do not need an OpenAI key.
 </details>
 
 <details>
-<summary><strong>❌ PyAudio install fails on Windows</strong></summary>
+<summary><strong>❌ PyAudio install fails</strong></summary>
 
 **Problem**: `pip install pyaudio` fails with a build error.
 
-**Solution**: Install the pre-built wheel:
+**Linux solution**: Install the portaudio development headers first:
+```bash
+sudo apt install portaudio19-dev
+pip install pyaudio
+```
+Or use conda (pre-built binary, no compiler needed):
+```bash
+conda install -c conda-forge pyaudio
+```
+
+**Windows solution**: Install the pre-built wheel:
 ```bash
 pip install pipwin
 pipwin install pyaudio

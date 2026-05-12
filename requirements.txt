@@ -34,7 +34,7 @@
 # -----------------------------------------------------
 # Core GUI Framework
 # -----------------------------------------------------
-PySide6>=6.10.0                # Qt GUI framework for Python
+PySide6>=6.5.0                # Qt GUI framework for Python
 PySide6-Fluent-Widgets>=1.10.0 # Fluent Design UI components (PySide6 version)
 darkdetect>=0.8.0              # Detect system dark/light mode
 markdown>=3.4.0                # Markdown rendering for chat messages
@@ -49,14 +49,14 @@ pygments>=2.15.0               # Syntax highlighting for code blocks
 # Verify CUDA is working after install with:
 #   python -c "import torch; print(torch.cuda.is_available())"
 #
-# NOTE: torch, transformers and their dependencies are imported
-# *lazily* inside FunctionGemmaRouter.__init__() — not at module level.
-# This prevents a circular import (torch.hub → tqdm) that caused a
+# NOTE: torch is imported *lazily* inside FunctionGemmaRouter.__init__()
+# and inside STTListener.initialize() — not at module level.
+# This prevents the circular import (torch.hub → tqdm) that caused a
 # fatal startup crash in earlier versions. Do not move these imports
 # back to module level.
-# torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
-# torchvision>=0.21.0            # Image/vision utilities companion to PyTorch
-# torchaudio>=2.6.0              # Audio processing utilities companion to PyTorch
+torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
+# torchvision>=0.21.0            # Not directly used — kept for compatibility
+torchaudio>=2.6.0              # Audio processing (STT Silero VAD, auto-stubbed if missing)
 transformers>=4.57.0           # Hugging Face transformers for router model
 accelerate>=1.12.0             # Optimised model loading and inference
 safetensors>=0.7.0             # Fast, safe model weight loading
@@ -71,7 +71,10 @@ sounddevice>=0.5.0             # Audio playback interface
 soundfile>=0.13.0              # Audio file I/O
 numpy>=2.0.0                   # Numerical computing (audio processing)
 realtimestt>=0.3.0             # Real-time speech-to-text with wake word detection
+faster-whisper>=1.0.0          # RealtimeSTT transcription engine (optional but strongly recommended)
+pvporcupine>=1.9.0,<2          # Porcupine wake word detection (v1 for free offline keywords)
 PyAudio>=0.2.14                # Audio I/O for microphone access
+                               # Linux: apt install portaudio19-dev  (build dep)
                                # If PyAudio fails to install on Windows, run:
                                #   pip install pipwin && pipwin install pyaudio
 
@@ -105,6 +108,7 @@ openai>=2.0.0                  # OpenAI API — used by the Agent Builder featur
 # -----------------------------------------------------
 psutil>=7.0.0                  # System and process monitoring
 pynvml>=13.0.0                 # NVIDIA GPU monitoring (VRAM display)
+PyYAML>=6.0.0                  # YAML parsing/writing for multi-agent config files
 huggingface-hub>=0.36.0        # Download models from Hugging Face
                                # Used to auto-download the FunctionGemma router
                                # from nlouis/pocket-ai-router on first run.
@@ -120,7 +124,7 @@ huggingface-hub>=0.36.0        # Download models from Hugging Face
 mss>=9.0.0                     # Fast multi-monitor screenshot capture
 pyautogui>=0.9.54              # Cross-application mouse and keyboard control
 Pillow>=10.0.0                 # Image processing (resize screenshots for VLM)
-pywin32>=306                   # Windows API access: win32gui for window focusing
+# pywin32>=306                 # Windows API access: win32gui for window focusing (Linux: skip)
                                # (brings launched apps to foreground after open)
 pyperclip>=1.8.0               # Clipboard paste for reliable Unicode text input
 
@@ -145,6 +149,18 @@ pyperclip>=1.8.0               # Clipboard paste for reliable Unicode text input
 # google-auth-httplib2>=0.2.0           # httplib2 transport for Google auth
 # google-api-python-client>=2.130.0     # Google Calendar API client
 # msal>=1.28.0                          # Microsoft Authentication Library (Outlook)
+
+# -----------------------------------------------------
+# File Reading (Optional — only needed for the Reading Files tab)
+# -----------------------------------------------------
+# These are NOT required for core functionality. Only install if you use
+# the Reading Files tab to view PDFs, DOCX, or Excel/CSV files.
+# Uncomment the lines you need and run: pip install -r requirements.txt again.
+#
+# pdfplumber>=0.7.0                     # PDF text extraction
+# pypdf>=5.0.0                          # Fallback PDF reader
+# python-docx>=1.1.0                    # DOCX paragraph extraction
+# pandas>=2.0.0                         # Spreadsheet preview (CSV/XLSX)
 
 # -----------------------------------------------------
 # Local Data Storage
