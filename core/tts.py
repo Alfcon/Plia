@@ -22,6 +22,8 @@ import threading
 import wave
 from pathlib import Path
 
+from PySide6.QtCore import QObject, Signal as _Signal
+
 # ── Optional: requests for model auto-download ────────────────────────────
 try:
     import requests as _requests
@@ -104,6 +106,16 @@ _PIPER_RELEASE_URL = (
 # ══════════════════════════════════════════════════════════════════════════
 #  SentenceBuffer  — unchanged, used by voice_assistant.py for streaming
 # ══════════════════════════════════════════════════════════════════════════
+class TtsSignals(QObject):
+    """Qt signals emitted by VoiceEngine for speaking state changes.
+
+    Emitted from the TTS worker thread; PySide6 delivers them to the
+    main thread via queued connections automatically.
+    """
+    speaking_started  = _Signal()
+    speaking_finished = _Signal()
+
+
 class SentenceBuffer:
     """Buffers streaming text and extracts complete sentences."""
 
@@ -167,15 +179,27 @@ class VoiceEngine:
         self._running       = False
         self.available      = HAS_PIPER_LIB  # False if library is missing
 
+        # Speaking-state tracking (batch-level, used by _speech_worker)
+        self._tts_signals   = TtsSignals()
+        self._speaking_batch = False   # True while at least one sentence is queued
+
         # Fallback: executable path (only used when HAS_PIPER_LIB is False)
         self.piper_exe   = None
         self.model_path  = None
         self.VOICE_MODEL = s.get("tts_voice", DEFAULT_VOICE)
         self.current_process = None
 
+        # Audio output availability
+        self._playback_ok = True
+
         # Maximum characters per TTS call — ONNX Runtime can segfault on
         # extremely long strings; split defensively at this boundary.
         self._MAX_CHARS = 400
+
+    @property
+    def signals(self) -> TtsSignals:
+        """Expose the Qt signals object for UI connection."""
+        return self._tts_signals
 
     # ── Model discovery / auto-download (Python library) ─────────────────
 
@@ -315,6 +339,12 @@ class VoiceEngine:
 
             self._engine    = PiperVoice.load(model_path)
             self.model_path = model_path
+
+            # Verify audio playback works before enabling speaking
+            if not self._check_playback():
+                self._playback_ok = False
+                print(f"{YELLOW}[TTS] ⚠ Audio output unavailable — TTS muted.{RESET}")
+
             self._start_worker()
             print(f"{GREEN}[TTS] ✓ Piper TTS ready ({Path(model_path).name}){RESET}")
             return True
@@ -357,19 +387,41 @@ class VoiceEngine:
     # ── Speech worker ─────────────────────────────────────────────────────
 
     def _speech_worker(self):
-        """Background thread: plays sentences from the queue."""
+        """Background thread: plays sentences from the queue.
+
+        Emits ``speaking_started`` when the first sentence of a batch is
+        dequeued and ``speaking_finished`` once the queue goes empty
+        (after a 0.5 s debounce timeout).  This gives the UI a single
+        contiguous speaking interval per response rather than one per
+        sentence chunk.
+        """
         while self._running:
             try:
                 text = self._speech_queue.get(timeout=0.5)
                 if text is None:
+                    if self._speaking_batch:
+                        self._speaking_batch = False
+                        self._tts_signals.speaking_finished.emit()
                     break
+
+                # ── First sentence of a new batch ─────────────────────
+                if not self._speaking_batch:
+                    self._speaking_batch = True
+                    self._tts_signals.speaking_started.emit()
+
                 if not self.muted:
                     if HAS_PIPER_LIB and self._engine:
                         self._speak_lib(text)
                     elif self.piper_exe:
                         self._speak_exe(text)
+                # Even when muted we want the signal to fire so the UI
+                # still shows (and dismisses) the speaking indicator.
                 self._speech_queue.task_done()
             except queue.Empty:
+                # ── Queue is (temporarily) empty ─────────────────────
+                if self._speaking_batch:
+                    self._speaking_batch = False
+                    self._tts_signals.speaking_finished.emit()
                 continue
 
     def _speak_lib(self, text: str):
@@ -415,62 +467,73 @@ class VoiceEngine:
             if chunk.strip():
                 self._speak_chunk(chunk)
 
-    def _speak_chunk(self, text: str):
-        """Synthesise one safe-length chunk and play it serially."""
+    @staticmethod
+    def _check_playback() -> bool:
+        """Verify audio output is available by testing a default output stream."""
+        import sounddevice as sd
         try:
-            # ── Synthesis (serialised by _lock) ──────────────────────────
-            with self._lock:
-                if not self._engine:
-                    return
-                if HAS_SYNTHESIS_CONFIG:
-                    # NEW API: synthesize_wav() + SynthesisConfig
-                    syn_config = _SynthesisConfig(
-                        length_scale=max(0.5, min(2.0, self.length_scale)),
-                        noise_scale=0.667,
-                        noise_w_scale=0.8,
+            sd.check_output_settings(device=None, samplerate=22050)
+            return True
+        except Exception:
+            return False
+
+    def _speak_chunk(self, text: str):
+        """Synthesise via Python library and play with sounddevice.
+
+        Thread-safety:
+          self._lock       — serialises ONNX inference (one call at a time)
+          self._play_lock  — serialises sounddevice playback (one play at a time)
+        """
+        if not self._engine or not text.strip():
+            return
+        if not self._playback_ok:
+            return
+        try:
+            if HAS_SYNTHESIS_CONFIG:
+                syn_config = _SynthesisConfig(
+                    length_scale=max(0.5, min(2.0, self.length_scale)),
+                    noise_scale=0.667,
+                    noise_w_scale=0.8,
+                )
+                buf = io.BytesIO()
+                with wave.open(buf, "wb") as wf:
+                    _sr = getattr(
+                        getattr(self._engine, "config", None),
+                        "sample_rate", 22050
                     )
-                    buf = io.BytesIO()
-                    with wave.open(buf, "wb") as wf:
-                        _sr = getattr(
-                            getattr(self._engine, "config", None),
-                            "sample_rate", 22050
-                        )
-                        wf.setnchannels(1)
-                        wf.setsampwidth(2)
-                        wf.setframerate(_sr)
-                        self._engine.synthesize_wav(text, wf, syn_config=syn_config)
-                    buf.seek(0)
-                    with wave.open(buf, "rb") as wf:
-                        n_channels = wf.getnchannels()
-                        samplerate = wf.getframerate()
-                        raw_pcm    = wf.readframes(wf.getnframes())
-                else:
-                    # OLD API: synthesize(text, wav_file) — no kwargs
-                    buf = io.BytesIO()
-                    with wave.open(buf, "wb") as wf:
-                        _sr = getattr(
-                            getattr(self._engine, "config", None),
-                            "sample_rate", 22050
-                        )
-                        wf.setnchannels(1)
-                        wf.setsampwidth(2)
-                        wf.setframerate(_sr)
-                        self._engine.synthesize(text, wf)
-                    buf.seek(0)
-                    with wave.open(buf, "rb") as wf:
-                        n_channels = wf.getnchannels()
-                        samplerate = wf.getframerate()
-                        raw_pcm    = wf.readframes(wf.getnframes())
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(_sr)
+                    self._engine.synthesize_wav(text, wf, syn_config=syn_config)
+                buf.seek(0)
+                with wave.open(buf, "rb") as wf:
+                    n_channels = wf.getnchannels()
+                    samplerate = wf.getframerate()
+                    raw_pcm    = wf.readframes(wf.getnframes())
+            else:
+                buf = io.BytesIO()
+                with wave.open(buf, "wb") as wf:
+                    _sr = getattr(
+                        getattr(self._engine, "config", None),
+                        "sample_rate", 22050
+                    )
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(_sr)
+                    self._engine.synthesize(text, wf)
+                buf.seek(0)
+                with wave.open(buf, "rb") as wf:
+                    n_channels = wf.getnchannels()
+                    samplerate = wf.getframerate()
+                    raw_pcm    = wf.readframes(wf.getnframes())
 
             # ── Convert int16 PCM → float32 ───────────────────────────────
             audio = np.frombuffer(raw_pcm, dtype=np.int16).astype(np.float32)
             audio /= 32768.0
-            audio = audio.reshape(-1, n_channels)   # always 2-D for sounddevice
+            audio = audio.reshape(-1, n_channels)
             audio = np.clip(audio * self.volume, -1.0, 1.0)
 
             # ── Playback (serialised by _play_lock) ───────────────────────
-            # This is the critical fix: only ONE sd.play()+sd.wait() pair
-            # can run at a time across ALL threads.
             with self._play_lock:
                 sd.play(audio, samplerate=samplerate)
                 sd.wait()
@@ -481,6 +544,8 @@ class VoiceEngine:
     def _speak_exe(self, text: str):
         """Synthesise via Piper executable and play with sounddevice."""
         if not self.piper_exe or not self.model_path or not text.strip():
+            return
+        if not self._playback_ok:
             return
         try:
             import subprocess

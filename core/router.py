@@ -184,6 +184,129 @@ def control_desktop(task: str) -> str:
     return "result"
 
 
+# ── New Jarvis tool definitions ─────────────────────────────────────────
+
+def system_command(action: str, value: str = None) -> str:
+    """
+    Control system functions: volume, brightness, power, battery, network.
+
+    Args:
+        action: One of: 'shutdown', 'restart', 'sleep', 'lock',
+                'volume_up', 'volume_down', 'set_volume', 'mute', 'unmute',
+                'brightness_up', 'brightness_down', 'set_brightness',
+                'battery_status', 'network_info'
+        value: Optional value for set_volume (0-100) or set_brightness (0-100)
+    """
+    return "result"
+
+def manage_notes(action: str, title: str = None, body: str = None,
+                 note_id: str = None, query: str = None) -> str:
+    """
+    Create, read, search, or delete notes.
+
+    Args:
+        action: 'create', 'read', 'search', 'delete', 'list'
+        title: Note title (required for create)
+        body: Note body text (optional for create)
+        note_id: UUID of note (required for read/delete)
+        query: Search text (required for search)
+    """
+    return "result"
+
+def send_email(to: str, subject: str, body: str) -> str:
+    """
+    Send an email. Requires configured SMTP in Settings.
+
+    Args:
+        to: Recipient email address
+        subject: Email subject line
+        body: Email body text
+    """
+    return "result"
+
+def read_emails(limit: int = 5) -> str:
+    """
+    Read recent emails from configured IMAP inbox.
+
+    Args:
+        limit: Number of recent emails to fetch (max 20)
+    """
+    return "result"
+
+def clipboard_action(action: str, text: str = None) -> str:
+    """
+    Read, write, or manage clipboard content.
+
+    Args:
+        action: 'read', 'write', 'append', 'history', 'clear'
+        text: Text to write/append (required for write/append)
+    """
+    return "result"
+
+def file_operations(action: str, path: str = None, pattern: str = None) -> str:
+    """
+    Find files, check disk usage, or organize directories.
+
+    Args:
+        action: 'find', 'disk_usage', 'list_dir', 'organize_downloads',
+                'create_dir'
+        path: Directory path (required for list_dir, disk_usage)
+        pattern: Filename pattern for find (e.g. '*.pdf', 'report*')
+    """
+    return "result"
+
+def get_stock_price(symbol: str) -> str:
+    """
+    Get current stock price for a ticker symbol (e.g. AAPL, TSLA, MSFT).
+
+    Args:
+        symbol: Stock ticker symbol
+    """
+    return "result"
+
+def convert_currency(amount: float, from_currency: str, to_currency: str) -> str:
+    """
+    Convert an amount between currencies (e.g. USD to EUR).
+
+    Args:
+        amount: The amount to convert
+        from_currency: Source currency code (e.g. 'USD')
+        to_currency: Target currency code (e.g. 'EUR')
+    """
+    return "result"
+
+def translate_text(text: str, target_language: str) -> str:
+    """
+    Translate text to another language using local AI.
+
+    Args:
+        text: The text to translate
+        target_language: Target language (e.g. 'Spanish', 'French', 'Japanese')
+    """
+    return "result"
+
+def control_media(action: str, query: str = None) -> str:
+    """
+    Control media playback or search YouTube.
+
+    Args:
+        action: 'play_pause', 'next', 'previous', 'stop',
+                'play_youtube', 'search_music'
+        query: Search query (required for play_youtube/search_music)
+    """
+    return "result"
+
+def network_tools(action: str, target: str = None) -> str:
+    """
+    Network diagnostics: public IP, ping, DNS lookup.
+
+    Args:
+        action: 'public_ip', 'public_ip_info', 'ping', 'dns_lookup'
+        target: Hostname for ping/dns_lookup
+    """
+    return "result"
+
+
 # Pre-compute tool schemas at module level (get_json_schema is torch-free)
 TOOLS = [
     get_json_schema(set_timer),
@@ -195,6 +318,17 @@ TOOLS = [
     get_json_schema(thinking),
     get_json_schema(nonthinking),
     get_json_schema(control_desktop),
+    get_json_schema(system_command),
+    get_json_schema(manage_notes),
+    get_json_schema(send_email),
+    get_json_schema(read_emails),
+    get_json_schema(clipboard_action),
+    get_json_schema(file_operations),
+    get_json_schema(get_stock_price),
+    get_json_schema(convert_currency),
+    get_json_schema(translate_text),
+    get_json_schema(control_media),
+    get_json_schema(network_tools),
 ]
 
 SYSTEM_MSG = "You are a model that can do function calling with the following functions"
@@ -204,6 +338,9 @@ VALID_FUNCTIONS = {
     "set_timer", "set_alarm", "create_calendar_event",
     "add_task", "web_search", "get_system_info", "thinking", "nonthinking",
     "control_desktop",
+    "system_command", "manage_notes", "send_email", "read_emails",
+    "clipboard_action", "file_operations", "get_stock_price",
+    "convert_currency", "translate_text", "control_media", "network_tools",
 }
 
 

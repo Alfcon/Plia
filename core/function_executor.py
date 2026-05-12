@@ -105,6 +105,28 @@ class FunctionExecutor:
                 return self._get_system_info()
             elif func_name == "control_desktop":
                 return self._control_desktop(params)
+            elif func_name == "system_command":
+                return self._system_command(params)
+            elif func_name == "manage_notes":
+                return self._manage_notes(params)
+            elif func_name == "send_email":
+                return self._send_email(params)
+            elif func_name == "read_emails":
+                return self._read_emails(params)
+            elif func_name == "clipboard_action":
+                return self._clipboard_action(params)
+            elif func_name == "file_operations":
+                return self._file_operations(params)
+            elif func_name == "get_stock_price":
+                return self._get_stock_price(params)
+            elif func_name == "convert_currency":
+                return self._convert_currency(params)
+            elif func_name == "translate_text":
+                return self._translate_text(params)
+            elif func_name == "control_media":
+                return self._control_media(params)
+            elif func_name == "network_tools":
+                return self._network_tools(params)
             else:
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
@@ -625,6 +647,314 @@ class FunctionExecutor:
         except Exception as e:
             print(f"[FunctionExecutor] Launch failed for '{full_path}': {e}")
             return None
+
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  New Jarvis Module Integrations
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def _system_command(self, params: Dict) -> Dict:
+        """Execute system commands: volume, brightness, power, network."""
+        from core.system_control import system_controller
+        action = params.get("action", "")
+        value = params.get("value")
+
+        try:
+            if action == "shutdown":
+                delay = int(value) if value and value.isdigit() else 60
+                ok = system_controller.shutdown(delay)
+                return {"success": ok, "message": "Shutting down..." if ok else "Shutdown failed", "data": None}
+            elif action == "restart":
+                delay = int(value) if value and value.isdigit() else 60
+                ok = system_controller.restart(delay)
+                return {"success": ok, "message": "Restarting..." if ok else "Restart failed", "data": None}
+            elif action == "sleep":
+                ok = system_controller.sleep()
+                return {"success": ok, "message": "Going to sleep..." if ok else "Sleep failed", "data": None}
+            elif action == "lock":
+                ok = system_controller.lock()
+                return {"success": ok, "message": "Locking workstation..." if ok else "Lock failed", "data": None}
+            elif action == "volume_up":
+                vol = system_controller.get_volume() or 50
+                system_controller.set_volume(min(100, vol + 10))
+                return {"success": True, "message": f"Volume set to {min(100, vol + 10)}%", "data": None}
+            elif action == "volume_down":
+                vol = system_controller.get_volume() or 50
+                system_controller.set_volume(max(0, vol - 10))
+                return {"success": True, "message": f"Volume set to {max(0, vol - 10)}%", "data": None}
+            elif action == "set_volume":
+                level = int(value) if value else 50
+                ok = system_controller.set_volume(level)
+                return {"success": ok, "message": f"Volume set to {level}%" if ok else "Failed", "data": None}
+            elif action in ("mute", "unmute"):
+                result = system_controller.toggle_mute()
+                muted = result if action == "mute" else not result
+                return {"success": True, "message": "Muted" if muted else "Unmuted", "data": {"muted": muted}}
+            elif action in ("brightness_up", "brightness_down"):
+                b = system_controller.get_brightness() or 50
+                new_b = min(100, b + 10) if action == "brightness_up" else max(0, b - 10)
+                system_controller.set_brightness(new_b)
+                return {"success": True, "message": f"Brightness set to {new_b}%", "data": None}
+            elif action == "set_brightness":
+                level = int(value) if value else 50
+                ok = system_controller.set_brightness(level)
+                return {"success": ok, "message": f"Brightness set to {level}%" if ok else "Failed", "data": None}
+            elif action == "battery_status":
+                info = system_controller.get_battery()
+                if info.get("available"):
+                    status = "charging" if info["charging"] else "discharging"
+                    return {"success": True, "message": f"Battery at {info['percent']}% ({status})", "data": info}
+                return {"success": False, "message": "No battery detected", "data": None}
+            elif action == "network_info":
+                info = system_controller.get_network_info()
+                ip = info.get("local_ip", "Unknown")
+                ssid = info.get("ssid", "Unknown")
+                return {"success": True, "message": f"IP: {ip}, Network: {ssid}", "data": info}
+            else:
+                return {"success": False, "message": f"Unknown system action: {action}", "data": None}
+        except Exception as e:
+            return {"success": False, "message": f"System command error: {e}", "data": None}
+
+    def _manage_notes(self, params: Dict) -> Dict:
+        """Create, read, search, delete notes."""
+        from core.notes import notes_manager
+        action = params.get("action", "list")
+        try:
+            if action == "create":
+                title = params.get("title", "Untitled")
+                body = params.get("body", "")
+                note = notes_manager.create(title, body)
+                return {"success": True, "message": f"Note created: {title}", "data": note}
+            elif action == "read":
+                note_id = params.get("note_id", "")
+                note = notes_manager.get(note_id)
+                if note:
+                    return {"success": True, "message": f"Note: {note['title']}", "data": note}
+                return {"success": False, "message": "Note not found", "data": None}
+            elif action == "search":
+                query = params.get("query", "")
+                results = notes_manager.search(query)
+                count = len(results)
+                return {"success": True, "message": f"Found {count} note(s)", "data": {"results": results}}
+            elif action == "delete":
+                note_id = params.get("note_id", "")
+                ok = notes_manager.delete(note_id)
+                return {"success": ok, "message": "Note deleted" if ok else "Note not found", "data": None}
+            else:
+                results = notes_manager.list()
+                count = len(results)
+                return {"success": True, "message": f"You have {count} note(s)", "data": {"notes": results}}
+        except Exception as e:
+            return {"success": False, "message": f"Notes error: {e}", "data": None}
+
+    def _send_email(self, params: Dict) -> Dict:
+        """Send an email via configured SMTP."""
+        from core.email_manager import email_manager
+        to = params.get("to", "")
+        subject = params.get("subject", "")
+        body = params.get("body", "")
+        if not to:
+            return {"success": False, "message": "No recipient specified", "data": None}
+        return email_manager.send_from_settings(to, subject, body)
+
+    def _read_emails(self, params: Dict) -> Dict:
+        """Read recent emails from configured IMAP."""
+        from core.email_manager import email_manager
+        limit = int(params.get("limit", 5))
+        result = email_manager.read_recent_from_settings(limit=limit)
+        if result.get("success") and result.get("emails"):
+            emails = result["emails"]
+            summary = [f"{e['from']}: {e['subject']}" for e in emails[:limit]]
+            return {
+                "success": True,
+                "message": f"Found {len(emails)} recent emails",
+                "data": {"emails": emails, "summary": summary},
+            }
+        return result
+
+    def _clipboard_action(self, params: Dict) -> Dict:
+        """Read, write, or manage clipboard."""
+        from core.clipboard import clipboard_manager
+        action = params.get("action", "read")
+        try:
+            if action == "read":
+                text = clipboard_manager.get_text()
+                if text:
+                    preview = text[:200] + ("..." if len(text) > 200 else "")
+                    return {"success": True, "message": f"Clipboard: {preview}", "data": {"text": text}}
+                return {"success": False, "message": "Clipboard is empty", "data": None}
+            elif action == "write":
+                text = params.get("text", "")
+                if not text:
+                    return {"success": False, "message": "No text to write", "data": None}
+                ok = clipboard_manager.set_text(text)
+                return {"success": ok, "message": "Copied to clipboard" if ok else "Failed", "data": None}
+            elif action == "append":
+                text = params.get("text", "")
+                ok = clipboard_manager.append(text)
+                return {"success": ok, "message": "Appended to clipboard" if ok else "Failed", "data": None}
+            elif action == "history":
+                items = clipboard_manager.get_history(limit=10)
+                return {"success": True, "message": f"Clipboard history: {len(items)} item(s)", "data": {"history": items}}
+            elif action == "clear":
+                clipboard_manager.clear_history()
+                return {"success": True, "message": "Clipboard history cleared", "data": None}
+            return {"success": False, "message": f"Unknown action: {action}", "data": None}
+        except Exception as e:
+            return {"success": False, "message": f"Clipboard error: {e}", "data": None}
+
+    def _file_operations(self, params: Dict) -> Dict:
+        """Find files, disk usage, organize directories."""
+        from core.file_ops import file_ops
+        action = params.get("action", "disk_usage")
+        path = params.get("path")
+        pattern = params.get("pattern")
+        try:
+            if action == "find":
+                results = file_ops.find(pattern or "*", path)
+                count = len(results)
+                return {"success": True, "message": f"Found {count} file(s)", "data": {"files": results}}
+            elif action == "disk_usage":
+                info = file_ops.disk_usage(path)
+                return {
+                    "success": True,
+                    "message": f"Disk: {info['used_hr']} used of {info['total_hr']} ({info['percent']}%)",
+                    "data": info,
+                }
+            elif action == "list_dir":
+                entries = file_ops.list_directory(path or ".")
+                return {"success": True, "message": f"Listed {len(entries)} item(s)", "data": {"entries": entries}}
+            elif action == "organize_downloads":
+                result = file_ops.organize_downloads(path)
+                count = result.get("total_moved", 0)
+                return {"success": True, "message": f"Organized {count} file(s)", "data": result}
+            elif action == "create_dir":
+                ok = file_ops.create_directory(path or ".")
+                return {"success": ok, "message": "Directory created" if ok else "Failed", "data": None}
+            return {"success": False, "message": f"Unknown action: {action}", "data": None}
+        except Exception as e:
+            return {"success": False, "message": f"File ops error: {e}", "data": None}
+
+    def _get_stock_price(self, params: Dict) -> Dict:
+        """Get current stock price."""
+        from core.finance import finance_manager
+        symbol = params.get("symbol", "").upper()
+        if not symbol:
+            return {"success": False, "message": "No symbol specified", "data": None}
+        data = finance_manager.stock_price_with_change(symbol)
+        if data and data.get("price") is not None:
+            change = data.get("change_pct")
+            direction = data.get("direction", "flat")
+            change_str = f" ({'+' if direction == 'up' else ''}{change}%)" if change is not None else ""
+            return {
+                "success": True,
+                "message": f"{symbol}: ${data['price']}{change_str}",
+                "data": data,
+            }
+        return {"success": False, "message": f"Could not fetch price for {symbol}", "data": None}
+
+    def _convert_currency(self, params: Dict) -> Dict:
+        """Convert between currencies."""
+        from core.finance import finance_manager
+        amount = float(params.get("amount", 1))
+        from_c = params.get("from_currency", "USD").upper()
+        to_c = params.get("to_currency", "EUR").upper()
+        data = finance_manager.convert_currency(amount, from_c, to_c)
+        if data:
+            return {
+                "success": True,
+                "message": f"{amount} {from_c} = {data['result']} {to_c} (rate: {data['rate']})",
+                "data": data,
+            }
+        return {"success": False, "message": f"Could not convert {from_c} to {to_c}", "data": None}
+
+    def _translate_text(self, params: Dict) -> Dict:
+        """Translate text using local Ollama."""
+        from core.translator import translator
+        text = params.get("text", "")
+        target = params.get("target_language", "English")
+        if not text:
+            return {"success": False, "message": "No text to translate", "data": None}
+        translated = translator.translate(text, target)
+        if translated:
+            return {"success": True, "message": f"Translation ({target}): {translated}", "data": {"original": text, "translated": translated, "language": target}}
+        return {"success": False, "message": "Translation failed", "data": None}
+
+    def _control_media(self, params: Dict) -> Dict:
+        """Control media playback."""
+        from core.media_controller import media_controller
+        action = params.get("action", "play_pause")
+        query = params.get("query")
+        try:
+            if action == "play_pause":
+                ok = media_controller.play_pause()
+                return {"success": ok, "message": "Toggled play/pause" if ok else "Failed", "data": None}
+            elif action == "next":
+                ok = media_controller.next_track()
+                return {"success": ok, "message": "Next track" if ok else "Failed", "data": None}
+            elif action == "previous":
+                ok = media_controller.previous_track()
+                return {"success": ok, "message": "Previous track" if ok else "Failed", "data": None}
+            elif action == "stop":
+                ok = media_controller.stop()
+                return {"success": ok, "message": "Stopped" if ok else "Failed", "data": None}
+            elif action == "play_youtube":
+                if not query:
+                    return {"success": False, "message": "No search query", "data": None}
+                url = media_controller.play_youtube(query)
+                if url:
+                    return {"success": True, "message": f"Playing '{query}' on YouTube", "data": {"url": url}}
+                return {"success": False, "message": f"Could not find '{query}' on YouTube", "data": None}
+            elif action == "search_music":
+                if not query:
+                    return {"success": False, "message": "No search query", "data": None}
+                url = media_controller.search_music(query)
+                if url:
+                    return {"success": True, "message": f"Found music for '{query}'", "data": {"url": url}}
+                return {"success": False, "message": f"Could not find music for '{query}'", "data": None}
+            return {"success": False, "message": f"Unknown action: {action}", "data": None}
+        except Exception as e:
+            return {"success": False, "message": f"Media control error: {e}", "data": None}
+
+    def _network_tools(self, params: Dict) -> Dict:
+        """Network diagnostics."""
+        from core.network_tools import network_tools
+        action = params.get("action", "public_ip")
+        target = params.get("target")
+        try:
+            if action == "public_ip":
+                ip = network_tools.public_ip()
+                if ip:
+                    return {"success": True, "message": f"Your public IP: {ip}", "data": {"ip": ip}}
+                return {"success": False, "message": "Could not determine public IP", "data": None}
+            elif action == "public_ip_info":
+                info = network_tools.public_ip_info()
+                if info and info.get("ip"):
+                    parts = [f"IP: {info['ip']}"]
+                    if info.get("city"): parts.append(f"City: {info['city']}")
+                    if info.get("country"): parts.append(f"Country: {info['country']}")
+                    if info.get("isp"): parts.append(f"ISP: {info['isp']}")
+                    return {"success": True, "message": " | ".join(parts), "data": info}
+                return {"success": False, "message": "Could not get IP info", "data": None}
+            elif action == "ping":
+                host = target or "8.8.8.8"
+                result = network_tools.ping(host)
+                alive = result.get("alive", False)
+                avg = result.get("avg_ms")
+                loss = result.get("packet_loss_pct", 100)
+                msg = f"{host}: {'alive' if alive else 'dead'}"
+                if avg is not None: msg += f", avg {avg}ms"
+                if loss is not None: msg += f", {loss}% loss"
+                return {"success": True, "message": msg, "data": result}
+            elif action == "dns_lookup":
+                host = target or "google.com"
+                ips = network_tools.dns_lookup(host)
+                if ips:
+                    return {"success": True, "message": f"{host} resolves to: {', '.join(ips[:5])}", "data": {"host": host, "ips": ips}}
+                return {"success": False, "message": f"Could not resolve {host}", "data": None}
+            return {"success": False, "message": f"Unknown action: {action}", "data": None}
+        except Exception as e:
+            return {"success": False, "message": f"Network tools error: {e}", "data": None}
 
 
 # Global instance

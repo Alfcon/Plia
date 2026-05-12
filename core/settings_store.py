@@ -76,6 +76,24 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "model":     "",   # leave empty to use models.web_agent
         "max_steps": 25,
     },
+    # ── Email ───────────────────────────────────────────────────────────
+    "email": {
+        "smtp_server":   "",
+        "smtp_port":     587,
+        "imap_server":   "",
+        "imap_port":     993,
+        "username":      "",
+        "password":      "",
+        "from_address":  "",
+    },
+    # ── Notes ───────────────────────────────────────────────────────────
+    "notes": {
+        "max_notes": 500,
+    },
+    # ── Finance ─────────────────────────────────────────────────────────
+    "finance": {
+        "currency": "USD",
+    },
     # ── UI (standalone plia2.py launcher) ────────────────────────────────
     "ui": {
         "opacity":       0.98,

@@ -459,6 +459,69 @@ class STTListener:
         print(f"{CYAN}[STT] Initializing RealTimeSTT listener…{RESET}")
         print(f"{CYAN}[STT] Wake word: '{self._wake_word}'{RESET}")
 
+    @staticmethod
+    def _check_dependencies() -> tuple[bool, str]:
+        """Check optional RealtimeSTT deps before creating the recorder."""
+        for pkg, name in [("faster_whisper", "faster-whisper"),
+                          ("pvporcupine", "pvporcupine")]:
+            try:
+                __import__(pkg)
+            except ImportError:
+                return False, (
+                    f"Missing optional RealtimeSTT dependency: {name}.\n"
+                    f'  pip install "{pkg}"'
+                )
+        # pvporcupine >= 2.0 requires an access_key which RealtimeSTT
+        # does not provide.  Pin to v1.x for free built-in keywords.
+        import importlib.metadata
+        try:
+            ver = importlib.metadata.version("pvporcupine")
+            if int(ver.split(".")[0]) >= 2:
+                return False, (
+                    f"pvporcupine {ver} requires access_key. "
+                    f"Downgrade to v1.x for free offline keywords:\n"
+                    f'  pip install "pvporcupine<2"'
+                )
+        except Exception:
+            pass
+        return True, ""
+
+    @staticmethod
+    def _check_audio_input() -> tuple[bool, str]:
+        """Verify a usable audio input device exists by trying to open it."""
+        try:
+            import pyaudio
+            pa = pyaudio.PyAudio()
+            count = pa.get_device_count()
+
+            # Find the first device with input channels
+            target = None
+            for i in range(count):
+                info = pa.get_device_info_by_index(i)
+                if info.get("maxInputChannels", 0) > 0:
+                    target = i
+                    break
+
+            if target is None:
+                pa.terminate()
+                return False, "No audio input devices found."
+
+            # Try opening the device at 16000 Hz (the rate RealtimeSTT uses)
+            stream = pa.open(
+                format=pyaudio.paInt16, channels=1, rate=16000,
+                input=True, input_device_index=target,
+                frames_per_buffer=1024, start=False,
+            )
+            stream.close()
+            pa.terminate()
+            return True, ""
+
+        except Exception as exc:
+            return False, (
+                f"No usable audio input device found ({exc}). "
+                "STT requires a working microphone."
+            )
+
     def initialize(self) -> bool:
         """Initialize RealTimeSTT. Re-reads wake word from settings each call."""
         self._wake_word   = _get_wake_word()
@@ -466,14 +529,26 @@ class STTListener:
 
         print(f"{CYAN}[STT] Wake word: '{self._wake_word}'  Sensitivity: {self._sensitivity}{RESET}")
 
+        # ── Step 1: dependency pre-flight ────────────────────────
+        deps_ok, deps_msg = self._check_dependencies()
+        if not deps_ok:
+            print(f"{GRAY}[STT] ✗ {deps_msg}{RESET}")
+            return False
+
+        # ── Step 2: audio device pre-flight ──────────────────────
+        audio_ok, audio_msg = self._check_audio_input()
+        if not audio_ok:
+            print(f"{GRAY}[STT] ✗ {audio_msg}{RESET}")
+            return False
+
         try:
-            # ── Step 1: torchaudio pre-flight ─────────────────────────────
+            # ── Step 3: torchaudio pre-flight ─────────────────────────
             # Must run BEFORE `from RealtimeSTT import AudioToTextRecorder`
             # because RealtimeSTT imports torch.hub which triggers the Silero
             # import chain (which imports torchaudio) during recorder init.
             torchaudio_ok = _patch_torchaudio_if_broken()
 
-            # ── Step 2: import RealtimeSTT & torch ────────────────────────
+            # ── Step 4: import RealtimeSTT & torch ────────────────────
             from RealtimeSTT import AudioToTextRecorder
             import torch
 
@@ -489,7 +564,7 @@ class STTListener:
             device = "cuda" if cuda_available else "cpu"
             print(f"{CYAN}[STT] Initializing AudioToTextRecorder on {device}…{RESET}")
 
-            # ── Step 3: choose VAD mode ────────────────────────────────────
+            # ── Step 5: choose VAD mode ────────────────────────────────
             if torchaudio_ok:
                 silero_sens   = self._sensitivity * 0.6
                 silero_deact  = False
@@ -499,24 +574,34 @@ class STTListener:
                 silero_deact  = False
                 print(f"{YELLOW}[STT] VAD mode: WebRTC only (Silero bypassed — see fix above){RESET}")
 
-            # ── Step 4: create the recorder ───────────────────────────────
-            self.recorder = AudioToTextRecorder(
-                model=REALTIMESTT_MODEL,
-                language="en",
-                device=device,
-                spinner=False,
-                wakeword_backend="pvporcupine",
-                wake_words=self._wake_word,
-                wake_words_sensitivity=self._sensitivity,
-                on_wakeword_detected=self._on_wakeword_detected,
-                silero_sensitivity=silero_sens,
-                silero_deactivity_detection=silero_deact,
-                webrtc_sensitivity=3,
-                no_log_file=True,       # Prevents library writing realtimesst.log to
-                                        # the project root; Plia's _setup_stt_logging()
-                                        # already owns the 'realtimestt' FileHandler
-                                        # pointing to log/realtimesst.log.
-            )
+            # ── Step 6: create the recorder ────────────────────────────
+            try:
+                self.recorder = AudioToTextRecorder(
+                    model=REALTIMESTT_MODEL,
+                    language="en",
+                    device=device,
+                    spinner=False,
+                    wakeword_backend="pvporcupine",
+                    wake_words=self._wake_word,
+                    wake_words_sensitivity=self._sensitivity,
+                    on_wakeword_detected=self._on_wakeword_detected,
+                    silero_sensitivity=silero_sens,
+                    silero_deactivity_detection=silero_deact,
+                    webrtc_sensitivity=3,
+                    no_log_file=True,       # Prevents library writing realtimesst.log to
+                                            # the project root; Plia's _setup_stt_logging()
+                                            # already owns the 'realtimestt' FileHandler
+                                            # pointing to log/realtimesst.log.
+                )
+            finally:
+                # RealtimeSTT unconditionally adds a StreamHandler to the
+                # 'realtimestt' logger during __init__().  Strip it so mic
+                # retry errors don't spam stderr — they still go to the
+                # file handler set up by _setup_stt_logging().
+                _rtstt = logging.getLogger("realtimestt")
+                for h in list(_rtstt.handlers):
+                    if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
+                        _rtstt.removeHandler(h)
 
             self.initialized = True
             vad_note = "" if torchaudio_ok else " (WebRTC VAD only)"
