@@ -7,9 +7,13 @@
 #
 # IMPORTANT: This project requires Python 3.11 or higher
 #
-# IMPORTANT: After installing, run the following to install
-#   Playwright browser binaries (required for web search panel):
-#   playwright install
+# NOTE: Playwright is OPTIONAL. Plia's web search panel uses the
+#   `ddgs` package (DuckDuckGo) and does not need Playwright.
+#   Only install Playwright (uncomment in the Browser Automation
+#   section below) if you plan to build custom agents that drive
+#   a real browser. After installing the pip package, also run:
+#       playwright install
+#   to download the browser binaries.
 #
 # IMPORTANT: PyTorch is installed below with CUDA 12.4 support via
 #   the --extra-index-url directive. If you are on a CPU-only machine,
@@ -17,10 +21,12 @@
 #   a CPU-only build will be pulled in automatically by transformers.
 #
 # IMPORTANT: The OpenAI package (see Web & API section below) is
-#   required for the Agent Builder feature. Get a key from
+#   only required for Agent Builder-generated custom agents that
+#   opt-in to GPT-4o + Internet Search. Get a key from
 #   platform.openai.com and set it in the Plia Settings tab.
-#   Core Plia functions (chat, voice, weather, search) do NOT
-#   need an OpenAI key — they run entirely on local Ollama models.
+#   Plia core (chat, voice, weather, web search, briefing,
+#   planner, agents, reading files, etc.) does NOT use OpenAI —
+#   everything runs locally on Ollama.
 # =====================================================
 
 # -----------------------------------------------------
@@ -36,7 +42,6 @@
 # -----------------------------------------------------
 PySide6>=6.5.0                # Qt GUI framework for Python
 PySide6-Fluent-Widgets>=1.10.0 # Fluent Design UI components (PySide6 version)
-darkdetect>=0.8.0              # Detect system dark/light mode
 markdown>=3.4.0                # Markdown rendering for chat messages
 pygments>=2.15.0               # Syntax highlighting for code blocks
 
@@ -67,8 +72,7 @@ safetensors>=0.7.0             # Fast, safe model weight loading
 piper-tts>=1.4.0               # Local text-to-speech engine (Piper TTS)
                                # Requires the synthesize_wav() / SynthesisConfig
                                # API introduced in 1.4 — do not downgrade.
-sounddevice>=0.5.0             # Audio playback interface
-soundfile>=0.13.0              # Audio file I/O
+sounddevice>=0.5.0             # Audio playback interface (used by core/tts.py)
 numpy>=2.0.0                   # Numerical computing (audio processing)
 realtimestt>=0.3.0             # Real-time speech-to-text with wake word detection
 faster-whisper>=1.0.0          # RealtimeSTT transcription engine (optional but strongly recommended)
@@ -79,29 +83,36 @@ PyAudio>=0.2.14                # Audio I/O for microphone access
                                #   pip install pipwin && pipwin install pyaudio
 
 # -----------------------------------------------------
-# Browser Automation
+# Browser Automation (Optional)
 # -----------------------------------------------------
-# NOTE: After running pip install, you must also run:
+# Plia's web search panel uses DuckDuckGo via `ddgs` and does NOT need
+# Playwright. Uncomment these only if you want Agent Builder-generated
+# agents to drive a real browser.
+#
+# After installing, run:
 #   playwright install
 # This downloads the browser binaries (Chromium, Firefox, WebKit)
 # that Playwright controls. The pip package alone is not sufficient.
-playwright>=1.57.0             # Browser automation for web agent
-playwright-stealth>=2.0.0      # Stealth mode to avoid bot detection
+#
+# playwright>=1.57.0             # Browser automation for custom web agents
+# playwright-stealth>=2.0.0      # Stealth mode to avoid bot detection
 
 # -----------------------------------------------------
 # Web & API Integrations
 # -----------------------------------------------------
-requests>=2.32.0               # HTTP requests for API calls
+requests>=2.32.0               # HTTP requests for API calls (used widely:
+                               # weather, news, finance, network_tools, llm,
+                               # model_manager, translator, function_executor)
 feedparser>=6.0.0              # RSS feed parsing (news briefing)
 ddgs>=9.13.0                   # DuckDuckGo web search (current maintained package)
                                # NOTE: replaces the old duckduckgo-search package
                                # which is deprecated and broken. Import as:
                                #   from ddgs import DDGS
-httpx>=0.28.0                  # Async HTTP client
-openai>=2.0.0                  # OpenAI API — used by the Agent Builder feature
-                               # to power custom agents with GPT-4o and internet
-                               # search capability. Set your API key in the
-                               # Plia Settings tab. Not required for core features.
+openai>=2.0.0                  # OpenAI API — used by Agent Builder-generated
+                               # custom agents that opt-in to GPT-4o + Internet
+                               # Search. Set your key in the Plia Settings tab.
+                               # Plia core (chat, voice, search) does NOT use
+                               # it — install only if you build OpenAI agents.
 
 # -----------------------------------------------------
 # System Utilities
@@ -124,9 +135,28 @@ huggingface-hub>=0.36.0        # Download models from Hugging Face
 mss>=9.0.0                     # Fast multi-monitor screenshot capture
 pyautogui>=0.9.54              # Cross-application mouse and keyboard control
 Pillow>=10.0.0                 # Image processing (resize screenshots for VLM)
-# pywin32>=306                 # Windows API access: win32gui for window focusing (Linux: skip)
-                               # (brings launched apps to foreground after open)
 pyperclip>=1.8.0               # Clipboard paste for reliable Unicode text input
+                               # (also used by core/clipboard.py history tracker)
+
+# -----------------------------------------------------
+# Windows-only Extras (skip on Linux/macOS)
+# -----------------------------------------------------
+# These give Plia tighter integration with the Windows shell. They are imported
+# lazily and guarded with try/except, so the app still runs without them on
+# non-Windows systems. On Windows, install them for the full experience.
+#
+# pywin32>=306                 # Win32 API: window focus (bring launched apps
+                               #   to the foreground after "Open Notepad" etc.)
+# comtypes>=1.4.0              # COM bindings — required by pycaw for system
+                               #   audio volume control (set/get/mute master
+                               #   volume from core/system_control.py)
+# pycaw>=20240210              # Windows Core Audio API wrapper — used by
+                               #   core/system_control.py for "set volume to
+                               #   30%", "mute", etc.
+# windows-use>=0.1.0           # Optional accessibility-tree-based Windows
+                               #   desktop agent (alternative to the default
+                               #   VLM-based agent in core/agent/). Used by
+                               #   gui/tabs/desktop_agent.py when present.
 
 # -----------------------------------------------------
 # Smart Home (Optional — only needed for TP-Link Kasa control)
@@ -151,16 +181,17 @@ pyperclip>=1.8.0               # Clipboard paste for reliable Unicode text input
 # msal>=1.28.0                          # Microsoft Authentication Library (Outlook)
 
 # -----------------------------------------------------
-# File Reading (Optional — only needed for the Reading Files tab)
+# File Reading (Reading Files tab)
 # -----------------------------------------------------
-# These are NOT required for core functionality. Only install if you use
-# the Reading Files tab to view PDFs, DOCX, or Excel/CSV files.
-# Uncomment the lines you need and run: pip install -r requirements.txt again.
-#
-# pdfplumber>=0.7.0                     # PDF text extraction
-# pypdf>=5.0.0                          # Fallback PDF reader
-# python-docx>=1.1.0                    # DOCX paragraph extraction
-# pandas>=2.0.0                         # Spreadsheet preview (CSV/XLSX)
+# Required for the Reading Files tab, which is included by default in the
+# sidebar (see gui/app.py). Imports are wrapped in try/except so missing
+# packages just disable specific file types rather than crashing the app —
+# but install these for the tab to be useful.
+pdfplumber>=0.7.0              # PDF text extraction (preferred)
+pypdf>=5.0.0                   # Fallback PDF reader
+python-docx>=1.1.0             # DOCX paragraph extraction
+pandas>=2.0.0                  # CSV / XLSX tabular preview
+# openpyxl>=3.1.0              # Uncomment if pandas complains about .xlsx
 
 # -----------------------------------------------------
 # Local Data Storage

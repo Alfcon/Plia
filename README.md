@@ -16,14 +16,17 @@
 |---------|-------------|
 | 🎤 **Voice Control** | Wake word detection ("Jarvis") with natural language commands |
 | 💬 **AI Chat** | Streaming chat with local LLMs via Ollama |
-| 🤖 **Active Agents** | Build and run autonomous AI agents from chat or GUI |
+| 🤖 **Active Agents** | Build, edit, and run autonomous AI agents from chat or GUI |
+| 🧩 **Agent List** | Hierarchical view of multi-agent systems, roles, and message history |
 | 🖥️ **Desktop Agent** | Control Windows applications with natural language using a Vision Language Model |
 | 📅 **Planner** | Calendar events, alarms, and timers with Google/Outlook sync (optional) |
 | 📰 **Daily Briefing** | AI-curated news from Technology, Science, and Top Stories |
 | 🌤️ **Weather** | Current weather and hourly forecast with floating overlay |
 | 🔍 **Web Search** | Voice or chat-triggered DuckDuckGo search with results browser |
+| 📄 **Reading Files** | Open PDFs, DOCX, CSV/XLSX, code, and plain text for in-app preview and AI Q&A |
 | 🧠 **Model Browser** | Download and manage Ollama models directly from the app |
 | 🖥️ **System Monitor** | Real-time CPU, RAM, Disk, and GPU VRAM in the title bar |
+| 💾 **Local Utilities** | Clipboard history, notes, finance (stock/crypto/FX), email (SMTP/IMAP), network tools, translator, media keys, all running locally |
 | ❓ **Help System** | Voice or button-triggered help panel covering all commands |
 
 ---
@@ -142,15 +145,22 @@ python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 
 > 💡 **CPU-only users**: Skip this step. The `requirements.txt` torch lines are commented out by default, so CPU PyTorch will be installed automatically via the `transformers` dependency.
 
-### Step 6 — Install Playwright Browser Binaries
+### Step 6 — Install Playwright Browser Binaries (Optional)
 
-Playwright is used for the web search results browser panel. After pip install, run:
+Playwright is referenced as an available capability for Agent Builder–generated
+custom agents (e.g. a script that opens a browser to scrape a site). Plia's
+core web search panel uses DuckDuckGo via the `ddgs` Python package and does
+**not** require Playwright. Skip this step unless you plan to build agents
+that drive a real browser.
 
 ```bash
-sudo apt install node-playwright
+pip install playwright playwright-stealth
+playwright install
 ```
 
-> You only need to do this once. It downloads ~300 MB of browser binaries.
+> The `playwright install` command downloads ~300 MB of browser binaries
+> (Chromium, Firefox, WebKit) into a per-user cache. You only need to run
+> it once.
 
 ### Step 7 — Run Plia
 
@@ -168,40 +178,69 @@ The full `requirements.txt` installs these packages. This table shows what each 
 
 | Package | Purpose |
 |---------|---------|
-| `PySide6>=6.10.0` | Qt GUI framework |
+| `PySide6>=6.5.0` | Qt GUI framework |
 | `PySide6-Fluent-Widgets>=1.10.0` | Windows 11 Fluent Design UI components |
-| `transformers>=4.57.0` | Hugging Face — router model inference |
-| `accelerate>=1.12.0` | Optimised model loading |
-| `safetensors>=0.7.0` | Fast model weight loading |
-| `piper-tts>=1.4.0` | Local text-to-speech (Piper) |
-| `sounddevice>=0.5.0` | Audio playback |
-| `soundfile>=0.13.0` | Audio file I/O |
+| `markdown>=3.4.0` | Markdown rendering in chat |
+| `pygments>=2.15.0` | Syntax highlighting for code blocks |
+| `torch>=2.6.0` | PyTorch — router model inference (lazy import) |
+| `torchaudio>=2.6.0` | Audio tensor ops for STT / Silero VAD |
+| `transformers>=4.57.0` | Hugging Face — FunctionGemma router |
+| `accelerate>=1.12.0` | Optimised model loading and inference |
+| `safetensors>=0.7.0` | Fast, safe model weight loading |
+| `piper-tts>=1.4.0` | Local text-to-speech (Piper) — uses `synthesize_wav()` |
+| `sounddevice>=0.5.0` | Audio playback (used by `core/tts.py`) |
 | `numpy>=2.0.0` | Numerical computing / audio processing |
 | `realtimestt>=0.3.0` | Real-time speech-to-text + wake word |
 | `faster-whisper>=1.0.0` | RealtimeSTT transcription engine |
-| `pvporcupine>=1.9.0` | Porcupine wake word detection |
+| `pvporcupine>=1.9.0,<2` | Porcupine wake word detection (v1 free tier) |
 | `PyAudio>=0.2.14` | Microphone access (Linux: `apt install portaudio19-dev` first) |
-| `playwright>=1.57.0` | Browser automation for web agent |
-| `playwright-stealth>=2.0.0` | Stealth mode for browser automation |
-| `python-kasa>=0.10.0` | TP-Link Kasa smart device control (optional) |
-| `requests>=2.32.0` | HTTP API calls |
+| `requests>=2.32.0` | HTTP API calls (weather, finance, news, llm, …) |
 | `feedparser>=6.0.0` | RSS news feed parsing |
-| `ddgs>=9.13.0` | DuckDuckGo web search (current package) |
-| `httpx>=0.28.0` | Async HTTP client |
+| `ddgs>=9.13.0` | DuckDuckGo web search (current maintained package) |
+| `openai>=2.0.0` | Optional — used by Agent Builder-generated GPT-4o agents |
 | `psutil>=7.0.0` | System and process monitoring |
-| `pynvml>=13.0.0` | NVIDIA GPU VRAM monitoring |
-| `huggingface-hub>=0.36.0` | Download models from Hugging Face |
-| `mss>=9.0.0` | Multi-monitor screenshot capture |
-| `pyautogui>=0.9.54` | Mouse and keyboard automation |
-| `Pillow>=10.0.0` | Image processing |
-| `pywin32>=306` | Windows API (window focus; Linux/macOS: skip) |
-| `pyperclip>=1.8.0` | Clipboard access |
-| `openai>=2.0.0` | **OpenAI API — used by Agent Builder** |
-| `markdown>=3.4.0` | Markdown rendering in chat |
-| `pygments>=2.15.0` | Syntax highlighting |
-| `darkdetect>=0.8.0` | System dark/light mode detection |
+| `pynvml>=13.0.0` | NVIDIA GPU VRAM monitoring (title bar) |
+| `PyYAML>=6.0.0` | YAML config for multi-agent system (`core/multi_agent.py`) |
+| `huggingface-hub>=0.36.0` | Download FunctionGemma router & Piper voices |
+| `mss>=9.0.0` | Multi-monitor screenshot capture (Desktop Agent) |
+| `pyautogui>=0.9.54` | Mouse and keyboard automation (Desktop Agent) |
+| `Pillow>=10.0.0` | Image processing (resize screenshots for the VLM) |
+| `pyperclip>=1.8.0` | Clipboard paste / history (`core/clipboard.py`) |
+| `pdfplumber>=0.7.0` | PDF text extraction (Reading Files tab) |
+| `pypdf>=5.0.0` | Fallback PDF reader (Reading Files tab) |
+| `python-docx>=1.1.0` | DOCX paragraph extraction (Reading Files tab) |
+| `pandas>=2.0.0` | CSV / XLSX tabular preview (Reading Files tab) |
 
-### Optional (Calendar Sync)
+### Optional — Windows-only Extras
+
+Uncomment in `requirements.txt` (Windows-only Extras section):
+
+```text
+pywin32>=306                          # Win32 API — window focus after launch
+comtypes>=1.4.0                       # COM bindings for pycaw
+pycaw>=20240210                       # Master volume control (set/mute/get)
+windows-use>=0.1.0                    # Accessibility-tree-based desktop agent
+```
+
+### Optional — Browser Automation
+
+Uncomment in `requirements.txt` only if you build agents that drive a real browser:
+
+```text
+playwright>=1.57.0
+playwright-stealth>=2.0.0
+```
+After installing, run `playwright install` once to fetch the browser binaries.
+
+### Optional — Smart Home
+
+Uncomment in `requirements.txt` for TP-Link Kasa light/plug control over the LAN:
+
+```text
+python-kasa>=0.10.0
+```
+
+### Optional — Calendar Sync
 
 Uncomment in `requirements.txt` and re-run `pip install -r requirements.txt`:
 
@@ -399,37 +438,49 @@ Plia/
 ├── requirements.txt           # Python dependencies
 ├── pyproject.toml             # Project metadata
 │
-├── core/                      # Backend logic
-│   ├── router.py              # FunctionGemma intent classifier (9 functions, lazy torch import)
-│   ├── function_executor.py   # Runs the action chosen by the router
+├── core/                      # Backend logic (pure Python — no Qt)
+│   ├── router.py              # FunctionGemma intent classifier (lazy torch import)
+│   ├── function_executor.py   # Dispatches the action chosen by the router
 │   ├── voice_assistant.py     # STT → Router → LLM → TTS pipeline
-│   ├── stt.py                 # RealtimeSTT wrapper (Whisper + wake word)
-│   ├── tts.py                 # Piper TTS (Python library + exe fallback)
+│   ├── stt.py                 # RealtimeSTT wrapper (Whisper + wake word + Silero VAD)
+│   ├── tts.py                 # Piper TTS (synthesize_wav + SynthesisConfig)
 │   ├── llm.py                 # Ollama streaming interface
+│   ├── ollama_paths.py        # Resolves OLLAMA_HOST / OLLAMA_MODELS env vars
+│   ├── model_manager.py       # Ollama model list management
+│   ├── model_persistence.py   # Keep-alive / unload manager for Qwen
 │   ├── weather.py             # Open-Meteo weather API
 │   ├── news.py                # DuckDuckGo news + AI curation
 │   ├── tasks.py               # SQLite task management
-│   ├── calendar_manager.py    # Local calendar/events (SQLite)
+│   ├── calendar_manager.py    # Local calendar / events (SQLite)
 │   ├── calendar_sync.py       # Google / Outlook calendar sync (optional)
 │   ├── history.py             # SQLite chat history
-│   ├── model_manager.py       # Ollama model list management
-│   ├── model_persistence.py   # Keep-alive / unload manager for Qwen
-│   ├── agent_builder.py       # Dynamic AI agent creation (saves .py files)
-│   ├── agent_registry.py      # Persistent agent store (custom_agents.json)
 │   ├── settings_store.py      # JSON settings persistence
+│   ├── agent_builder.py       # Dynamic AI agent creation (writes .py files)
+│   ├── agent_registry.py      # Persistent agent store (custom_agents.json)
+│   ├── agents.py              # Jarvis-style multi-agent runtime façade
+│   ├── multi_agent.py         # Role definitions, hierarchies, message store (YAML)
+│   ├── clipboard.py           # Clipboard history tracker (pyperclip)
+│   ├── notes.py               # Notes / reminders persistence
+│   ├── email_manager.py       # SMTP send + IMAP read
+│   ├── file_ops.py            # Cross-platform file system operations
+│   ├── finance.py             # Stock / crypto / FX rates (free public APIs)
+│   ├── network_tools.py       # Public IP, ping, DNS lookup
+│   ├── translator.py          # LLM-based text translation (no API key)
+│   ├── media_controller.py    # OS media keys (play/pause/next/prev)
+│   ├── system_control.py      # Volume / mute (Windows: pycaw; cross-platform fallback)
 │   ├── discord_reader.py      # Discord channel reading (optional)
-│   └── agent/
-│       ├── desktop_agent.py   # Natural language Windows desktop control
-│       ├── desktop_controller.py  # Low-level mouse/keyboard automation
-│       └── vlm_client.py      # Vision Language Model client for screen understanding
+│   └── agent/                 # VLM-based desktop agent
+│       ├── desktop_agent.py   # Natural-language Windows desktop control
+│       ├── desktop_controller.py  # Low-level mouse / keyboard automation
+│       └── vlm_client.py      # Vision Language Model client (Ollama)
 │
 ├── gui/                       # PySide6 + QFluentWidgets frontend
 │   ├── app.py                 # Main window, lazy tab loading, signal wiring
 │   ├── handlers.py            # Chat message handling and streaming
-│   ├── styles.py              # Global stylesheet (Aura theme)
+│   ├── styles.py              # Global stylesheet
 │   ├── assets/                # Logo images (logo.png, logo_64/128/256.png)
 │   ├── components/            # Reusable widgets
-│   │   ├── system_monitor.py  # CPU/RAM/GPU title bar widget
+│   │   ├── system_monitor.py  # CPU / RAM / GPU title-bar widget
 │   │   ├── alarm.py           # Alarm display widget
 │   │   ├── timer.py           # Countdown timer widget
 │   │   ├── toast.py           # Pop-up notification
@@ -442,15 +493,24 @@ Plia/
 │   │   ├── toggle_switch.py
 │   │   ├── weather_window.py  # Floating weather overlay
 │   │   └── voice_indicator.py # Voice activity indicator widget
-│   └── tabs/                  # Application screens
-│       ├── dashboard.py       # Home: HUD display + quick commands + help
+│   └── tabs/                  # Application screens (lazy-loaded)
+│       ├── dashboard.py       # Home: HUD + quick commands + help
 │       ├── chat.py            # AI chat interface
 │       ├── planner.py         # Calendar, tasks, alarms, timers
 │       ├── briefing.py        # AI-curated daily news
-│       ├── agents.py          # Active agents manager + custom agent builder
-│       ├── desktop_agent.py   # Desktop agent control tab
+│       ├── agents.py          # Active Agents manager + custom agent runner
+│       ├── agent_editor.py    # Edit / preview generated agent .py files
+│       ├── agent_list.py      # Multi-agent hierarchy + message-history view
+│       ├── reading_files.py   # PDF / DOCX / CSV / XLSX / code preview & Q&A
+│       ├── desktop_agent.py   # Alternative windows-use desktop agent (Windows)
 │       ├── model_browser.py   # Ollama model browser & downloader
 │       └── settings.py        # App settings screen
+│
+├── data/                      # Local SQLite DBs + caches
+│   ├── calendar.db
+│   ├── tasks.db
+│   ├── chat_history.db
+│   └── news_cache.json
 │
 ├── log/                       # Log files (auto-created on first run)
 │   ├── plia.log               # Application warnings and errors
