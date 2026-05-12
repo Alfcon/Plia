@@ -1,6 +1,83 @@
 {
   "Top Stories": [
     {
+      "title": "CGT changes could see investment shift to shares, budget suggests",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:28",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/budget-2026-share-market-investors-cgt-changes-small-business/106669784",
+      "image": "https://live-production.wcms.abc-cdn.net.au/11d4a54433d5bf6312b687c451131018?impolicy=wcms_crop_resize&cropH=2000&cropW=1498&xPos=751&yPos=0&width=862&height=1149",
+      "body": "Investors in stocks will be affected by changes to capital gains tax, but experts say the budget is still likely to see some investment move away from property and into shares.",
+      "summary": "Several tax measures to help small business with cash flow have been made permanent in the budget."
+    },
+    {
+      "title": "Negative gearing cut off for existing homes bought after tonight",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:05",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/budget-2026-government-breaks-promise-negative-gearing-cgt/106669860",
+      "image": "https://live-production.wcms.abc-cdn.net.au/9183a8237bc4e9a00c8c4832f9969871?impolicy=wcms_crop_resize&cropH=1600&cropW=1200&xPos=473&yPos=0&width=862&height=1149",
+      "body": "Tax perks that have been used by property investors for decades to maximise profits and offset their losses will be restricted from tonight, in one of the most significant changes to the tax system in years.",
+      "summary": "Decades-old tax perks for property investors are being restricted, and loopholes allowing wealthy families to pay less tax are being closed."
+    },
+    {
+      "title": "Find out if you're among the budget's winners or losers",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:31",
+      "fetched_iso": "2026-05-12T09:31:56",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-2026-winners-and-losers/106639966",
+      "image": "https://live-production.wcms.abc-cdn.net.au/ac04638d5bc0072d28449925f62382a5?impolicy=wcms_crop_resize&cropH=921&cropW=691&xPos=343&yPos=0&width=862&height=1149",
+      "body": "In the first full budget since Labor's landslide election victory last year, the government is putting some money back in workers' pockets and increasing taxes on investors.",
+      "summary": "In the first full budget since Labor's landslide election victory last year, the government is putting some money back in workers' pockets and increasing taxes on investors."
+    },
+    {
+      "title": "The name of this health condition was 'very inaccurate'. Now it's changed",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:02",
+      "fetched_iso": "2026-05-12T09:02:33",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/health/2026-05-12/polyendocrine-metabolic-ovarian-syndrome-pcos-new-name/106668902",
+      "image": "https://live-production.wcms.abc-cdn.net.au/55491d4924c502d9f860f2ab93d1bc70?impolicy=wcms_crop_resize&cropH=4444&cropW=3333&xPos=0&yPos=47&width=862&height=1149",
+      "body": "Polycystic ovary syndrome (PCOS) has been renamed polyendocrine metabolic ovarian syndrome (PMOS), a move health experts say will lead to faster diagnoses and better treatment for women of all ages.",
+      "summary": "About one in eight women have the complex lifelong condition."
+    },
+    {
+      "title": "Property owner says he helped wounded officer after Dezi Freeman shot at police",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:25",
+      "fetched_iso": "2026-05-12T08:25:35",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/porepunkah-dezi-freeman-property-owner-video/106596774",
+      "image": "https://live-production.wcms.abc-cdn.net.au/24f3a664374699dd17ecf32bab18a0fc?impolicy=wcms_crop_resize&cropH=555&cropW=416&xPos=725&yPos=252&width=862&height=1149",
+      "body": "A Porepunkah property owner says he helped a wounded police officer after the fatal shooting when Dezi Freeman killed two Victoria police officers.",
+      "summary": "The owner of the property where two police officers were shot dead speaks out in new video."
+    },
+    {
+      "title": "Jacinta Nampijinpa Price leads emotional tributes for Kumanjayi Little Baby",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:06",
+      "fetched_iso": "2026-05-12T08:06:02",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/emotional-senate-jacinta-nampijinpa-price-kumanjayi-little-baby/106669354",
+      "image": "https://live-production.wcms.abc-cdn.net.au/aaba83ecc0a0e041536923b444859457?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=642&yPos=0&width=862&height=1149",
+      "body": "Senator Jacinta Nampijinpa Price weeps through an impassioned tribute to her niece, Kumanjayi Little Baby, in federal parliament, amid a push to broaden the focus of an inquiry announced in the wake of her alleged murder.",
+      "summary": "Senator Jacinta Nampijinpa Price moved the motion and made an emotional speech in parliament on Tuesday."
+    },
+    {
+      "title": "Record payout after billionaire built mine without traditional owners' permission",
+      "source": "ABC News",
+      "date": "12 May 2026, 06:37",
+      "fetched_iso": "2026-05-12T06:37:19",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/yindjibarndi-fortescue-andrew-forrest-compensation-payout/106665232",
+      "image": "https://live-production.wcms.abc-cdn.net.au/022ce3f4e33f8dda52f591c46e641dfd?impolicy=wcms_crop_resize&cropH=1570&cropW=1178&xPos=588&yPos=0&width=862&height=1149",
+      "body": "Andrew Forrest's Fortescue has been ordered to pay $150 million to WA traditional owners after mining their land without permission.",
+      "summary": "A composite image of Andrew Forrest (left) and Michael Woodley situated at a Fortescue mine in WA."
+    },
+    {
       "title": "Government accused of 'burying' response to landmark gambling report",
       "source": "ABC News",
       "date": "12 May 2026, 06:13",
@@ -10,6 +87,61 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/4c86fed51a0776e4ad64147e850c1674?impolicy=wcms_crop_resize&cropH=3448&cropW=2586&xPos=636&yPos=0&width=862&height=1149",
       "body": "A long-awaited response to an inquiry that called for a gambling advertising ban has been tabled on budget day, prompting accusations the government is trying to bury the document.",
       "summary": "A parliamentary report by late Labor MP Peta Murphy on gambling reform called for a total ban on gambling advertising."
+    },
+    {
+      "title": "Anti-Indian hate on the rise in New Zealand",
+      "source": "ABC News",
+      "date": "12 May 2026, 03:28",
+      "fetched_iso": "2026-05-12T03:28:41",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/racist-attacks-indian-community-new-zealand/106654020",
+      "image": "https://live-production.wcms.abc-cdn.net.au/e565db8b1a056bd3bcedfe931b244f93?impolicy=wcms_crop_resize&cropH=788&cropW=591&xPos=333&yPos=0&width=862&height=1149",
+      "body": "Indian communities across New Zealand say they are feeling \"hounded\" after a surge in racist incidents.",
+      "summary": "Graffiti calling for violence against Indians out the front of Papatoetoe Central School in Auckland."
+    },
+    {
+      "title": "Labor's 'ambitious' plan for tax reset",
+      "source": "ABC News",
+      "date": "11 May 2026, 21:03",
+      "fetched_iso": "2026-05-11T21:03:40",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-2026-live-may-12/106668626",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5a6166ac4eef0a6d2b29e5f27f7e1348?impolicy=wcms_crop_resize&cropH=554&cropW=415&xPos=207&yPos=0&width=862&height=1149",
+      "body": "Chalmers unveils a 'reforming' federal budget with sweeping changes, including a tax cut for workers. Follow live.",
+      "summary": "Jim Chalmers is seen from behind, walking up an outdoor flight of steps, with Parliament House in the background. ABC News: Matt Roberts"
+    },
+    {
+      "title": "Pakistan market blast kills at least seven people",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:06",
+      "fetched_iso": "2026-05-12T08:06:57",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/deadly-pakistan-market-blast-follows-weekend-car-bombing/106671600",
+      "image": "https://live-production.wcms.abc-cdn.net.au/4aac1be732afdbecbb83d879a26aa726?impolicy=wcms_crop_resize&cropH=2304&cropW=1728&xPos=1183&yPos=0&width=862&height=1149",
+      "body": "A blast in a market kills at least seven people as Islamabad blames Kabul for a weekend attack that has left 15 police officers dead.",
+      "summary": "The weekend attack took place in Pakistan's Khyber Pakhtunkhwa province, which borders Afghanistan."
+    },
+    {
+      "title": "'We are being attacked': Frantic call from a sailor to his family",
+      "source": "ABC News",
+      "date": "12 May 2026, 01:50",
+      "fetched_iso": "2026-05-12T01:50:28",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/strait-of-hormuz-drone-strike-kills-indian-sailor/106639990",
+      "image": "https://live-production.wcms.abc-cdn.net.au/add2a791cdbef3fa67141f624fa46a22?impolicy=wcms_crop_resize&cropH=2812&cropW=2109&xPos=1445&yPos=0&width=862&height=1149",
+      "body": "As a peace deal between the US and Iran remains elusive, low-wage seafarers are in limbo as they witness an unprecedented 21st-century battle.",
+      "summary": "The Epaminondas was seized by the Islamic Revolutionary Guard Corps in the Strait of Hormuz."
+    },
+    {
+      "title": "Australian paratrooper killed after mid-air collision during training",
+      "source": "ABC News",
+      "date": "12 May 2026, 00:38",
+      "fetched_iso": "2026-05-12T00:38:28",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-12/australian-soldier-killed-during-parachute-training/106669370",
+      "image": "https://live-production.wcms.abc-cdn.net.au/a200a3a2d5c988046277b3c79c0f30e4?impolicy=wcms_crop_resize&cropH=4761&cropW=3571&xPos=0&yPos=0&width=862&height=1149",
+      "body": "Warrant Officer Class Two Lachlan Muddle, a highly qualified special forces sniper and military free-fall parachutist, has died after a mid-air collision with another paratrooper during an army training exercise.",
+      "summary": "Warrant Officer Class Two Lachlan Muddle, 50, was killed when he fell to the ground after a mid-air collision with another paratrooper."
     },
     {
       "title": "Tax reform to open door to 75,000 first home buyers, government estimates",
@@ -45,17 +177,6 @@
       "summary": "Emergency services attend to the boy who was trapped under a train at North Melbourne Railway Station."
     },
     {
-      "title": "Controversial haka sees debate around anti-Indian racism come to a head in NZ",
-      "source": "ABC News",
-      "date": "12 May 2026, 03:28",
-      "fetched_iso": "2026-05-12T03:28:41",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-12/racist-attacks-indian-community-new-zealand/106654020",
-      "image": "https://live-production.wcms.abc-cdn.net.au/e565db8b1a056bd3bcedfe931b244f93?impolicy=wcms_crop_resize&cropH=788&cropW=591&xPos=333&yPos=0&width=862&height=1149",
-      "body": "Indian communities across New Zealand say they are feeling \"hounded\" after a surge in racist incidents.",
-      "summary": "Graffiti calling for violence against Indians out the front of Papatoetoe Central School in Auckland."
-    },
-    {
       "title": "Carlton boss says Voss resignation proof club is in 'genuine transition'",
       "source": "ABC News",
       "date": "12 May 2026, 03:00",
@@ -65,28 +186,6 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/346b6612483dd5c7fc30a4f8be5e6182?impolicy=wcms_crop_resize&cropH=3624&cropW=2718&xPos=1499&yPos=0&width=862&height=1149",
       "body": "Carlton CEO Graham Wright says the club will embark on a thorough process to determine the successor to Michael Voss.",
       "summary": "Michael Voss walked out on Carlton on Tuesday morning after spending over four full seasons in charge."
-    },
-    {
-      "title": "Australian paratrooper killed after mid-air collision during training",
-      "source": "ABC News",
-      "date": "12 May 2026, 00:38",
-      "fetched_iso": "2026-05-12T00:38:28",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-12/australian-soldier-killed-during-parachute-training/106669370",
-      "image": "https://live-production.wcms.abc-cdn.net.au/a200a3a2d5c988046277b3c79c0f30e4?impolicy=wcms_crop_resize&cropH=4761&cropW=3571&xPos=0&yPos=0&width=862&height=1149",
-      "body": "Warrant Officer Class Two Lachlan Muddle, a highly qualified special forces sniper and military free-fall parachutist, has died after a mid-air collision with another paratrooper during an army training exercise.",
-      "summary": "Warrant Officer Class Two Lachlan Muddle, 50, was killed when he fell to the ground after a mid-air collision with another paratrooper."
-    },
-    {
-      "title": "Live: PM deflects questions on broken promises ahead of budget",
-      "source": "ABC News",
-      "date": "11 May 2026, 21:03",
-      "fetched_iso": "2026-05-11T21:03:40",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-2026-live-may-12/106668626",
-      "image": "https://live-production.wcms.abc-cdn.net.au/ce768c41a7bf8d7bac21b7a5299e1eff?impolicy=wcms_crop_resize&cropH=1152&cropW=864&xPos=865&yPos=0&width=862&height=1149",
-      "body": "The prime minister has deflected questions in Question Time about whether the federal government is breaking promises made at the last election in tonight's budget. Follow live.",
-      "summary": "Prime Minister Anthony Albanese points in the House of Representatives. Taken 12/5/2026. ABC News: Matt Roberts"
     },
     {
       "title": "Trump, Xi and the AI race that could reshape global power",
@@ -120,17 +219,6 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/293e21a8ec19f276bd6d173f05480e2e?impolicy=wcms_crop_resize&cropH=2164&cropW=1623&xPos=812&yPos=0&width=862&height=1149",
       "body": "UK cabinet will meet today, local time, amid growing calls for Keir Starmer to set out an exit plan.",
       "summary": "Britain's Prime Minister Sir Keir Starmer pauses as he delivers a speech, at the Coin Street Neighbourhood Centre in Waterloo, London, Monday May 11, 2026."
-    },
-    {
-      "title": "'We are being attacked': Frantic call from a sailor to his family",
-      "source": "ABC News",
-      "date": "12 May 2026, 01:50",
-      "fetched_iso": "2026-05-12T01:50:28",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-12/strait-of-hormuz-drone-strike-kills-indian-sailor/106639990",
-      "image": "https://live-production.wcms.abc-cdn.net.au/add2a791cdbef3fa67141f624fa46a22?impolicy=wcms_crop_resize&cropH=2812&cropW=2109&xPos=1445&yPos=0&width=862&height=1149",
-      "body": "As a peace deal between the US and Iran remains elusive, low-wage seafarers are in limbo as they witness an unprecedented 21st-century battle.",
-      "summary": "The Epaminondas was seized by the Islamic Revolutionary Guard Corps in the Strait of Hormuz."
     },
     {
       "title": "Six passengers from hantavirus cruise ship 'in good health', minister says",
@@ -453,6 +541,193 @@
     }
   ],
   "Australia": [
+    {
+      "title": "$250 tax break for millions in 'rebalance' of tax system for workers",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:43",
+      "fetched_iso": "2026-05-12T09:43:50",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-2026-tax-break-for-millions-of-workers/106669972",
+      "image": "https://live-production.wcms.abc-cdn.net.au/0f5ab1ea6e6711ef9852efd848f4f9c8?impolicy=wcms_crop_resize&cropH=2814&cropW=2111&xPos=1110&yPos=0&width=862&height=1149",
+      "body": "Labor will raise taxes on investment properties and some trust funds, giving the revenue back to workers with a new $250 tax break under reforms it says will \"rebalance\" the Australian tax system.",
+      "summary": "Treasurer Jim Chalmers and Finance Minister Katy Gallagher say the budget aims to tackle intergenerational inequity."
+    },
+    {
+      "title": "Chalmers jumped into the political no-go zone for one clear reason",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:46",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/why-chalmers-reined-in-the-property-tax-lurks/106671254",
+      "image": "https://live-production.wcms.abc-cdn.net.au/31bb600fcc2f1019017cf3234e21bbfa?impolicy=wcms_crop_resize&cropH=3029&cropW=2271&xPos=1556&yPos=0&width=862&height=1149",
+      "body": "One of the more striking elements from the now well entrenched program of pre-budget leaks is the lack of outrage from the population or even the opposition.",
+      "summary": "Treasurer Jim Chalmers said in his budget speech that the government had chosen \"the hard road of reform, not the path of least resistance\"."
+    },
+    {
+      "title": "CGT changes could see investment shift to shares, budget suggests",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:28",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/budget-2026-share-market-investors-cgt-changes-small-business/106669784",
+      "image": "https://live-production.wcms.abc-cdn.net.au/11d4a54433d5bf6312b687c451131018?impolicy=wcms_crop_resize&cropH=2000&cropW=1498&xPos=751&yPos=0&width=862&height=1149",
+      "body": "Investors in stocks will be affected by changes to capital gains tax, but experts say the budget is still likely to see some investment move away from property and into shares.",
+      "summary": "Several tax measures to help small business with cash flow have been made permanent in the budget."
+    },
+    {
+      "title": "Australia's last baby boomer prime minister becomes King of the Kids",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:27",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-generational-equality-young-australians-housing/106670168",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5c9a8063410ff7fdec52fc3f505cd4d2?impolicy=wcms_crop_resize&cropH=6336&cropW=4752&xPos=2376&yPos=0&width=862&height=1149",
+      "body": "Tonight Anthony Albanese becomes the first serving prime minister in decades to take a hammer to the most sacred shibboleth in Australian domestic politics.",
+      "summary": "Millennial and generation Z voters now constitute a majority of the electorate."
+    },
+    {
+      "title": "Negative gearing cut off for existing homes bought after tonight",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:05",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/budget-2026-government-breaks-promise-negative-gearing-cgt/106669860",
+      "image": "https://live-production.wcms.abc-cdn.net.au/9183a8237bc4e9a00c8c4832f9969871?impolicy=wcms_crop_resize&cropH=1600&cropW=1200&xPos=473&yPos=0&width=862&height=1149",
+      "body": "Tax perks that have been used by property investors for decades to maximise profits and offset their losses will be restricted from tonight, in one of the most significant changes to the tax system in years.",
+      "summary": "Decades-old tax perks for property investors are being restricted, and loopholes allowing wealthy families to pay less tax are being closed."
+    },
+    {
+      "title": "Your five-minute guide to this year's cost-of-living budget measures",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:05",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/what-is-in-federal-budget-to-help-cost-of-living-explainer/106671806",
+      "image": "https://live-production.wcms.abc-cdn.net.au/0b329aad6dffb577fb7930897b42b7ba?impolicy=wcms_crop_resize&cropH=1320&cropW=989&xPos=495&yPos=0&width=862&height=1149",
+      "body": "Fresh tax cuts, an instant $1,000 tax reduction and cheaper medicines: here's what the federal government's latest budget means for Australians.",
+      "summary": "The federal budget will target cost of living in what Treasurer Jim Chalmers says will \"take pressure off Australians\"."
+    },
+    {
+      "title": "Find out if you're among the budget's winners or losers",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:31",
+      "fetched_iso": "2026-05-12T09:31:56",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-2026-winners-and-losers/106639966",
+      "image": "https://live-production.wcms.abc-cdn.net.au/ac04638d5bc0072d28449925f62382a5?impolicy=wcms_crop_resize&cropH=921&cropW=691&xPos=343&yPos=0&width=862&height=1149",
+      "body": "In the first full budget since Labor's landslide election victory last year, the government is putting some money back in workers' pockets and increasing taxes on investors.",
+      "summary": "In the first full budget since Labor's landslide election victory last year, the government is putting some money back in workers' pockets and increasing taxes on investors."
+    },
+    {
+      "title": "Father allegedly high on 'nangs' in crash that killed daughters, as scuffle erupts outside court",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:13",
+      "fetched_iso": "2026-05-12T09:13:35",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/jean-adrien-nathanael-luckoo-high-nangs-crash-killed-daughters/106671320",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5c31689eccaa1ea19a6e06c8bba7303e?impolicy=wcms_crop_resize&cropH=3024&cropW=2268&xPos=882&yPos=0&width=862&height=1149",
+      "body": "A Perth father was allegedly high on 'nangs' during a crash that killed his two daughters, as a scuffle with media erupts at court.",
+      "summary": "The man is facing Midland Magistrates Court afte being charged with causing the girls' death."
+    },
+    {
+      "title": "The name of this health condition was 'very inaccurate'. Now it's changed",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:02",
+      "fetched_iso": "2026-05-12T09:02:33",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/health/2026-05-12/polyendocrine-metabolic-ovarian-syndrome-pcos-new-name/106668902",
+      "image": "https://live-production.wcms.abc-cdn.net.au/55491d4924c502d9f860f2ab93d1bc70?impolicy=wcms_crop_resize&cropH=4444&cropW=3333&xPos=0&yPos=47&width=862&height=1149",
+      "body": "Polycystic ovary syndrome (PCOS) has been renamed polyendocrine metabolic ovarian syndrome (PMOS), a move health experts say will lead to faster diagnoses and better treatment for women of all ages.",
+      "summary": "About one in eight women have the complex lifelong condition."
+    },
+    {
+      "title": "LeBron contemplates potential retirement after NBA playoff exit",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:02",
+      "fetched_iso": "2026-05-12T09:02:18",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/basketball-lebron-james-considering-retirement-nba-playoff-exit/106672002",
+      "image": "https://live-production.wcms.abc-cdn.net.au/30b5429388ec9a91c5058e64f1bc39ed?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1188&yPos=0&width=862&height=1149",
+      "body": "LeBron James says he has no idea what the future holds after being bounced out of the second round of the NBA playoffs.",
+      "summary": "LeBron James is still undecided on whether he will continue his NBA career into a 24th season after being eliminated from the play-offs."
+    },
+    {
+      "title": "Duo swindled $6 million from five victims in investment scam, court hears",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:49",
+      "fetched_iso": "2026-05-12T08:49:42",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/andre-langos-and-sam-smith-fraudulent-property-scheme/106670440",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5ab8e3001d156d49c2ba64abe7b5e323?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Two men fleeced millions from five victims in a fraudulent property investment scheme, which one victim said had stolen half her superannuation and \"ruined\" her life.",
+      "summary": "Andre Langos and Sam Smith will be sentenced in South Australia's District Court next month."
+    },
+    {
+      "title": "Rankine says he has 'come a long way' since homophobic slur ban",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:27",
+      "fetched_iso": "2026-05-12T08:27:20",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/afl-izak-rankine-says-he-has-come-long-way-since-homophobic-slur/106671916",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2107df20b3ee9691bdd3fbd58299c6c9?impolicy=wcms_crop_resize&cropH=2922&cropW=2192&xPos=1101&yPos=0&width=862&height=1149",
+      "body": "After being forced to sit out of last year's finals series thanks to a suspension for a homophobic slur, Izak Rankine is confident he has grown.",
+      "summary": "Izak Rankine is relishing being back in the spotlight."
+    },
+    {
+      "title": "Property owner says he helped wounded officer after Dezi Freeman shot at police",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:25",
+      "fetched_iso": "2026-05-12T08:25:35",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/porepunkah-dezi-freeman-property-owner-video/106596774",
+      "image": "https://live-production.wcms.abc-cdn.net.au/24f3a664374699dd17ecf32bab18a0fc?impolicy=wcms_crop_resize&cropH=555&cropW=416&xPos=725&yPos=252&width=862&height=1149",
+      "body": "A Porepunkah property owner says he helped a wounded police officer after the fatal shooting when Dezi Freeman killed two Victoria police officers.",
+      "summary": "The owner of the property where two police officers were shot dead speaks out in new video."
+    },
+    {
+      "title": "Pakistan market blast kills at least seven people",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:06",
+      "fetched_iso": "2026-05-12T08:06:57",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/deadly-pakistan-market-blast-follows-weekend-car-bombing/106671600",
+      "image": "https://live-production.wcms.abc-cdn.net.au/4aac1be732afdbecbb83d879a26aa726?impolicy=wcms_crop_resize&cropH=2304&cropW=1728&xPos=1183&yPos=0&width=862&height=1149",
+      "body": "A blast in a market kills at least seven people as Islamabad blames Kabul for a weekend attack that has left 15 police officers dead.",
+      "summary": "The weekend attack took place in Pakistan's Khyber Pakhtunkhwa province, which borders Afghanistan."
+    },
+    {
+      "title": "Jacinta Nampijinpa Price leads emotional tributes for Kumanjayi Little Baby",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:06",
+      "fetched_iso": "2026-05-12T08:06:02",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/emotional-senate-jacinta-nampijinpa-price-kumanjayi-little-baby/106669354",
+      "image": "https://live-production.wcms.abc-cdn.net.au/aaba83ecc0a0e041536923b444859457?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=642&yPos=0&width=862&height=1149",
+      "body": "Senator Jacinta Nampijinpa Price weeps through an impassioned tribute to her niece, Kumanjayi Little Baby, in federal parliament, amid a push to broaden the focus of an inquiry announced in the wake of her alleged murder.",
+      "summary": "Senator Jacinta Nampijinpa Price moved the motion and made an emotional speech in parliament on Tuesday."
+    },
+    {
+      "title": "Skipper keen to refloat yacht beached at Byron Bay and avoid $20K fine",
+      "source": "ABC News",
+      "date": "12 May 2026, 08:04",
+      "fetched_iso": "2026-05-12T08:04:23",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/byron-community-helps-beached-boatie/106670510",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b32b296a30f3da58626e144030d6eb39?impolicy=wcms_crop_resize&cropH=900&cropW=675&xPos=356&yPos=0&width=862&height=1149",
+      "body": "The clock is ticking for a skipper scrambling to avoid a hefty fine by refloating a yacht beached at Byron Bay.",
+      "summary": "Jeff Sutton is looking at ways to refloat Wyuna 1."
+    },
+    {
+      "title": "Man charged with son's murder offered to plead guilty to lesser charge, court hears",
+      "source": "ABC News",
+      "date": "12 May 2026, 07:57",
+      "fetched_iso": "2026-05-12T07:57:23",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-12/reinhardt-bosch-murder-torture-manslaughter-bail-refused/106671618",
+      "image": "https://live-production.wcms.abc-cdn.net.au/627463b4948466db87e1f94210235439?impolicy=wcms_crop_resize&cropH=485&cropW=364&xPos=23&yPos=0&width=862&height=1149",
+      "body": "Reinhardt Bosch has been charged with the murder and torture of his son Rhuan in 2022, and offered to plead guilty to the lesser charge of manslaughter, a court has heard.",
+      "summary": "Reinhardt Bosch has been charged with torturing and killing his son Rhuan in 2022."
+    },
     {
       "title": "Government accused of 'burying' response to landmark gambling report",
       "source": "ABC News",
@@ -1194,6 +1469,17 @@
     }
   ],
   "Science & Tech": [
+    {
+      "title": "Stunning fossil discovery challenges the origins of animal life",
+      "source": "Science Daily",
+      "date": "12 May 2026, 07:10",
+      "fetched_iso": "2026-05-12T07:10:55",
+      "category": "Science & Tech",
+      "url": "https://www.sciencedaily.com/releases/2026/05/260511213139.htm",
+      "image": null,
+      "body": "Scientists revisiting mysterious 540-million-year-old microfossils from Brazil have overturned a major idea about early animal life. What were once thought to be trails left behind by tiny worm-like creatures are now believed to be fossilized communities of bacteria and algae — some with remarkably preserved cells and organic material still intact.",
+      "summary": "Scientists revisiting mysterious 540-million-year-old microfossils from Brazil have overturned a major idea about early animal life. What were once thought to be trails left behind by tiny worm-like creatures are now…"
+    },
     {
       "title": "Scientists discover hidden chemical signature that could reveal alien life",
       "source": "Science Daily",
@@ -2123,26 +2409,103 @@
   ],
   "Business": [
     {
-      "title": "Live: ASX slips as budget in focus while DroneShield probed by ASIC",
+      "title": "Chalmers jumped into the political no-go zone for one clear reason",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:32",
+      "fetched_iso": "2026-05-12T09:32:46",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/why-chalmers-reined-in-the-property-tax-lurks/106671254",
+      "image": "https://live-production.wcms.abc-cdn.net.au/31bb600fcc2f1019017cf3234e21bbfa?impolicy=wcms_crop_resize&cropH=3029&cropW=2271&xPos=1556&yPos=0&width=862&height=1149",
+      "body": "One of the more striking elements from the now well entrenched program of pre-budget leaks is the lack of outrage from the population or even the opposition.",
+      "summary": "Treasurer Jim Chalmers said in his budget speech that the government had chosen \"the hard road of reform, not the path of least resistance\"."
+    },
+    {
+      "title": "Australian company Heytesbury buys mega fleet of 11 live export ships",
+      "source": "ABC News",
+      "date": "12 May 2026, 06:02",
+      "fetched_iso": "2026-05-12T06:02:27",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/heytesbury-buys-11-live-export-ships-deal-with-vroon/106669766",
+      "image": "https://live-production.wcms.abc-cdn.net.au/1cb1414728b95a2aee2b73af0ded4820?impolicy=wcms_crop_resize&cropH=1987&cropW=1489&xPos=755&yPos=0&width=862&height=1149",
+      "body": "Owned by the Holmes à Court family, Heytesbury runs 165,000 head of cattle in northern Australia and has just struck a deal with Vroon to buy its ships.",
+      "summary": "The live export trade to Indonesia is dominated by G-Class vessels such as the Greyman Express."
+    },
+    {
+      "title": "SA man forced to spend night in hospital ED due to lack of access cabs",
+      "source": "ABC News",
+      "date": "12 May 2026, 03:59",
+      "fetched_iso": "2026-05-12T03:59:32",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/adelaide-man-waits-in-hospital-for-access-taxi/106669528",
+      "image": "https://live-production.wcms.abc-cdn.net.au/a1a5a02420d97f2766ebc467d40c3c5b?impolicy=wcms_crop_resize&cropH=3292&cropW=2469&xPos=1017&yPos=0&width=862&height=1149",
+      "body": "A multiple sclerosis patient says he waited three hours for an access cab, only to be told in the middle of the night one would not be available, forcing him to spend the night at an Adelaide emergency room.",
+      "summary": "Jesse Frick spent a night at the Queen Elizabeth Hospital emergency room due to a lack of access taxis."
+    },
+    {
+      "title": "Darwin company's $50 million plan to make diesel from gas condensate",
+      "source": "ABC News",
+      "date": "11 May 2026, 23:35",
+      "fetched_iso": "2026-05-11T23:35:03",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/darwin-company-plans-to-make-diesel-from-gas-condensate/106657004",
+      "image": "https://live-production.wcms.abc-cdn.net.au/4c1cf2809c5a46044dd9d8a08c72cc9b?impolicy=wcms_crop_resize&cropH=1448&cropW=1086&xPos=809&yPos=0&width=862&height=1149",
+      "body": "Global Resource Recovery NT says production of the  first diesel made from Central Australian gas condensate will leave Darwin in July.",
+      "summary": "A former biodiesel refinery is currently used as a chemical recycling facility in Darwin."
+    },
+    {
+      "title": "Find out if you're among the budget's winners or losers",
+      "source": "ABC News",
+      "date": "12 May 2026, 09:31",
+      "fetched_iso": "2026-05-12T09:31:56",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/federal-budget-2026-winners-and-losers/106639966",
+      "image": "https://live-production.wcms.abc-cdn.net.au/ac04638d5bc0072d28449925f62382a5?impolicy=wcms_crop_resize&cropH=921&cropW=691&xPos=343&yPos=0&width=862&height=1149",
+      "body": "In the first full budget since Labor's landslide election victory last year, the government is putting some money back in workers' pockets and increasing taxes on investors.",
+      "summary": "In the first full budget since Labor's landslide election victory last year, the government is putting some money back in workers' pockets and increasing taxes on investors."
+    },
+    {
+      "title": "Tax reform tipped to open door to 75,000 first home buyers",
+      "source": "ABC News",
+      "date": "12 May 2026, 06:02",
+      "fetched_iso": "2026-05-12T06:02:47",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/budget-first-home-buyers-cgt-negative-gearing-tax-reform/106668852",
+      "image": "https://live-production.wcms.abc-cdn.net.au/16b2b949ced05d53df212f5942eab774?impolicy=wcms_crop_resize&cropH=2799&cropW=2099&xPos=1438&yPos=0&width=862&height=1149",
+      "body": "In a political push to get ahead of criticism it has broken election promises, Labor is making a case for how wealth is taxed in Australia by promising the budget will open the housing market to younger buyers.",
+      "summary": "Anthony Albanese (centre) has confirmed tonight's budget will include property tax reform."
+    },
+    {
+      "title": "ASX slips as budget comes into focus and DroneShield faces ASIC probe — as it happened",
       "source": "ABC News",
       "date": "11 May 2026, 21:50",
       "fetched_iso": "2026-05-11T21:50:12",
       "category": "Business",
       "url": "https://www.abc.net.au/news/2026-05-12/asx-markets-business-news-live-updates-budget-day/106653134",
       "image": "https://live-production.wcms.abc-cdn.net.au/6871ec692ab78a7f74a484f9a9dff845?impolicy=wcms_crop_resize&cropH=710&cropW=532&xPos=221&yPos=0&width=862&height=1149",
-      "body": "Australian shares have slid while DroneShield is being investigated by ASIC over disclosures and share trading. Follow the ABC News live markets blog.",
+      "body": "Australian shares slid while DroneShield was being investigated by ASIC over disclosures and share trading. Look back on the day's financial news and insights from our specialist business reporters on our live blog.",
       "summary": "The ASX 200 is slightly up."
     },
     {
-      "title": "Window for smelter offers closes, with worker torment over jobs continuing",
+      "title": "Could this be the 'most interesting' budget in decades? Here's what we know",
       "source": "ABC News",
-      "date": "11 May 2026, 19:17",
-      "fetched_iso": "2026-05-11T19:17:55",
+      "date": "11 May 2026, 18:40",
+      "fetched_iso": "2026-05-11T18:40:56",
       "category": "Business",
-      "url": "https://www.abc.net.au/news/2026-05-12/liberty-bell-bay-tasmanian-smelter-white-oak-lender-rti/106660020",
-      "image": "https://live-production.wcms.abc-cdn.net.au/6ca454ca65c107e5082ddc371fc6dc28?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=68&yPos=0&width=862&height=1149",
-      "body": "The window for non-binding offers to purchase for the Liberty Bell Bay smelter, in Tasmania's north, has officially closed, with a union delegation taking their cause to Canberra as workers anxiously await news.",
-      "summary": "Workers at Liberty Bell Bay are seeking certainty over their jobs."
+      "url": "https://www.abc.net.au/news/2026-05-12/whats-in-the-budget-here-is-what-we-know-so-far-may-2026/106665572",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b2e82ab9679bb2851b5b918e295b6aa5?impolicy=wcms_crop_resize&cropH=1831&cropW=1373&xPos=939&yPos=0&width=862&height=1149",
+      "body": "Treasurer Jim Chalmers is unveiling his fifth budget tonight, and housing for younger Australians will be a centrepiece.",
+      "summary": "Jim Chalmers wants his budget to address the intergenerational unfairness in Australia's tax system."
+    },
+    {
+      "title": "Why Chalmers's budget will rein in the property free-for-all",
+      "source": "ABC News",
+      "date": "11 May 2026, 18:39",
+      "fetched_iso": "2026-05-11T18:39:15",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/why-chalmers-will-reform-property-tax-in-federal-budget-2026/106666010",
+      "image": "https://live-production.wcms.abc-cdn.net.au/d31d6fa74a2b3b96a254307afc44b921?impolicy=wcms_crop_resize&cropH=2942&cropW=2206&xPos=1511&yPos=0&width=862&height=1149",
+      "body": "After being rejected twice by an electorate that didn't want to give up lucrative tax arrangements on property, the Albanese government has sniffed the breeze and decided the time is ripe for change.",
+      "summary": "Jim Chalmers's 2026 budget will include changes to tax concessions that could prove unpopular with many."
     },
     {
       "title": "A tropical tax paradise sells much of Australia's gas",
@@ -2154,6 +2517,17 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/fb6f7da1892247ab70f3e43036822a02?impolicy=wcms_crop_resize&cropH=1200&cropW=900&xPos=424&yPos=0&width=862&height=1149",
       "body": "Amid renewed debate over whether Australia is getting enough tax from its gas exports, an investigation by the ABC shows how resource giants use shell companies to shift profit.",
       "summary": "Amid renewed debate over whether Australia is getting enough tax from its gas exports, an investigation by the ABC shows how resource giants use shell companies to shift profit."
+    },
+    {
+      "title": "Window for smelter offers closes, with worker torment over jobs continuing",
+      "source": "ABC News",
+      "date": "11 May 2026, 19:17",
+      "fetched_iso": "2026-05-11T19:17:55",
+      "category": "Business",
+      "url": "https://www.abc.net.au/news/2026-05-12/liberty-bell-bay-tasmanian-smelter-white-oak-lender-rti/106660020",
+      "image": "https://live-production.wcms.abc-cdn.net.au/6ca454ca65c107e5082ddc371fc6dc28?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=68&yPos=0&width=862&height=1149",
+      "body": "The window for non-binding offers to purchase for the Liberty Bell Bay smelter, in Tasmania's north, has officially closed, with a union delegation taking their cause to Canberra as workers anxiously await news.",
+      "summary": "Workers at Liberty Bell Bay are seeking certainty over their jobs."
     },
     {
       "title": "The government has missed one idea to get housing back on track",
