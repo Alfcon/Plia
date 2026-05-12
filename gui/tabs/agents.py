@@ -182,6 +182,12 @@ class AgentStatusThread(QThread):
             statuses["desktop_agent"] = ("idle", "Ready — mss + pyautogui installed")
         except ImportError as e:
             statuses["desktop_agent"] = ("offline", f"Missing dependency: {e}")
+        except Exception as e:
+            # Catches e.g. Xlib.error.DisplayConnectionError on Wayland sessions
+            # where python-xlib (pulled in by pyautogui→mouseinfo) cannot match
+            # mutter's Xwaylandauth cookie format. Don't crash the status thread —
+            # just report the agent as unavailable.
+            statuses["desktop_agent"] = ("offline", f"Unavailable: {type(e).__name__}: {e}")
 
         # ── Web Search availability ──────────────────────────────────────
         try:
