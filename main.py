@@ -83,6 +83,36 @@ def _configure_logging() -> None:
 
 _configure_logging()   # Must run before any other imports
 
+
+def _fix_alsa_plugin_dir() -> None:
+    """
+    Point conda's libasound at the system ALSA plugin directory on Linux.
+
+    conda-forge's `alsa-lib` package ships without `alsa-plugins`, so conda's
+    libasound can't find ``libasound_module_pcm_pipewire.so`` and the ``default``
+    ALSA device (which routes into PipeWire/Pulse) disappears.  PortAudio then
+    only sees raw ``hw:`` devices, which on most onboard codecs cannot do
+    16 kHz mono — STT fails with paInvalidSampleRate (-9997) and TTS reports
+    "Audio output unavailable".  Setting ALSA_PLUGIN_DIR makes conda's
+    libasound load the system PipeWire plugin and exposes ``default`` again.
+    """
+    import sys as _sys, os as _osm
+    if _sys.platform != "linux" or "ALSA_PLUGIN_DIR" in _osm.environ:
+        return
+    for path in (
+        "/usr/lib/x86_64-linux-gnu/alsa-lib",  # Debian/Ubuntu x86_64
+        "/usr/lib/aarch64-linux-gnu/alsa-lib", # Debian/Ubuntu arm64
+        "/usr/lib64/alsa-lib",                 # Fedora/RHEL
+        "/usr/lib/alsa-lib",                   # Arch
+    ):
+        if _osm.path.isfile(_osm.path.join(path, "libasound_module_pcm_pipewire.so")) \
+           or _osm.path.isfile(_osm.path.join(path, "libasound_module_pcm_pulse.so")):
+            _osm.environ["ALSA_PLUGIN_DIR"] = path
+            return
+
+
+_fix_alsa_plugin_dir()   # Must run before any audio/STT/TTS imports
+
 # ── Standard library + app imports (after logging is configured) ───────────
 import os   # public alias — _os above was used only during logging setup
 import warnings

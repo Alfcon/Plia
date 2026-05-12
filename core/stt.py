@@ -488,33 +488,54 @@ class STTListener:
 
     @staticmethod
     def _check_audio_input() -> tuple[bool, str]:
-        """Verify a usable audio input device exists by trying to open it."""
+        """Verify a usable audio input device exists by trying to open it.
+
+        Prefers PortAudio's *default* input device — under PipeWire/PulseAudio
+        that's the virtual ``default`` device which auto-resamples to 16 kHz
+        mono. The previous "first device with input channels" approach picked
+        the raw ``hw:`` codec, which on most onboard cards only supports
+        44.1 kHz+ stereo and fails with paInvalidSampleRate (-9997).
+        """
         try:
             import pyaudio
             pa = pyaudio.PyAudio()
-            count = pa.get_device_count()
 
-            # Find the first device with input channels
-            target = None
-            for i in range(count):
-                info = pa.get_device_info_by_index(i)
-                if info.get("maxInputChannels", 0) > 0:
-                    target = i
-                    break
+            def _try_open(idx: int) -> bool:
+                try:
+                    stream = pa.open(
+                        format=pyaudio.paInt16, channels=1, rate=16000,
+                        input=True, input_device_index=idx,
+                        frames_per_buffer=1024, start=False,
+                    )
+                    stream.close()
+                    return True
+                except Exception:
+                    return False
 
-            if target is None:
+            # Try the PortAudio default input device first.
+            try:
+                default_idx = pa.get_default_input_device_info().get("index")
+            except (IOError, OSError):
+                default_idx = None
+
+            if default_idx is not None and _try_open(default_idx):
                 pa.terminate()
-                return False, "No audio input devices found."
+                return True, ""
 
-            # Try opening the device at 16000 Hz (the rate RealtimeSTT uses)
-            stream = pa.open(
-                format=pyaudio.paInt16, channels=1, rate=16000,
-                input=True, input_device_index=target,
-                frames_per_buffer=1024, start=False,
-            )
-            stream.close()
+            # Fall back: any device that accepts 16 kHz mono.
+            for i in range(pa.get_device_count()):
+                info = pa.get_device_info_by_index(i)
+                if info.get("maxInputChannels", 0) < 1:
+                    continue
+                if _try_open(i):
+                    pa.terminate()
+                    return True, ""
+
             pa.terminate()
-            return True, ""
+            return False, (
+                "No audio input device accepts 16 kHz mono. "
+                "STT requires a working microphone."
+            )
 
         except Exception as exc:
             return False, (
