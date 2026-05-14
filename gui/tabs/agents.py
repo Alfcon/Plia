@@ -961,9 +961,8 @@ class AgentsTab(QWidget):
         # ── Section 4: Multi-Agent System ───────────────────────────────
         self._build_multi_agent_section()
 
-        # ── Section 5: Agent List (dynamic) ────────────────────────────
-        self._build_custom_section()
-
+        # Custom-agent management UI moved to Agent List tab
+        # (gui/tabs/agent_list.py) so this tab stays focused on live status.
         scroll.setWidget(container)
         root.addWidget(scroll)
 
@@ -1070,8 +1069,8 @@ class AgentsTab(QWidget):
 
     def _rebuild_custom_section(self):
         """Slot connected to agent_registry.agents_changed."""
+        # Custom agent UI removed from this tab; keep only multi-agent snapshot.
         self._build_multi_agent_section()
-        self._build_custom_section()
 
     # ── Create Agent ──────────────────────────────────────────────────────
 
@@ -1152,7 +1151,7 @@ class AgentsTab(QWidget):
         if not agent:
             QMessageBox.warning(self, "Agent Not Found", "Could not find the selected agent.")
             return
-        editor = AgentEditorWindow(self, agent_name=name)
+        editor = AgentEditorWindow(self)
         if editor.exec() == QDialog.Accepted:
             agent_registry.reload_agents()
             multi_agent_system.reload_roles()

@@ -27,6 +27,17 @@ NavigationInterface {
     border-right: 1px solid #1a2236;
 }
 
+/* Force sidebar nav icon colour to Plia blue so the Agent List tab is always recognisable */
+NavigationInterface QToolButton {
+    color: #33b5e5;
+}
+NavigationInterface QToolButton:checked {
+    color: #33b5e5;
+}
+NavigationInterface QToolButton:hover {
+    color: #33b5e5;
+}
+
 /* Cards (Surface) */
 CardWidget {
     background-color: #0f1524;

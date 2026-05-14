@@ -127,6 +127,8 @@ class FunctionExecutor:
                 return self._control_media(params)
             elif func_name == "network_tools":
                 return self._network_tools(params)
+            elif func_name == "mcp_tool_call":
+                return self._mcp_tool_call(params)
             else:
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
@@ -955,6 +957,36 @@ class FunctionExecutor:
             return {"success": False, "message": f"Unknown action: {action}", "data": None}
         except Exception as e:
             return {"success": False, "message": f"Network tools error: {e}", "data": None}
+
+
+    def _mcp_tool_call(self, params: Dict) -> Dict:
+        """
+        Execute a generic MCP tool call via core/mcp_client.py.
+
+        Expected params (from router schema):
+          - tool_id: "<serverId>:<toolName>"
+          - arguments: JSON string or dict of tool arguments
+        """
+        from core.mcp_client import mcp_client
+
+        tool_id = params.get("tool_id") or params.get("toolId")
+        arguments = params.get("arguments")
+        if arguments is None:
+            arguments = params.get("argument")
+
+        if not tool_id:
+            return {
+                "success": False,
+                "message": "Missing MCP tool_id (expected '<serverId>:<toolName>').",
+                "data": None,
+            }
+
+        result = mcp_client.execute(tool_id=tool_id, arguments=arguments)
+        # Ensure shape
+        if not isinstance(result, dict) or "success" not in result:
+            return {"success": False, "message": "Invalid MCP client response.", "data": None}
+
+        return result
 
 
 # Global instance

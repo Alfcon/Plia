@@ -2,7 +2,11 @@ from PySide6.QtCore import QObject, Signal, QThread, QTimer
 import json
 import re
 
-from config import RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY
+from config import (
+    RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY,
+    MULTIHOP_DEFAULT_HOPS, MULTIHOP_RESULTS_PER_HOP, MULTIHOP_MAX_SOURCES,
+    MULTIHOP_SNIPPET_CHARS, MULTIHOP_FINAL_CITATION_MAX_RETRIES,
+)
 from core.llm import route_query, should_bypass_router, http_session
 from core.tts import tts, SentenceBuffer
 from core.history import history_manager
@@ -12,6 +16,7 @@ from core.settings_store import settings as app_settings
 from core.function_executor import executor as function_executor
 from core.agent_registry import agent_registry
 from core.agent_builder import detect_build_intent, build_agent
+from core.redaction import redact_text
 
 # Functions that are actions (not passthrough)
 ACTION_FUNCTIONS = {
@@ -20,6 +25,7 @@ ACTION_FUNCTIONS = {
     "system_command", "manage_notes", "send_email", "read_emails",
     "clipboard_action", "file_operations", "get_stock_price",
     "convert_currency", "translate_text", "control_media", "network_tools",
+    "mcp_tool_call",
 }
 
 
@@ -142,6 +148,13 @@ class ChatWorker(QObject):
                         self.simple_response.emit(f"Agent error: {result['message']}")
                     return
 
+            # ── Multi-hop research with citations (Open-jarvis / isair style) ──
+            # Runs before router routing so it doesn’t depend on FunctionGemma tool schemas.
+            if self._is_multihop_request(self.user_text):
+                self.status.emit("Planning multi-hop research…")
+                self._run_multihop_research_with_citations()
+                return
+
             if should_bypass_router(self.user_text):
                 func_name = "nonthinking"
                 params = {"prompt": self.user_text}
@@ -246,6 +259,172 @@ class ChatWorker(QObject):
                         return (agent["name"], task_part or user_text)
         return None
 
+    @staticmethod
+    def _is_multihop_request(user_text: str) -> bool:
+        """
+        Keyword trigger for multi-hop research with citations.
+
+        Kept simple/robust to avoid router/schema changes.
+        """
+        t = (user_text or "").strip().lower()
+        if not t:
+            return False
+
+        has_citations = any(k in t for k in ("citations", "source citations", "source citation"))
+        has_multi_hop = any(k in t for k in ("multi-hop", "multihop", "open-jarvis", "isair"))
+        return has_citations and has_multi_hop
+
+    def _run_multihop_research_with_citations(self) -> None:
+        """
+        Multi-hop planner loop + evidence aggregation + streamed final synthesis.
+
+        Intermediate planning/search is non-streamed.
+        Final synthesis is streamed via Ollama and wired into existing UI/TTS signals.
+        """
+        try:
+            from core.multi_hop_research import (
+                research_with_citations_context,
+                validate_citations,
+            )
+        except Exception as e:
+            self.error.emit(f"Multi-hop module import failed: {e}")
+            return
+
+        question = self.user_text
+        self.ui_update.emit()
+        self.status.emit("Planning & collecting sources…")
+
+        hops = MULTIHOP_DEFAULT_HOPS
+        results_per_hop = MULTIHOP_RESULTS_PER_HOP
+        max_sources = MULTIHOP_MAX_SOURCES
+        snippet_chars = MULTIHOP_SNIPPET_CHARS
+        planner_model = RESPONDER_MODEL
+
+        context_bundle = research_with_citations_context(
+            question=question,
+            hops=hops,
+            results_per_hop=results_per_hop,
+            max_sources=max_sources,
+            snippet_chars=snippet_chars,
+            ollama_url=app_settings.get("ollama_url", OLLAMA_URL),
+            planner_model=planner_model,
+        )
+
+        evidence = context_bundle.get("evidence", [])
+        evidence_count = len(evidence)
+        context_msg = context_bundle.get("context_msg", "")
+
+        if evidence_count <= 0 or not context_msg:
+            self.full_response = (
+                "⚠️ I couldn't gather any sources for this multi-hop research. "
+                "Please try again with a more specific query."
+            )
+            self.response_chunk.emit(self.full_response)
+            self.messages.append({"role": "assistant", "content": self.full_response})
+            if self.current_session_id:
+                history_manager.add_message(self.current_session_id, "assistant", self.full_response)
+            return
+
+        # Final synthesis prompt — citations are strict [n] with Sources: bibliography
+        final_user_prompt = (
+            context_msg
+            + "\n\nFINAL INSTRUCTION:\n"
+            "1) Provide the answer.\n"
+            "2) Every factual sentence/claim MUST include at least one citation token like [n].\n"
+            "3) After the answer, include a section starting exactly with 'Sources:' and list every bibliography line once.\n"
+        )
+
+        self.status.emit("Synthesizing with citations…")
+        self.ui_update.emit()
+
+        model = app_settings.get("models.chat", RESPONDER_MODEL)
+
+        ensure_qwen_loaded()
+        mark_qwen_used()
+        ensure_exclusive_qwen(model)
+
+        ollama_url = app_settings.get("ollama_url", OLLAMA_URL)
+
+        retries_left = int(MULTIHOP_FINAL_CITATION_MAX_RETRIES)
+        last_response = ""
+
+        while True:
+            if self.stop_event.is_set():
+                break
+
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "system", "content": self.messages[0]["content"]},
+                    {"role": "user", "content": redact_text(
+                        final_user_prompt,
+                        enabled=app_settings.get("redaction.enabled", True),
+                        strictness=app_settings.get("redaction.strictness", "normal"),
+                        blocklist_patterns=app_settings.get("redaction.blocklist", []) or [],
+                    )},
+                ],
+                "stream": True,
+                "think": False,
+                "keep_alive": "5m",
+                "options": {
+                    "num_predict": 2048,
+                    "num_ctx": 4096,
+                },
+            }
+
+            sentence_buffer = SentenceBuffer()
+            self.full_response = ""
+            self.think_start.emit(False)
+
+            with http_session.post(f"{ollama_url}/api/chat", json=payload, stream=True) as r:
+                r.raise_for_status()
+                for line in r.iter_lines():
+                    if self.stop_event.is_set():
+                        break
+                    if not line:
+                        continue
+                    try:
+                        chunk = json.loads(line.decode("utf-8"))
+                        msg = chunk.get("message", {})
+                        content = msg.get("content", "")
+                        if not content:
+                            continue
+
+                        self.full_response += content
+                        self.response_chunk.emit(content)
+
+                        if self.is_tts_enabled and not DEBUG_SKIP_TTS:
+                            for s in sentence_buffer.add(content):
+                                tts.queue_sentence(s)
+                    except Exception:
+                        continue
+
+            self.think_end.emit()
+
+            if self.is_tts_enabled and not DEBUG_SKIP_TTS and not self.stop_event.is_set():
+                rem = sentence_buffer.flush()
+                if rem:
+                    tts.queue_sentence(rem)
+
+            last_response = self.full_response
+
+            if validate_citations(last_response, evidence_count):
+                break
+
+            if retries_left <= 0:
+                break
+
+            retries_left -= 1
+            final_user_prompt = (
+                final_user_prompt
+                + "\n\nCITATION VALIDATION FAILED: Fix citations so all [n] tokens refer to a bibliography entry in Sources."
+            )
+
+        self.full_response = last_response or self.full_response
+        self.messages.append({"role": "assistant", "content": self.full_response})
+        if self.current_session_id:
+            history_manager.add_message(self.current_session_id, "assistant", self.full_response)
+
     def _generate_response_with_context(self, func_name: str, result: dict, enable_thinking: bool = False):
         """Generate a Qwen response with function result as context."""
         # Build system message with context
@@ -279,8 +458,30 @@ class ChatWorker(QObject):
             # Action function result
             status = "succeeded" if result.get("success") else "failed"
             
+            # Special handling for MCP tool calls (include tool output)
+            if func_name == "mcp_tool_call" and result.get("success") and result.get("data"):
+                tool_data = result.get("data", {})
+                tool_id = tool_data.get("tool_id", "")
+                tool_name = tool_data.get("tool_name", "")
+                output = tool_data.get("output", "")
+
+                try:
+                    output_str = json.dumps(output, ensure_ascii=False)
+                except Exception:
+                    output_str = str(output)
+
+                MAX_MCP_OUTPUT_CHARS = 6000
+                if len(output_str) > MAX_MCP_OUTPUT_CHARS:
+                    output_str = output_str[:MAX_MCP_OUTPUT_CHARS].rstrip() + "..."
+
+                context_msg = (
+                    f"MCP TOOL RESULT ({tool_id} / {tool_name}):\n"
+                    f"{output_str}\n\n"
+                    f"Use the MCP tool output above to answer the user's question."
+                )
+
             # Special handling for web_search to include full results
-            if func_name == "web_search" and result.get("success") and result.get("data"):
+            elif func_name == "web_search" and result.get("success") and result.get("data"):
                 search_data = result.get("data", {})
                 query = search_data.get("query", "")
                 results = search_data.get("results", [])
@@ -305,8 +506,19 @@ class ChatWorker(QObject):
         if len(self.messages) > max_hist:
             self.messages = [self.messages[0]] + self.messages[-(max_hist-1):]
         
-        # Add context as system message and user's original question
+        # Add context as system message and user's original question (with redaction)
         context_prompt = f"{context_msg}\n\nUser asked: {self.user_text}\n\nRespond naturally and concisely."
+
+        red_enabled = app_settings.get("redaction.enabled", True)
+        red_strictness = app_settings.get("redaction.strictness", "normal")
+        red_blocklist = app_settings.get("redaction.blocklist", []) or []
+
+        context_prompt = redact_text(
+            context_prompt,
+            enabled=red_enabled,
+            strictness=red_strictness,
+            blocklist_patterns=red_blocklist,
+        )
         self.messages.append({'role': 'user', 'content': context_prompt})
         
         self.ui_update.emit()
@@ -381,7 +593,15 @@ class ChatWorker(QObject):
         if len(self.messages) > max_hist:
             self.messages = [self.messages[0]] + self.messages[-(max_hist-1):]
         
-        self.messages.append({'role': 'user', 'content': self.user_text})
+        self.messages.append({
+            'role': 'user',
+            'content': redact_text(
+                self.user_text,
+                enabled=app_settings.get("redaction.enabled", True),
+                strictness=app_settings.get("redaction.strictness", "normal"),
+                blocklist_patterns=app_settings.get("redaction.blocklist", []) or [],
+            ),
+        })
         
         self.ui_update.emit()
         self.status.emit("Generating...")
@@ -467,7 +687,19 @@ class ChatWorker(QObject):
           - No history truncation (file block must not be evicted)
           - Thinking disabled (save VRAM for wider context)
         """
-        self.messages.append({"role": "user", "content": self.user_text})
+        red_enabled = app_settings.get("redaction.enabled", True)
+        red_strictness = app_settings.get("redaction.strictness", "normal")
+        red_blocklist = app_settings.get("redaction.blocklist", []) or []
+
+        self.messages.append({
+            "role": "user",
+            "content": redact_text(
+                self.user_text,
+                enabled=red_enabled,
+                strictness=red_strictness,
+                blocklist_patterns=red_blocklist,
+            ),
+        })
 
         self.ui_update.emit()
         self.status.emit("Reading file…")
@@ -1002,27 +1234,34 @@ class ChatHandlers(QObject):
     def _on_create_agent_from_chat(self, prefill: dict):
         """
         Called when ChatWorker detects a 'create an agent' intent.
-        Delegates to the Agents tab which opens the creation dialog.
-        The prefill dict contains display_name, description, and prompt
-        auto-generated by agent_registry.parse_create_intent().
+        Delegates to the Agent List tab which opens the creation dialog.
         """
         try:
-            # Navigate to Agents tab so user sees the dialog in context
             mw = self.main_window
-            if hasattr(mw, "navigate_to_agents"):
-                mw.navigate_to_agents()
-            # Ask the agents tab to open the pre-filled dialog
-            if hasattr(mw, "agents_tab"):
-                mw.agents_tab.create_agent_from_chat(prefill)
+            if hasattr(mw, "navigate_to_agent_list"):
+                mw.navigate_to_agent_list()
+            if hasattr(mw, "agent_list_tab"):
+                mw.agent_list_tab.create_agent_from_chat(prefill)
         except Exception as e:
             print(f"[ChatHandlers] Could not open Create Agent dialog: {e}")
 
     def _on_agent_result(self, display_name: str, response_text: str):
         """
         Called when a custom agent has finished running via chat command.
-        Adds an informational toast and ensures the response bubble is updated.
+        Updates chat UI with the agent output and saves it to history.
         """
         self.main_window.set_status(f"Agent '{display_name}' done")
+
+        text = (response_text or "").strip()
+        if not text:
+            return
+
+        # Mirror how simple chat responses appear.
+        self.main_window.add_message_bubble("assistant", text)
+
+        # Save to history so the sidebar reflects the run result.
+        if self.current_session_id:
+            history_manager.add_message(self.current_session_id, "assistant", text)
 
     def _on_agent_built(self, file_path: str):
         """
@@ -1035,7 +1274,8 @@ class ChatHandlers(QObject):
             if hasattr(self.main_window, "agents_tab"):
                 self.main_window.agents_tab.refresh()
             # If there's a navigate helper, bring the Agents tab into view
-            if hasattr(self.main_window, "navigate_to_agents"):
-                self.main_window.navigate_to_agents()
+            # Keep routing consistent with moved Create Agent UI
+            if hasattr(self.main_window, "navigate_to_agent_list"):
+                self.main_window.navigate_to_agent_list()
         except Exception as exc:
             print(f"[ChatHandlers] agents_tab refresh failed: {exc}")

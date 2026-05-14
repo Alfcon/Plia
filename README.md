@@ -143,7 +143,7 @@ Verify it worked:
 python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 ```
 
-> 💡 **CPU-only users**: Skip this step. The `requirements.txt` torch lines are commented out by default, so CPU PyTorch will be installed automatically via the `transformers` dependency.
+> 💡 **CPU-only users**: Skip this step. `requirements.txt` currently installs PyTorch using the CUDA wheel index by default (`--extra-index-url .../cu124`). For a true CPU-only install, comment out/remove the CUDA index line (and optionally the `torch` / `torchaudio` lines) before running `pip install -r requirements.txt`, so pip can resolve CPU wheels instead.
 
 ### Step 6 — Install Playwright Browser Binaries (Optional)
 
@@ -197,7 +197,8 @@ The full `requirements.txt` installs these packages. This table shows what each 
 | `requests>=2.32.0` | HTTP API calls (weather, finance, news, llm, …) |
 | `feedparser>=6.0.0` | RSS news feed parsing |
 | `ddgs>=9.13.0` | DuckDuckGo web search (current maintained package) |
-| `openai>=2.0.0` | Optional — used by Agent Builder-generated GPT-4o agents |
+| `openai>=2.0.0` | Installed by default; API key required only for GPT-4o agent runs |
+| `mcp>=1.0.0` | MCP (Model Context Protocol) tool integration (used when MCP servers are available) |
 | `psutil>=7.0.0` | System and process monitoring |
 | `pynvml>=13.0.0` | NVIDIA GPU VRAM monitoring (title bar) |
 | `PyYAML>=6.0.0` | YAML config for multi-agent system (`core/multi_agent.py`) |
@@ -210,6 +211,12 @@ The full `requirements.txt` installs these packages. This table shows what each 
 | `pypdf>=5.0.0` | Fallback PDF reader (Reading Files tab) |
 | `python-docx>=1.1.0` | DOCX paragraph extraction (Reading Files tab) |
 | `pandas>=2.0.0` | CSV / XLSX tabular preview (Reading Files tab) |
+
+### Optional — MCP Integration (Advanced)
+
+Plia includes an **MCP tool-calling bridge** (via `mcp>=1.0.0`). If you run compatible MCP servers, Plia can discover their tool catalog and route “tool calls” through the same FunctionGemma router/executor pipeline.
+
+If you don’t use MCP servers, you can ignore this feature.
 
 ### Optional — Windows-only Extras
 
@@ -374,6 +381,31 @@ Search query and task details are requested at run-time, not at creation time.
 - Open the **Active Agents** tab and click **Run** next to the agent name
 - Or say *"Jarvis, run the \<agent name\> agent"*
 - Standalone: `python "%USERPROFILE%\.plia_ai\agents\<agent_name>.py"`
+
+### Marketplace-style (Internet Search) Agents
+
+Plia supports a “marketplace-like” workflow for agents, using Internet Search Agents that are **created and stored locally** in your agent registry.
+
+**What they do**
+- An **Internet Search Agent** searches the internet (DuckDuckGo via `ddgs`)
+- Then uses your **OpenAI GPT-4o** (requires an OpenAI API key) to process results for your task
+
+**Workflow**
+1. Open **Active Agents** (left sidebar).
+2. Click **Create Agent**.
+3. Provide an **OpenAI API Key** in the dialog.
+   - Leaving it blank creates a local Ollama-based agent instead.
+4. Create the agent.
+5. Click **Run**:
+   - For Internet Search Agents, you’ll be prompted for:
+     - **Search Query**
+     - **Task**
+6. The agent will appear in **Agent List** (this is the “marketplace shelf” view).
+   - From **Agent List**, clicking **Run** will again prompt for **Search Query** + **Task** and launch the agent with the correct runtime args.
+
+**Note**
+- Plia does **not** currently have a one-click “skills store” that downloads/install arbitrary third-party agents automatically.
+- Instead, you use web search + agent generation to create your own reusable local agents.
 
 ### Agent Builder Requirements
 

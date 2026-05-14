@@ -1,6 +1,6 @@
 import threading
 import sys
-from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QSizePolicy
+from PySide6.QtWidgets import QApplication, QWidget, QVBoxLayout, QSizePolicy, QLabel
 from PySide6.QtCore import Qt, QSize, QThread
 from PySide6.QtGui import QIcon
 
@@ -81,11 +81,14 @@ class MainWindow(FluentWindow):
         self.chat_tab = None
         self.planner_tab = None
         self.briefing_view = None
+        self.agents_tab = None
+        self.agent_list_tab = None
         self._weather_window = None  # Floating weather window
         self.search_browser = SearchBrowserWindow(self)  # Floating search results browser
         
         # Flag to prevent duplicate signal connections
         self._chat_signals_connected = False
+        self._agent_list_signals_connected = False
 
         self._init_window()
         self._connect_signals()
@@ -456,8 +459,106 @@ class MainWindow(FluentWindow):
         self.handlers.load_session(session_id)
     
     def _init_background(self):
-        """Initialize app status."""
+        """Initialize app status + background schedulers."""
         self.set_status("Ready")
+
+        # ── Morning digest scheduler (Priority 4) ─────────────────────────
+        # Runs daily at settings.morning_digest.time (local time, HH:MM).
+        self._morning_digest_last_run_date = None
+
+        from PySide6.QtCore import QTimer
+        import datetime
+
+        self._digest_timer = QTimer(self)
+        self._digest_timer.setInterval(30_000)  # check every 30s
+        self._digest_timer.timeout.connect(self._check_morning_digest)
+        self._digest_timer.start()
+
+        # initial check shortly after UI is ready
+        QTimer.singleShot(2_000, self._check_morning_digest)
+
+    def _check_morning_digest(self) -> None:
+        try:
+            enabled = app_settings.get("morning_digest.enabled", True)
+            if not enabled:
+                return
+
+            time_str = app_settings.get("morning_digest.time", "08:00")
+            use_ai = app_settings.get("morning_digest.use_ai", True)
+            speak = app_settings.get("morning_digest.speak", True)
+
+            # Parse HH:MM
+            try:
+                hh_s, mm_s = (time_str or "08:00").split(":")
+                target_h = int(hh_s)
+                target_m = int(mm_s)
+            except Exception:
+                target_h, target_m = 8, 0
+
+            now = datetime.datetime.now()
+            today = now.date()
+
+            if self._morning_digest_last_run_date == today:
+                return
+
+            # Run once the current time is past the target time.
+            if (now.hour, now.minute) < (target_h, target_m):
+                return
+
+            # Mark immediately so we don't double-fire while loading
+            self._morning_digest_last_run_date = today
+
+            from core.news import news_manager
+
+            self.set_status("Morning digest: fetching…")
+
+            def _run_digest():
+                digest_items = news_manager.get_briefing(use_ai=use_ai)
+                # Keep it short for TTS/log.
+                top = (digest_items or [])[:6]
+
+                if top:
+                    lines = []
+                    for idx, item in enumerate(top, 1):
+                        title = (item.get("title") or "").strip()
+                        cat = (item.get("category") or "").strip()
+                        src = (item.get("source") or "").strip()
+                        if cat and src:
+                            lines.append(f"{idx}. {title} ({cat} — {src})")
+                        else:
+                            lines.append(f"{idx}. {title}")
+                    digest_text = "Morning digest: " + " ".join(lines)
+                else:
+                    digest_text = "Morning digest: no news items available right now."
+
+                def _post_to_ui():
+                    try:
+                        if self.dashboard_view:
+                            self.dashboard_view.add_system_message(digest_text, "plia")
+                    except Exception:
+                        pass
+                    try:
+                        if speak:
+                            tts.queue_sentence(digest_text)
+                    except Exception:
+                        pass
+                    try:
+                        self.set_status("Ready")
+                    except Exception:
+                        pass
+
+                from PySide6.QtCore import QTimer as _QTimer
+                _QTimer.singleShot(0, _post_to_ui)
+
+            threading.Thread(target=_run_digest, daemon=True, name="MorningDigest").start()
+
+        except Exception:
+            # Never break the UI loop; just fail quietly.
+            try:
+                self.set_status("Ready")
+            except Exception:
+                pass
+            return
     
     def _init_system_monitor(self):
         """Add system monitor widget to the title bar. Also replaces title text with logo."""
@@ -533,9 +634,36 @@ class MainWindow(FluentWindow):
         widget = self.stackedWidget.widget(index)
         
         if isinstance(widget, LazyTab):
-            real_widget = widget.initialize()
             obj_name = widget.objectName()
-            
+            try:
+                real_widget = widget.initialize()
+            except Exception as e:
+                import traceback
+                print(f"[App] Failed to initialise lazy tab '{obj_name}': {e}")
+                traceback.print_exc()
+
+                # Replace placeholder content with the error so UI isn't "blank"
+                try:
+                    if hasattr(widget, "layout") and widget.layout:
+                        # remove existing children
+                        for i in reversed(range(widget.layout.count())):
+                            item = widget.layout.itemAt(i)
+                            w = item.widget() if item else None
+                            if w is not None:
+                                w.setParent(None)
+
+                        err_lbl = QLabel(
+                            f"Settings/Tab failed to load.\n\n{type(e).__name__}: {e}",
+                            widget,
+                        )
+                        err_lbl.setWordWrap(True)
+                        widget.layout.addWidget(err_lbl)
+                except Exception:
+                    pass
+
+                self.set_status("Tab init failed")
+                return
+
             # Map lazy widget to attribute
             if obj_name == "chatInterface":
                 self.chat_tab = real_widget
@@ -545,9 +673,14 @@ class MainWindow(FluentWindow):
             elif obj_name == "briefingInterface":
                 self.briefing_view = real_widget
             elif obj_name == "agentsInterface":
-                pass  # AgentsTab self-initialises
+                self.agents_tab = real_widget
             elif obj_name == "agentListInterface":
-                pass  # Agent List self-initialises
+                self.agent_list_tab = real_widget
+                if not self._agent_list_signals_connected:
+                    self._agent_list_signals_connected = True
+                    self.agent_list_tab.agent_output_ready.connect(
+                        self.handlers._on_agent_result
+                    )
             elif obj_name == "modelBrowserInterface":
                 pass  # ModelBrowserTab self-initialises
                 
@@ -560,6 +693,20 @@ class MainWindow(FluentWindow):
             if widget.objectName() == route_key:
                 self.switchTo(widget)
                 return
+    
+    def navigate_to_agents(self):
+        """Navigate to the Active Agents tab (lazy init if needed)."""
+        widget = self.agents_lazy.get_widget()
+        if widget is None:
+            widget = self.agents_lazy.initialize()
+        self.switchTo(self.agents_lazy)
+
+    def navigate_to_agent_list(self):
+        """Navigate to the Agent List tab (lazy init if needed)."""
+        widget = self.agent_list_lazy.get_widget()
+        if widget is None:
+            widget = self.agent_list_lazy.initialize()
+        self.switchTo(self.agent_list_lazy)
     
     # --- Public Methods for Handlers (Proxy/Facade) ---
     # These now check if the tab exists before calling
@@ -624,11 +771,17 @@ class MainWindow(FluentWindow):
         self.set_status("Ready")
 
     def _on_voice_refresh_agents(self):
-        """Refresh the Active Agents tab when triggered by voice command."""
+        """Refresh agent-related UI when triggered by voice command."""
         try:
-            widget = self.agents_lazy.get_widget()
-            if widget is not None:
-                widget.refresh()
+            # Active Agents live status
+            agents_widget = self.agents_lazy.get_widget()
+            if agents_widget is not None:
+                agents_widget.refresh()
+
+            # Agent List custom agents
+            agent_list_widget = self.agent_list_lazy.get_widget()
+            if agent_list_widget is not None:
+                agent_list_widget.refresh()
         except Exception as e:
             print(f"[App] _on_voice_refresh_agents error: {e}")
 

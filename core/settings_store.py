@@ -59,6 +59,23 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
         "max_history":      20,
         "auto_fetch_news":  True,
     },
+
+    # ── Privacy / Redaction ─────────────────────────────────────────────
+    "redaction": {
+        "enabled": True,
+        "strictness": "normal",  # "light" | "normal" | "strict"
+        "blocklist": [],         # list[str] of regex or substring patterns
+    },
+
+    # ── Morning Digest (daily scheduled briefing) ───────────────────────
+    "morning_digest": {
+        "enabled": True,
+        "time": "08:00",      # local time HH:MM (24h)
+        "use_ai": True,       # curated via Ollama/local LLM
+        "speak": True,        # speak a short summary via TTS
+        "categories": ["Technology", "Science", "World", "Space", "Top Stories"],
+    },
+
     # ── Weather ──────────────────────────────────────────────────────────
     "weather": {
         "latitude":         -32.1151,

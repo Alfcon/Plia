@@ -21,12 +21,14 @@
 #   a CPU-only build will be pulled in automatically by transformers.
 #
 # IMPORTANT: The OpenAI package (see Web & API section below) is
-#   only required for Agent Builder-generated custom agents that
-#   opt-in to GPT-4o + Internet Search. Get a key from
-#   platform.openai.com and set it in the Plia Settings tab.
-#   Plia core (chat, voice, weather, web search, briefing,
-#   planner, agents, reading files, etc.) does NOT use OpenAI —
-#   everything runs locally on Ollama.
+#   installed by default, but Plia core (chat, voice, weather,
+#   web search, briefing, planner, agents, reading files, etc.)
+#   does NOT use OpenAI — everything runs locally on Ollama.
+#
+#   An OpenAI API key is only required for Agent Builder-generated
+#   custom agents that opt-in to GPT-4o + Internet Search.
+#   Get a key from platform.openai.com and set it in the Plia
+#   Settings tab under "OpenAI API Key".
 # =====================================================
 
 # -----------------------------------------------------
@@ -115,6 +117,12 @@ openai>=2.0.0                  # OpenAI API — used by Agent Builder-generated
                                # it — install only if you build OpenAI agents.
 
 # -----------------------------------------------------
+# MCP (Model Context Protocol) client SDK
+# -----------------------------------------------------
+mcp>=1.0.0                      # Official MCP Python SDK (servers + clients; optional feature)
+                               # Used by Plia’s MCP tool-calling bridge when MCP servers are available.
+
+# -----------------------------------------------------
 # System Utilities
 # -----------------------------------------------------
 psutil>=7.0.0                  # System and process monitoring
@@ -201,5 +209,5 @@ pandas>=2.0.0                  # CSV / XLSX tabular preview
 # -----------------------------------------------------
 # Development (Optional)
 # -----------------------------------------------------
-# pytest>=7.0.0                 # Testing framework
-# black>=23.0.0                 # Code formatting
+pytest>=7.0.0                  # Testing framework
+black>=23.0.0                  # Code formatting

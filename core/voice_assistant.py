@@ -14,12 +14,14 @@ from core.llm import route_query, should_bypass_router, http_session
 from core.model_persistence import ensure_qwen_loaded, mark_qwen_used, unload_qwen
 from core.tts import tts, SentenceBuffer
 from core.function_executor import executor as function_executor
+from core.redaction import redact_text
 
 # Functions that are actions (not passthrough)
 ACTION_FUNCTIONS = {
     "control_light", "set_timer", "set_alarm",
     "create_calendar_event", "add_task", "web_search",
     "control_desktop",
+    "mcp_tool_call",
 }
 
 
@@ -593,6 +595,27 @@ class VoiceAssistant(QObject):
                         news_titles = [item.get('title', '')[:50] for item in news_items[:3]]
                         context_parts.append(f"Top news: {', '.join(news_titles)}")
                 context_msg = "SYSTEM CONTEXT:\n" + "\n".join(context_parts) if context_parts else "No system information available."
+            # Enhanced context for MCP tool calls
+            elif func_name == "mcp_tool_call" and success and result.get("data"):
+                tool_data = result.get("data", {})
+                tool_id = tool_data.get("tool_id", "")
+                tool_name = tool_data.get("tool_name", "")
+                output = tool_data.get("output", "")
+
+                try:
+                    output_str = json.dumps(output, ensure_ascii=False)
+                except Exception:
+                    output_str = str(output)
+
+                MAX_MCP_OUTPUT_CHARS = 6000
+                if len(output_str) > MAX_MCP_OUTPUT_CHARS:
+                    output_str = output_str[:MAX_MCP_OUTPUT_CHARS].rstrip() + "..."
+
+                context_msg = (
+                    f"MCP TOOL RESULT ({tool_id} / {tool_name}):\n"
+                    f"{output_str}\n\n"
+                    f"Use the MCP tool output above to answer the user's request."
+                )
             else:
                 context_msg = f"Function {func_name} executed. Success: {success}. Result: {message}"
             
@@ -601,8 +624,19 @@ class VoiceAssistant(QObject):
             if len(self.messages) > max_hist:
                 self.messages = [self.messages[0]] + self.messages[-(max_hist-1):]
             
-            # Add context as user message
+            # Add context as user message (with redaction)
             context_prompt = f"{context_msg}\n\nUser asked: {user_text}\n\nRespond naturally and concisely."
+
+            red_enabled = app_settings.get("redaction.enabled", True)
+            red_strictness = app_settings.get("redaction.strictness", "normal")
+            red_blocklist = app_settings.get("redaction.blocklist", []) or []
+
+            context_prompt = redact_text(
+                context_prompt,
+                enabled=red_enabled,
+                strictness=red_strictness,
+                blocklist_patterns=red_blocklist,
+            )
             self.messages.append({'role': 'user', 'content': context_prompt})
             
             # Prepare payload — read model from settings so user changes take effect immediately
@@ -676,7 +710,17 @@ class VoiceAssistant(QObject):
             if len(self.messages) > max_hist:
                 self.messages = [self.messages[0]] + self.messages[-(max_hist-1):]
             
-            self.messages.append({'role': 'user', 'content': user_text})
+            red_enabled = app_settings.get("redaction.enabled", True)
+            red_strictness = app_settings.get("redaction.strictness", "normal")
+            red_blocklist = app_settings.get("redaction.blocklist", []) or []
+
+            user_text_redacted = redact_text(
+                user_text,
+                enabled=red_enabled,
+                strictness=red_strictness,
+                blocklist_patterns=red_blocklist,
+            )
+            self.messages.append({'role': 'user', 'content': user_text_redacted})
             
             # Prepare payload — read model from settings so user changes take effect immediately
             _chat_model = app_settings.get("models.chat", RESPONDER_MODEL)

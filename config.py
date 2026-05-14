@@ -25,6 +25,16 @@ LOCAL_ROUTER_PATH = "./merged_model"
 HF_ROUTER_REPO = "nlouis/pocket-ai-router"  # Hugging Face repo for auto-download
 MAX_HISTORY = 20
 
+# --- Multi-hop research with citations defaults ---
+# Triggered by ChatWorker when the user text contains specific keywords
+MULTIHOP_DEFAULT_HOPS = 3
+MULTIHOP_RESULTS_PER_HOP = 5
+MULTIHOP_MAX_SOURCES = 15
+MULTIHOP_SNIPPET_CHARS = 250
+MULTIHOP_PLANNER_NUM_PREDICT = 256
+MULTIHOP_MAX_SUBQUERIES = None  # set to an int to cap planner output if needed
+MULTIHOP_FINAL_CITATION_MAX_RETRIES = 1
+
 # --- TTS Configuration ---
 TTS_VOICE_MODEL = "en_GB-northern_english_male-medium"
 TTS_MODEL_URL = "https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_GB/northern_english_male/medium/en_GB-northern_english_male-medium.onnx"

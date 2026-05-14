@@ -307,6 +307,21 @@ def network_tools(action: str, target: str = None) -> str:
     return "result"
 
 
+def mcp_tool_call(tool_id: str, arguments: str = "{}") -> str:
+    """
+    Call an MCP tool exposed by an MCP server.
+
+    This is a generic MCP bridge used by Plia:
+    - tool_id identifies the server + tool in the form "<serverId>:<toolName>"
+    - arguments is a JSON string of tool arguments matching the MCP tool input schema
+
+    Args:
+        tool_id: "<serverId>:<toolName>"
+        arguments: JSON string, e.g. {"query":"Python"} (default "{}")
+    """
+    return "result"
+
+
 # Pre-compute tool schemas at module level (get_json_schema is torch-free)
 TOOLS = [
     get_json_schema(set_timer),
@@ -329,6 +344,7 @@ TOOLS = [
     get_json_schema(translate_text),
     get_json_schema(control_media),
     get_json_schema(network_tools),
+    get_json_schema(mcp_tool_call),
 ]
 
 SYSTEM_MSG = "You are a model that can do function calling with the following functions"
@@ -341,6 +357,7 @@ VALID_FUNCTIONS = {
     "system_command", "manage_notes", "send_email", "read_emails",
     "clipboard_action", "file_operations", "get_stock_price",
     "convert_currency", "translate_text", "control_media", "network_tools",
+    "mcp_tool_call",
 }
 
 
@@ -441,8 +458,18 @@ class FunctionGemmaRouter:
 
         with torch.inference_mode():
             # Build messages
+            dev_content = SYSTEM_MSG
+            try:
+                from core.mcp_client import mcp_client
+                if mcp_client.is_ready():
+                    catalog = mcp_client.get_tool_catalog_text(user_prompt)
+                    if catalog:
+                        dev_content = dev_content + "\n\n" + catalog
+            except Exception:
+                pass
+
             messages = [
-                {"role": "developer", "content": SYSTEM_MSG},
+                {"role": "developer", "content": dev_content},
                 {"role": "user", "content": user_prompt},
             ]
 

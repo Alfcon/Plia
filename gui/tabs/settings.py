@@ -692,8 +692,20 @@ class SettingsTab(ScrollArea):
         self.model_fetcher = None
         self._available_models = []
 
-        self._init_ui()
-        self._fetch_models()
+        try:
+            self._init_ui()
+            self._fetch_models()
+        except Exception as e:
+            # If anything goes wrong during tab construction, show an error
+            # instead of leaving the user with a blank Settings page.
+            import traceback
+            err = f"Settings failed to load: {e}"
+            print("[SettingsTab] " + err)
+            print(traceback.format_exc())
+
+            error_label = QLabel(err, self.scrollWidget)
+            error_label.setWordWrap(True)
+            self.expandLayout.addWidget(error_label)
 
     def _init_ui(self):
 
@@ -909,7 +921,83 @@ class SettingsTab(ScrollArea):
             self.general_group
         )
         self.general_group.addSettingCard(self.auto_news_card)
+
+        # ── Privacy & Redaction ────────────────────────────────────────────────
+        self.privacy_group = SettingCardGroup("Privacy & Redaction", self.scrollWidget)
+
+        self.redaction_enabled_card = SwitchCard(
+            FIF.LOCK,
+            "Redact Sensitive Data",
+            "Redact emails / phone numbers / secrets before sending text to the LLM",
+            "redaction.enabled",
+            self.privacy_group
+        )
+        self.privacy_group.addSettingCard(self.redaction_enabled_card)
+
+        self.redaction_strictness_card = ComboBoxCard(
+            FIF.LOCK,
+            "Redaction Strictness",
+            "Higher = more aggressive redaction",
+            ["light", "normal", "strict"],
+            "redaction.strictness",
+            self.privacy_group
+        )
+        self.privacy_group.addSettingCard(self.redaction_strictness_card)
+
+        self.redaction_blocklist_card = TextInputCard(
+            FIF.EDIT,
+            "Blocklist Patterns (regex / substrings)",
+            "Semicolon-separated list of regex patterns or substrings to redact (e.g. APIKEY=...; MyCompanySecret)",
+            "redaction.blocklist",
+            "",
+            self.privacy_group
+        )
+        self.privacy_group.addSettingCard(self.redaction_blocklist_card)
+
         self.expandLayout.addWidget(self.general_group)
+        self.expandLayout.addWidget(self.privacy_group)
+
+        # ── Morning Digest ───────────────────────────────────────────────────
+        self.digest_group = SettingCardGroup("Morning Digest", self.scrollWidget)
+
+        self.digest_enabled_card = SwitchCard(
+            FIF.SYNC,
+            "Enable Morning Digest",
+            "Auto-generate a daily news briefing and show/speak it",
+            "morning_digest.enabled",
+            self.digest_group
+        )
+        self.digest_group.addSettingCard(self.digest_enabled_card)
+
+        self.digest_time_card = TextInputCard(
+            FIF.TIME,
+            "Digest Time (HH:MM)",
+            "Local time in 24h format (e.g. 08:00)",
+            "morning_digest.time",
+            "08:00",
+            self.digest_group
+        )
+        self.digest_group.addSettingCard(self.digest_time_card)
+
+        self.digest_use_ai_card = SwitchCard(
+            FIF.ROBOT,
+            "Use AI Curation",
+            "Curate titles via local Ollama LLM (falls back to raw if needed)",
+            "morning_digest.use_ai",
+            self.digest_group
+        )
+        self.digest_group.addSettingCard(self.digest_use_ai_card)
+
+        self.digest_speak_card = SwitchCard(
+            FIF.SPEAKER,
+            "Speak Digest",
+            "Read the digest aloud via TTS after it’s generated",
+            "morning_digest.speak",
+            self.digest_group
+        )
+        self.digest_group.addSettingCard(self.digest_speak_card)
+
+        self.expandLayout.addWidget(self.digest_group)
 
         # ── News Cache Management ─────────────────────────────────────────────
         self.news_group = SettingCardGroup("News Cache", self.scrollWidget)
