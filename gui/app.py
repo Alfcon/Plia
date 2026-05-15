@@ -840,11 +840,34 @@ class MainWindow(FluentWindow):
         """Handle application close event."""
         print("[App] Closing application, unloading models...")
         self.set_status("Closing...")
-        
+
+        # ── Stop long-lived QThreads before Qt's atexit destroys them ───────
+        # Without this, the dashboard's SystemMonitor worker thread (running
+        # the whole app lifetime) is GC'd while still alive, producing
+        # "QThread: Destroyed while thread '...' is still running" + SIGABRT.
+        try:
+            sys_mon = getattr(self.dashboard_view, "sys_monitor", None)
+            if sys_mon is not None and hasattr(sys_mon, "cleanup"):
+                sys_mon.cleanup()
+        except Exception as exc:
+            print(f"[App] sys_monitor cleanup failed: {exc}")
+
+        # AgentStatusThread fires on Active Agents tab refresh; usually short
+        # but join it defensively if mid-flight.
+        try:
+            agents_tab = self.agents_tab
+            if agents_tab is not None and getattr(agents_tab, "_thread", None) is not None:
+                t = agents_tab._thread
+                if t.isRunning():
+                    t.quit()
+                    t.wait(2000)
+        except Exception as exc:
+            print(f"[App] agents_tab thread cleanup failed: {exc}")
+
         # Stop voice assistant if it was started
         if VOICE_ASSISTANT_ENABLED and app_settings.get("voice.auto_start", True):
             voice_assistant.stop()
-        
+
         unload_all_models(sync=True)
         event.accept()
 

@@ -460,6 +460,7 @@ class SystemMonitorPanel(QFrame):
 
     def _start_worker(self) -> None:
         self._thread = QThread(self)
+        self._thread.setObjectName("SystemMonitor")
         self._worker = _MonitorWorker()
         self._worker.moveToThread(self._thread)
         self._worker.stats_ready.connect(self._on_stats)
