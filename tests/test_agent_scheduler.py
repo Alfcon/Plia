@@ -103,3 +103,67 @@ def test_disarm_stops_timer(tmp_path):
     sched.disarm("c")
 
     assert created["c"].cancelled is True
+
+
+def test_on_tick_launches_run_and_reschedules(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+
+    launched = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            launched.append({"agent": agent, "task": task})
+            return "task-1"
+
+    sched = AgentScheduler(
+        state_store=store,
+        task_manager=FakeTaskManager(),
+        runner_builder=lambda state: (lambda **kw: None),
+        instance_provider=lambda role_id: f"instance-{role_id}",
+        now_provider=fixed_clock(now),
+        timer_factory=factory,
+    )
+
+    state = scheduled_state(role_id="t1")
+    store.upsert(state)
+    sched.arm(state)
+
+    created["t1"].trigger()  # simulate the timer firing
+
+    assert len(launched) == 1
+    assert launched[0]["agent"] == "instance-t1"
+    refreshed = store.get("t1")
+    assert refreshed.runs == 1
+    assert refreshed.last_fire_at == now.isoformat(timespec="seconds")
+    # a new timer was armed for the next tick
+    assert created["t1"].armed_ms == 3600 * 1000
+
+
+def test_on_tick_skips_when_run_in_flight(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+
+    launched = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            launched.append(1)
+            return "task-x"  # never calls on_complete -> stays "in flight"
+
+    sched = AgentScheduler(
+        state_store=store, task_manager=FakeTaskManager(),
+        runner_builder=lambda state: (lambda **kw: None),
+        instance_provider=lambda role_id: object(),
+        now_provider=fixed_clock(now), timer_factory=factory,
+    )
+    state = scheduled_state(role_id="t2")
+    store.upsert(state)
+    sched.arm(state)
+
+    created["t2"].trigger()  # first tick -> launches
+    created["t2"].trigger()  # second tick while first still in flight -> skipped
+
+    assert len(launched) == 1

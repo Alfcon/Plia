@@ -181,3 +181,68 @@ class AgentScheduler(QObject):
         timer = self._timers.pop(role_id, None)
         if timer is not None:
             timer.stop()
+
+    # ── firing ────────────────────────────────────────────────────────────
+    def _on_tick(self, role_id: str) -> None:
+        state = self._store.get(role_id)
+        if state is None or state.status != "active":
+            return
+
+        # skip overlapping runs — one run per agent at a time
+        if role_id in self._in_flight:
+            self._reschedule(state)
+            return
+
+        self._launch_run(state)
+        self._reschedule(state)
+
+    def _launch_run(self, state) -> None:
+        instance = self._instance_provider(state.role_id)
+        if instance is None:
+            return
+        runner = self._runner_builder(state)
+        context = ""
+        if state.history:
+            context = str(state.history[-1].get("summary", ""))
+
+        self._in_flight.add(state.role_id)
+        now = self._now()
+        state.last_fire_at = now.isoformat(timespec="seconds")
+        state.runs += 1
+        self._store.upsert(state)
+
+        self._task_manager.launch(
+            agent=instance,
+            task=str(getattr(instance, "current_task", None) or state.display_name),
+            context=context,
+            runner=runner,
+            on_complete=lambda record, rid=state.role_id: self._on_run_complete(rid, record),
+        )
+
+    def _reschedule(self, state) -> None:
+        """Arm the next tick for a scheduled/quota agent."""
+        if state.trigger == "on_demand":
+            return
+        if state.status != "active":
+            return
+        now = self._now()
+        if state.trigger == "scheduled":
+            cadence = state.cadence or {"interval_sec": 3600, "anchor_iso": None}
+        else:
+            cadence = {"interval_sec": QUOTA_INTERVAL_SEC, "anchor_iso": None}
+        next_dt = compute_next_fire(cadence, now)
+        delay_ms = max(0, int((next_dt - now).total_seconds() * 1000))
+        state.next_fire_at = next_dt.isoformat(timespec="seconds")
+        self._store.upsert(state)
+
+        self.disarm(state.role_id)
+        timer = self._timer_factory(state.role_id,
+                                    lambda rid=state.role_id: self._on_tick(rid))
+        self._timers[state.role_id] = timer
+        timer.start(delay_ms)
+
+    def _on_run_complete(self, role_id: str, record: Dict) -> None:
+        """Called (from a worker thread) when AgentTaskManager finishes a run."""
+        self._in_flight.discard(role_id)
+        # Reporting + quota handling are added in Task 6.
+        self._handle_completion(role_id, record)
