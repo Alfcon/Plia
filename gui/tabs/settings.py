@@ -926,7 +926,7 @@ class SettingsTab(ScrollArea):
         self.privacy_group = SettingCardGroup("Privacy & Redaction", self.scrollWidget)
 
         self.redaction_enabled_card = SwitchCard(
-            FIF.LOCK,
+            FIF.CERTIFICATE,
             "Redact Sensitive Data",
             "Redact emails / phone numbers / secrets before sending text to the LLM",
             "redaction.enabled",
@@ -935,7 +935,7 @@ class SettingsTab(ScrollArea):
         self.privacy_group.addSettingCard(self.redaction_enabled_card)
 
         self.redaction_strictness_card = ComboBoxCard(
-            FIF.LOCK,
+            FIF.CERTIFICATE,
             "Redaction Strictness",
             "Higher = more aggressive redaction",
             ["light", "normal", "strict"],
@@ -970,7 +970,7 @@ class SettingsTab(ScrollArea):
         self.digest_group.addSettingCard(self.digest_enabled_card)
 
         self.digest_time_card = TextInputCard(
-            FIF.TIME,
+            FIF.DATE_TIME,
             "Digest Time (HH:MM)",
             "Local time in 24h format (e.g. 08:00)",
             "morning_digest.time",
@@ -989,7 +989,7 @@ class SettingsTab(ScrollArea):
         self.digest_group.addSettingCard(self.digest_use_ai_card)
 
         self.digest_speak_card = SwitchCard(
-            FIF.SPEAKER,
+            FIF.SPEAKERS,
             "Speak Digest",
             "Read the digest aloud via TTS after it’s generated",
             "morning_digest.speak",
