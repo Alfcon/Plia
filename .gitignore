@@ -98,3 +98,7 @@ htmlcov/
 
 # ----- Hugging Face cache -----
 .cache/
+
+# ----- Claude Code local state (worktrees, settings) -----
+.claude/
+.remember/
