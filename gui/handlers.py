@@ -16,6 +16,7 @@ from core.settings_store import settings as app_settings
 from core.function_executor import executor as function_executor
 from core.agent_registry import agent_registry
 from core.agent_builder import detect_build_intent, build_agent
+from core.agent_creator import parse_intent as parse_live_agent_intent
 from core.redaction import redact_text
 
 # Functions that are actions (not passthrough)
@@ -60,6 +61,7 @@ class ChatWorker(QObject):
     # Agent builder signals — carries file_path when a real .py agent is written
     build_agent_signal  = Signal(str)   # file_path of the newly built agent
     build_status_signal = Signal(str)   # streaming status during build
+    live_agent_wizard_signal = Signal(str)   # task string for the live-agent wizard
     
     def __init__(self, user_text: str, messages: list, is_tts_enabled: bool, 
                  current_session_id: str, stop_event):
@@ -114,8 +116,21 @@ class ChatWorker(QObject):
                 return
 
             # ── Dynamic Agent Creation ────────────────────────────────────
-            # Check if the user is asking to create a custom agent BEFORE
-            # sending to the Function Gemma router. This avoids misrouting.
+            # Check if the user is asking to create an agent BEFORE sending to
+            # the Function Gemma router. A "live agent" request (schedulable
+            # worker) goes through the new creation wizard; the legacy
+            # prompt-only path stays as a fallback.
+            live_task = parse_live_agent_intent(self.user_text)
+            if live_task:
+                self.status.emit("Starting agent creation wizard…")
+                self.live_agent_wizard_signal.emit(live_task)
+                self.simple_response.emit(
+                    f"Let's set up a live agent to {live_task}. "
+                    "I've opened the creation wizard — it'll ask a few quick "
+                    "questions about scheduling and notifications."
+                )
+                return
+
             intent = agent_registry.parse_create_intent(self.user_text)
             if intent:
                 self.status.emit("Creating agent…")
