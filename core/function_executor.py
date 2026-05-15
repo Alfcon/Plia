@@ -131,6 +131,8 @@ class FunctionExecutor:
                 return self._mcp_tool_call(params)
             elif func_name == "http_get":
                 return self._http_get(params)
+            elif func_name == "list_plia_features":
+                return self._list_plia_features(params)
             else:
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
@@ -1073,6 +1075,102 @@ class FunctionExecutor:
             }
         except Exception as e:
             return {"success": False, "message": f"HTTP GET failed: {e}", "data": None}
+
+    def _list_plia_features(self, params: Dict) -> Dict:
+        """Authoritative inventory of Plia's capabilities — for live agents
+        that compare Plia against external projects (e.g. Jarvis-style repos).
+
+        The `tools` list is auto-discovered from this class's dispatch chain
+        so it stays in sync when new tools are added. The `capabilities` map
+        is curated text describing higher-level features that aren't single
+        tools (voice pipeline, multi-agent orchestration, UI surfaces, etc.).
+        """
+        import inspect
+        import re
+
+        try:
+            dispatch_src = inspect.getsource(self.execute)
+        except (OSError, TypeError):
+            dispatch_src = ""
+        tools = sorted(set(re.findall(r'func_name\s*==\s*"(\w+)"', dispatch_src)))
+        # list_plia_features itself shouldn't appear as an "external" tool
+        tools = [t for t in tools if t != "list_plia_features"]
+
+        capabilities = {
+            "voice_pipeline": [
+                "Wake-word activation via Porcupine (jarvis / terminator / computer / ...)",
+                "Speech-to-text via RealTimeSTT + Whisper (CUDA if available)",
+                "Text-to-speech via Piper (multiple voices, length/volume control)",
+                "Multi-turn wizard mode (STT primed for follow-up — no repeated wake word)",
+            ],
+            "live_agents": [
+                "Scheduled / on-demand / quota triggers",
+                "Tool-loop executor (LLM-driven, calls allowed tools via Ollama)",
+                "Script executor (runs a generated .py file as a subprocess)",
+                "Multi-channel notify: tts, chat, comm_log, file, toast_card (combinable)",
+                "Per-agent chat session (results land in their own sidebar entry)",
+                "Per-agent run log at ~/.plia_ai/agent_results/<id>.log",
+                "Quota auto-termination + run history (50-entry FIFO cap)",
+                "Missed-tick catch-up on startup for persistent scheduled agents",
+                "Hallucination guard: forces tool use before answering",
+            ],
+            "multi_agent_system": [
+                "Role hierarchy (primary + sub-agents) loaded from YAML",
+                "AgentTaskManager with on_complete callbacks",
+                "ResultDispatcher fan-out via Qt signals",
+                "Process-wide singleton runtime (one store, one scheduler)",
+            ],
+            "ui": [
+                "Active Agents tab with Run/Stop/Edit/Delete + history per agent",
+                "Agent List tab showing live + custom agents",
+                "Dashboard with communication log, system monitor, agent cards",
+                "Settings tab with model picker, voice config, search backend",
+                "Chat with persistent SQLite history + session sidebar",
+                "Briefing tab (RSS / morning digest), Planner (calendar, tasks, timer, alarm)",
+                "Model Browser (hardware-aware LLM recommendations)",
+            ],
+            "search": [
+                "Brave Search API (primary if key configured)",
+                "DuckDuckGo via ddgs (fallback, no key needed)",
+                "Backend selectable in Settings → Web Search",
+            ],
+            "models": [
+                "Local LLM via Ollama (default qwen3:8b for tool use)",
+                "Function-Gemma router for intent classification",
+                "qwen2.5vl:7b vision model for desktop / screenshot agent",
+                "Whisper-base STT, Piper TTS",
+            ],
+            "integrations": [
+                "Email read/send via IMAP/SMTP",
+                "Calendar event creation, task list, notes",
+                "Weather (BOM AU + Open-Meteo)",
+                "News via RSS feeds",
+                "Stocks, currency conversion, translation",
+                "Screen control / desktop agent (VLM screenshots + mouse/keyboard)",
+                "MCP (Model Context Protocol) tool calls via mcp_tool_call",
+            ],
+            "privacy_and_local": [
+                "Local-first: runs on user's machine, no required cloud calls",
+                "Redaction of sensitive data (emails, phones, secrets) before LLM",
+                "Persistent settings at ~/.plia/settings.json",
+                "Agent state at ~/.plia_ai/agent_state.json + roles/*.yml",
+            ],
+        }
+
+        return {
+            "success": True,
+            "message": (
+                f"Plia inventory: {len(tools)} agent-callable tools, "
+                f"{sum(len(v) for v in capabilities.values())} capabilities "
+                f"across {len(capabilities)} categories"
+            ),
+            "data": {
+                "name": "Plia",
+                "tagline": "Pocket Local Intelligent Assistant — voice-driven local AI",
+                "tools": tools,
+                "capabilities": capabilities,
+            },
+        }
 
 
 # Global instance
