@@ -26,6 +26,8 @@ class ResultDispatcher(QObject):
     show_toast = Signal(str, str, bool)             # title, body, success
     dashboard_card_added = Signal(dict)             # card payload
     comm_log_append = Signal(str, str, str)         # role_id, title, body
+    chat_message_append = Signal(str, str)          # role_id, formatted_body
+    file_saved = Signal(str, str)                   # role_id, file_path
 
     def __init__(self, *, speak: Optional[Callable[[str], None]] = None, parent=None):
         super().__init__(parent)
@@ -40,6 +42,10 @@ class ResultDispatcher(QObject):
             self._report_toast_card(state, result)
         elif state.notify == "comm_log":
             self._report_comm_log(state, result)
+        elif state.notify == "chat":
+            self._report_chat(state, result)
+        elif state.notify == "file":
+            self._report_file(state, result)
 
     # ── channels ──────────────────────────────────────────────────────────
     def _speak_text(self, text: str) -> None:
@@ -81,3 +87,40 @@ class ResultDispatcher(QObject):
         for item in (result.items or [])[:5]:
             body += f"\n  • {item.get('title', '?')}"
         self.comm_log_append.emit(state.role_id, title, body)
+
+    def _report_chat(self, state, result) -> None:
+        """Format a result as a chat message and emit for the chat tab to render."""
+        header = f"{state.icon} {state.display_name}"
+        if not result.success:
+            body = f"**{header}** — failed: {result.error or 'unknown error'}\n{result.details}"
+        else:
+            body = f"**{header}**\n{result.summary}"
+            for item in (result.items or [])[:10]:
+                body += f"\n  • {item.get('title', '?')}"
+        self.chat_message_append.emit(state.role_id, body)
+
+    def _report_file(self, state, result) -> None:
+        """Append a structured run entry to ~/.plia_ai/agent_results/<role_id>.log."""
+        from datetime import datetime
+        from pathlib import Path
+
+        out_dir = Path.home() / ".plia_ai" / "agent_results"
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+            log_path = out_dir / f"{state.role_id}.log"
+            stamp = datetime.now().isoformat(timespec="seconds")
+            lines = [
+                f"[{stamp}] {state.display_name} — {'OK' if result.success else 'FAIL'}",
+                f"  summary: {result.summary}",
+            ]
+            if result.error:
+                lines.append(f"  error: {result.error}")
+            lines.append(f"  items_found: {result.items_found}")
+            for item in (result.items or [])[:25]:
+                lines.append(f"  • {item.get('title', '?')}")
+            lines.append("")
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write("\n".join(lines) + "\n")
+            self.file_saved.emit(state.role_id, str(log_path))
+        except Exception as exc:
+            print(f"[ResultDispatcher] file write failed: {exc}")

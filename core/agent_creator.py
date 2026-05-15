@@ -144,6 +144,12 @@ def parse_persistence(text: str) -> Optional[str]:
 
 def parse_notify(text: str) -> Optional[str]:
     t = (text or "").lower()
+    # File first — "save to log file" should map to file, not comm_log.
+    if "file" in t or "save" in t or "write to" in t:
+        return "file"
+    # Chat tab.
+    if "chat" in t or "message bubble" in t:
+        return "chat"
     if "speak" in t or "aloud" in t or "say it" in t or "tts" in t \
             or "voice" in t:
         return "tts"
@@ -195,9 +201,9 @@ _Q_PERSISTENCE = WizardStep(
     "Should it survive restarts, or run for this session only?",
     ["persistent", "session only"])
 _Q_NOTIFY = WizardStep(
-    "How should it notify you — speak aloud, toast and dashboard card, "
-    "or communication log?",
-    ["speak", "toast and card", "communication log"])
+    "How should it report results — speak aloud, post to chat, "
+    "communication log, or save to a file?",
+    ["speak aloud", "chat", "communication log", "save to file"])
 
 
 class WizardController:

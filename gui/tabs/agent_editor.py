@@ -453,7 +453,7 @@ class LiveAgentEditorDialog(QDialog):
         # ── Notify ────────────────────────────────────────────────────────
         root.addWidget(QLabel("Notify channel"))
         self._notify = QComboBox()
-        self._notify.addItems(["tts", "toast_card", "comm_log"])
+        self._notify.addItems(["tts", "chat", "comm_log", "file", "toast_card"])
         self._notify.setCurrentText(self._state.notify)
         root.addWidget(self._notify)
 

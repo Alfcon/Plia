@@ -110,6 +110,8 @@ class MainWindow(FluentWindow):
             disp.show_toast.connect(self._on_agent_toast)
             disp.dashboard_card_added.connect(self._on_agent_card)
             disp.comm_log_append.connect(self._on_agent_comm_log)
+            disp.chat_message_append.connect(self._on_agent_chat_message)
+            disp.file_saved.connect(self._on_agent_file_saved)
             print("[App] ✓ Agent runtime started")
         except Exception as e:
             print(f"[App] ✗ Agent runtime failed to start: {e}")
@@ -136,6 +138,33 @@ class MainWindow(FluentWindow):
     def _on_agent_comm_log(self, role_id: str, title: str, body: str):
         if getattr(self, "dashboard_view", None) is not None:
             self.dashboard_view.add_system_message(f"{title}\n{body}", tag="system")
+
+    def _on_agent_chat_message(self, role_id: str, body: str):
+        """Post an agent result as a chat message bubble. Falls back to the
+        dashboard log if the chat tab isn't initialised yet."""
+        try:
+            if getattr(self, "chat_tab", None) is not None:
+                self.add_message_bubble("assistant", body)
+                return
+        except Exception as exc:
+            print(f"[App] chat bubble failed: {exc}")
+        # Fallback so the result isn't lost when the chat tab hasn't been opened.
+        if getattr(self, "dashboard_view", None) is not None:
+            self.dashboard_view.add_system_message(body, tag="system")
+
+    def _on_agent_file_saved(self, role_id: str, file_path: str):
+        """Show a brief toast pointing at the file the agent wrote to."""
+        try:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.success(
+                title="Agent result saved",
+                content=file_path,
+                duration=4000,
+                position=InfoBarPosition.BOTTOM_RIGHT,
+                parent=self,
+            )
+        except Exception as exc:
+            print(f"[App] file-saved toast failed: {exc}")
 
     def _preload_models(self):
         """Start the background thread to preload models."""

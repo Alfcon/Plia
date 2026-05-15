@@ -29,6 +29,11 @@ def test_parse_notify():
     assert parse_notify("dashboard card") == "toast_card"
     assert parse_notify("communication log") == "comm_log"
     assert parse_notify("just log it") == "comm_log"
+    assert parse_notify("chat") == "chat"
+    assert parse_notify("post to chat") == "chat"
+    assert parse_notify("save to file") == "file"
+    assert parse_notify("write to file") == "file"
+    assert parse_notify("just save it") == "file"
     assert parse_notify("hmm") is None
 
 

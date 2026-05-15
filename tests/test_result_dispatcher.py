@@ -74,3 +74,56 @@ def test_report_tts_channel_does_not_emit_toast():
     d.show_toast.connect(lambda *a: toasts.append(a))
     d.report(_state("tts"), RunResult(True, "x", "d"))
     assert toasts == []
+
+
+def test_report_chat_channel_emits_chat_message():
+    d = ResultDispatcher(speak=lambda s: None)
+    chats = []
+    d.chat_message_append.connect(lambda rid, body: chats.append((rid, body)))
+    d.report(_state("chat"), RunResult(True, "found 2 repos", "d", items_found=2,
+                                       items=[{"title": "acme/repo"}, {"title": "foo/bar"}]))
+    assert len(chats) == 1
+    rid, body = chats[0]
+    assert rid == "r1"
+    assert "GitHub Watcher" in body
+    assert "found 2 repos" in body
+    assert "acme/repo" in body
+
+
+def test_report_chat_channel_announces_failure():
+    d = ResultDispatcher(speak=lambda s: None)
+    chats = []
+    d.chat_message_append.connect(lambda rid, body: chats.append(body))
+    d.report(_state("chat"), RunResult(False, "x", "d", error="timeout"))
+    assert "failed" in chats[0].lower()
+    assert "timeout" in chats[0].lower()
+
+
+def test_report_file_channel_writes_and_emits_path(tmp_path, monkeypatch):
+    # Sandbox the output dir so we don't trample ~/.plia_ai/agent_results
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    d = ResultDispatcher(speak=lambda s: None)
+    saved = []
+    d.file_saved.connect(lambda rid, path: saved.append((rid, path)))
+    d.report(_state("file"), RunResult(True, "found 1", "d", items_found=1,
+                                       items=[{"title": "acme/repo"}]))
+    assert len(saved) == 1
+    rid, path = saved[0]
+    assert rid == "r1"
+    from pathlib import Path
+    assert Path(path).exists()
+    contents = Path(path).read_text(encoding="utf-8")
+    assert "GitHub Watcher" in contents
+    assert "found 1" in contents
+    assert "acme/repo" in contents
+
+
+def test_report_file_channel_appends_across_runs(tmp_path, monkeypatch):
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    d = ResultDispatcher(speak=lambda s: None)
+    d.report(_state("file"), RunResult(True, "run 1", "d", items_found=1))
+    d.report(_state("file"), RunResult(True, "run 2", "d", items_found=2))
+    from pathlib import Path
+    log = tmp_path / ".plia_ai" / "agent_results" / "r1.log"
+    text = log.read_text(encoding="utf-8")
+    assert "run 1" in text and "run 2" in text
