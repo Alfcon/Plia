@@ -643,6 +643,25 @@ class STTListener:
         if self.wake_word_callback:
             self.wake_word_callback()
 
+    def prime_followup(self) -> bool:
+        """Skip wake-word detection for the next utterance.
+
+        Calls AudioToTextRecorder.wakeup() so the listener thread (currently
+        blocked in recorder.text() waiting for 'jarvis') treats the next
+        captured phrase as if the wake word had been spoken. Used by the
+        multi-turn creation wizard between turns so the user doesn't have to
+        say 'jarvis' before every answer.
+        """
+        if not self.recorder or not self.running:
+            return False
+        try:
+            self.recorder.wakeup()
+            print(f"{CYAN}[STT] ⤵ Follow-up primed (wake word bypassed for next phrase){RESET}")
+            return True
+        except Exception as exc:
+            print(f"{GRAY}[STT] prime_followup failed: {exc}{RESET}")
+            return False
+
     def start(self) -> bool:
         """Start the listening loop in a background daemon thread."""
         if not self.initialized:

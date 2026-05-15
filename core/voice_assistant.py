@@ -511,7 +511,12 @@ class VoiceAssistant(QObject):
             self.processing_finished.emit()
     
     def _start_agent_wizard(self, task: str):
-        """Begin a spoken agent-creation wizard for `task`."""
+        """Begin a spoken agent-creation wizard for `task`.
+
+        While the wizard is active, after each TTS prompt finishes we prime
+        STT for a follow-up so the user doesn't have to say 'jarvis' before
+        every answer. The connection is torn down on done/cancel.
+        """
         from core.agent_creator import VoiceWizardSession
         from config import OLLAMA_URL, RESPONDER_MODEL
 
@@ -519,6 +524,23 @@ class VoiceAssistant(QObject):
             from core.agent_creator import classify_executor
             model = app_settings.get("models.chat", RESPONDER_MODEL)
             return classify_executor(t, OLLAMA_URL, model)
+
+        def _on_speaking_finished():
+            # Only re-arm if we're still mid-wizard
+            if self.active_wizard is not None and not self.active_wizard.finished:
+                if self.stt_listener is not None:
+                    self.stt_listener.prime_followup()
+
+        try:
+            tts.signals().speaking_finished.connect(_on_speaking_finished)
+        except Exception as exc:
+            print(f"[VoiceAssistant] could not connect TTS finished signal: {exc}")
+
+        def _teardown_followup():
+            try:
+                tts.signals().speaking_finished.disconnect(_on_speaking_finished)
+            except (TypeError, RuntimeError):
+                pass
 
         def _on_done(answers: dict):
             try:
@@ -535,9 +557,11 @@ class VoiceAssistant(QObject):
                     "I configured the agent but could not save it. "
                     "Please check the logs."
                 )
+            _teardown_followup()
 
         def _on_cancel():
             tts.queue_sentence("Agent creation cancelled.")
+            _teardown_followup()
 
         self.active_wizard = VoiceWizardSession(
             task=task,
