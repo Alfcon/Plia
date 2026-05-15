@@ -1,0 +1,54 @@
+from core.agent_state import AgentState
+
+
+def _sample_state(**overrides):
+    base = dict(
+        role_id="github_watcher",
+        instance_id="uuid-123",
+        display_name="GitHub Watcher",
+        icon="🔍",
+        executor="tool_loop",
+        script_path=None,
+        trigger="scheduled",
+        cadence={"interval_sec": 3600, "anchor_iso": "2026-05-14T15:00:00"},
+        quota=None,
+        persistence="persistent",
+        notify="comm_log",
+        status="active",
+        next_fire_at="2026-05-14T16:00:00",
+        last_fire_at=None,
+        runs=0,
+        history=[],
+        created_at="2026-05-14T15:00:00",
+    )
+    base.update(overrides)
+    return AgentState(**base)
+
+
+def test_agent_state_round_trips_through_dict():
+    state = _sample_state()
+    restored = AgentState.from_dict(state.to_dict())
+    assert restored == state
+
+
+def test_agent_state_from_dict_tolerates_missing_optional_fields():
+    minimal = {
+        "role_id": "r1",
+        "instance_id": "i1",
+        "display_name": "R1",
+        "icon": "🤖",
+        "executor": "script",
+        "trigger": "on_demand",
+        "persistence": "session",
+        "notify": "tts",
+        "status": "active",
+        "created_at": "2026-05-14T15:00:00",
+    }
+    state = AgentState.from_dict(minimal)
+    assert state.script_path is None
+    assert state.cadence is None
+    assert state.quota is None
+    assert state.next_fire_at is None
+    assert state.last_fire_at is None
+    assert state.runs == 0
+    assert state.history == []
