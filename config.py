@@ -3,7 +3,7 @@ Centralized configuration for Plia.
 """
 
 # --- Model Configuration ---
-RESPONDER_MODEL = "qwen3:1.7b"
+RESPONDER_MODEL = "qwen3:8b"
 
 # OLLAMA_URL honours the OLLAMA_HOST environment variable (same rules as the
 # `ollama` CLI itself) so that Plia and a terminal running `ollama list`

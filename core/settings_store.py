@@ -28,7 +28,10 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "theme": "Dark",
     "ollama_url": "http://localhost:11434",
     "models": {
-        "chat": "qwen3:1.7b",
+        # qwen3:8b is the recommended chat model for 8GB+ VRAM systems —
+        # solid tool-calling and reasoning for live agents. For lower-spec
+        # hardware fall back to "qwen3:1.7b" (poor tool use, fast).
+        "chat": "qwen3:8b",
         # qwen2.5vl:7b is the correct vision model tag in Ollama.
         # Install: ollama pull qwen2.5vl:7b  (or qwen2.5vl:3b for lower VRAM)
         "web_agent": "qwen2.5vl:7b",
