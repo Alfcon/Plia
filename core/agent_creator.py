@@ -115,3 +115,51 @@ def classify_executor(task: str, ollama_url: str, model: str) -> str:
     if "tool_loop" in content:
         return "tool_loop"
     return "tool_loop"
+
+
+# ── Question parsers ──────────────────────────────────────────────────────
+def parse_trigger(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    if "quota" in t or "until it finds" in t or "until i find" in t \
+            or "enough" in t or "top " in t:
+        return "quota"
+    if "schedul" in t or "every" in t or "periodic" in t or "regular" in t:
+        return "scheduled"
+    if "on demand" in t or "on-demand" in t or "when i ask" in t \
+            or "manual" in t or "only when" in t:
+        return "on_demand"
+    return None
+
+
+def parse_persistence(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    if "persist" in t or "survive" in t or "across restart" in t \
+            or "keep it" in t or "stay" in t:
+        return "persistent"
+    if "session" in t or "just this" in t or "temporary" in t \
+            or "don't keep" in t or "do not keep" in t:
+        return "session"
+    return None
+
+
+def parse_notify(text: str) -> Optional[str]:
+    t = (text or "").lower()
+    if "speak" in t or "aloud" in t or "say it" in t or "tts" in t \
+            or "voice" in t:
+        return "tts"
+    if "toast" in t or "card" in t or "dashboard" in t or "popup" in t \
+            or "pop-up" in t or "notification" in t:
+        return "toast_card"
+    if "log" in t or "comm" in t:
+        return "comm_log"
+    return None
+
+
+def parse_quota(text: str) -> Optional[dict]:
+    t = (text or "").lower()
+    m = re.search(r"(\d+)", t)
+    if not m:
+        return None
+    limit = int(m.group(1))
+    criterion = "top_rated" if ("top" in t or "rated" in t or "best" in t) else "any"
+    return {"limit": limit, "criterion": criterion}
