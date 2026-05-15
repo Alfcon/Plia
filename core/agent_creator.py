@@ -143,6 +143,9 @@ def parse_persistence(text: str) -> Optional[str]:
 
 
 def parse_notify(text: str) -> Optional[str]:
+    """Single-channel parser (first match wins). Kept for backward compat
+    with callers that want one channel. Use parse_notify_multi for multi-
+    channel input."""
     t = (text or "").lower()
     # File first — "save to log file" should map to file, not comm_log.
     if "file" in t or "save" in t or "write to" in t:
@@ -159,6 +162,32 @@ def parse_notify(text: str) -> Optional[str]:
     if "log" in t or "comm" in t:
         return "comm_log"
     return None
+
+
+def parse_notify_multi(text: str) -> Optional[str]:
+    """Return a comma-separated list of every channel mentioned in `text`,
+    or None if no channel keyword is found. Used by the wizard so the user
+    can say e.g. 'speak aloud and save to file'."""
+    t = (text or "").lower()
+    channels: List[str] = []
+    if "file" in t or "save" in t or "write to" in t:
+        channels.append("file")
+    if "chat" in t or "message bubble" in t:
+        channels.append("chat")
+    if "speak" in t or "aloud" in t or "say it" in t or "tts" in t \
+            or "voice" in t:
+        channels.append("tts")
+    if "toast" in t or "card" in t or "dashboard" in t or "popup" in t \
+            or "pop-up" in t or "notification" in t:
+        channels.append("toast_card")
+    # comm_log: prefer the explicit phrases, else plain "log"/"comm" but
+    # only if we haven't already matched file (so "save to log file" stays
+    # file-only, while "log it" still becomes comm_log).
+    if "communication log" in t or "comm log" in t or "comm-log" in t:
+        channels.append("comm_log")
+    elif ("log" in t or "comm" in t) and "file" not in channels:
+        channels.append("comm_log")
+    return ",".join(channels) if channels else None
 
 
 def parse_quota(text: str) -> Optional[dict]:
@@ -201,9 +230,11 @@ _Q_PERSISTENCE = WizardStep(
     "Should it survive restarts, or run for this session only?",
     ["persistent", "session only"])
 _Q_NOTIFY = WizardStep(
-    "How should it report results — speak aloud, post to chat, "
-    "communication log, or save to a file?",
-    ["speak aloud", "chat", "communication log", "save to file"])
+    "How should it report results? Pick one or more — speak aloud, post to "
+    "chat, communication log, or save to a file. You can combine them, "
+    "e.g. 'speak and save to file'.",
+    ["speak aloud", "chat", "communication log", "save to file",
+     "speak and save to file"])
 
 
 class WizardController:
@@ -276,7 +307,7 @@ class WizardController:
             return self.current_question()
 
         if self._state == "ASK_NOTIFY":
-            notify = parse_notify(text)
+            notify = parse_notify_multi(text)
             if notify is None:
                 return _Q_NOTIFY
             self._answers["notify"] = notify

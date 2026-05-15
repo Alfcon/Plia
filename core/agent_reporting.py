@@ -34,18 +34,24 @@ class ResultDispatcher(QObject):
         self._speak = speak
 
     def report(self, state, result) -> None:
-        """state: AgentState, result: RunResult."""
+        """state: AgentState, result: RunResult.
+
+        `state.notify` may be a single channel ("tts") or a comma-separated
+        list ("tts,chat,file"); every channel mentioned is dispatched.
+        """
         self.agent_history_appended.emit(state.role_id)
-        if state.notify == "tts":
-            self._report_tts(state, result)
-        elif state.notify == "toast_card":
-            self._report_toast_card(state, result)
-        elif state.notify == "comm_log":
-            self._report_comm_log(state, result)
-        elif state.notify == "chat":
-            self._report_chat(state, result)
-        elif state.notify == "file":
-            self._report_file(state, result)
+        channels = [c.strip() for c in (state.notify or "").split(",") if c.strip()]
+        for ch in channels:
+            if ch == "tts":
+                self._report_tts(state, result)
+            elif ch == "toast_card":
+                self._report_toast_card(state, result)
+            elif ch == "comm_log":
+                self._report_comm_log(state, result)
+            elif ch == "chat":
+                self._report_chat(state, result)
+            elif ch == "file":
+                self._report_file(state, result)
 
     # ── channels ──────────────────────────────────────────────────────────
     def _speak_text(self, text: str) -> None:

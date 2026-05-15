@@ -423,12 +423,35 @@ class LiveAgentEditorDialog(QDialog):
     def _build(self):
         from PySide6.QtWidgets import (
             QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
-            QCheckBox, QPushButton, QScrollArea, QWidget,
+            QCheckBox, QPushButton, QScrollArea, QWidget, QTextEdit,
         )
 
         root = QVBoxLayout(self)
         root.addWidget(QLabel(f"<b>{self._state.icon}  {self._state.display_name}</b>"))
         root.addWidget(QLabel(f"Engine: {self._state.executor} (read-only)"))
+
+        # ── Display name (editable) ───────────────────────────────────────
+        root.addWidget(QLabel("Display name"))
+        self._display_name = QLineEdit()
+        self._display_name.setText(self._state.display_name)
+        root.addWidget(self._display_name)
+
+        # ── Task description (editable) — fixes STT mishears etc. ─────────
+        root.addWidget(QLabel("Task description (what the agent does each run)"))
+        self._task = QTextEdit()
+        self._task.setPlaceholderText(
+            "e.g. watches GitHub for projects related to Jarvis-style assistants")
+        self._task.setMaximumHeight(80)
+        # Pull current task from the role YAML's responsibilities[0]
+        from core.multi_agent import multi_agent_system
+        role = multi_agent_system.roles.get(self._state.role_id)
+        current_task = ""
+        if role is not None:
+            resp = getattr(role, "responsibilities", None) or []
+            if resp:
+                current_task = resp[0]
+        self._task.setPlainText(current_task)
+        root.addWidget(self._task)
 
         # ── Schedule ──────────────────────────────────────────────────────
         root.addWidget(QLabel("Trigger"))
@@ -450,12 +473,21 @@ class LiveAgentEditorDialog(QDialog):
             self._quota.setText(str(self._state.quota.get("limit", "")))
         root.addWidget(self._quota)
 
-        # ── Notify ────────────────────────────────────────────────────────
-        root.addWidget(QLabel("Notify channel"))
-        self._notify = QComboBox()
-        self._notify.addItems(["tts", "chat", "comm_log", "file", "toast_card"])
-        self._notify.setCurrentText(self._state.notify)
-        root.addWidget(self._notify)
+        # ── Notify channels (multi-select) ────────────────────────────────
+        root.addWidget(QLabel("Notify channels (pick one or more)"))
+        notify_box = QWidget()
+        notify_row = QHBoxLayout(notify_box)
+        notify_row.setContentsMargins(0, 0, 0, 0)
+        current_channels = set(
+            c.strip() for c in (self._state.notify or "").split(",") if c.strip())
+        self._notify_checks = {}
+        for ch in ("tts", "chat", "comm_log", "file", "toast_card"):
+            cb = QCheckBox(ch)
+            cb.setChecked(ch in current_channels)
+            notify_row.addWidget(cb)
+            self._notify_checks[ch] = cb
+        notify_row.addStretch(1)
+        root.addWidget(notify_box)
 
         # ── Persistence ───────────────────────────────────────────────────
         root.addWidget(QLabel("Persistence"))
@@ -513,8 +545,18 @@ class LiveAgentEditorDialog(QDialog):
         rt.scheduler.disarm(state.role_id)
 
         state.trigger = self._trigger.currentText()
-        state.notify = self._notify.currentText()
+        # Notify: multi-select → comma-joined; never empty
+        selected_channels = [
+            ch for ch, cb in self._notify_checks.items() if cb.isChecked()
+        ]
+        state.notify = ",".join(selected_channels) if selected_channels else "comm_log"
         state.persistence = self._persistence.currentText()
+
+        # Display name — purely cosmetic but propagates to role YAML below.
+        new_display_name = self._display_name.text().strip() or state.display_name
+        state.display_name = new_display_name
+
+        new_task = self._task.toPlainText().strip()
 
         if state.trigger == "scheduled":
             cad = parse_cadence(self._cadence.text())
@@ -531,13 +573,20 @@ class LiveAgentEditorDialog(QDialog):
             state.cadence = None
             state.quota = None
 
-        # update tools in the role YAML
+        # ── Update role YAML (tools, name, task) ──────────────────────────
         selected = [t for t, cb in self._tool_checks.items() if cb.isChecked()]
         role_file = Path.home() / ".plia_ai" / "roles" / f"{state.role_id}.yml"
         if role_file.exists():
             raw = yaml.safe_load(role_file.read_text(encoding="utf-8")) or {}
             raw["tools"] = selected
             raw["autonomous_actions"] = selected
+            raw["name"] = new_display_name
+            if new_task:
+                raw["description"] = f"Agent that {new_task}."
+                raw["responsibilities"] = [new_task]
+                raw["heartbeat_instructions"] = (
+                    f"Your task: {new_task}. Report concise, useful results each run."
+                )
             role_file.write_text(
                 yaml.safe_dump(raw, sort_keys=False, allow_unicode=True),
                 encoding="utf-8")

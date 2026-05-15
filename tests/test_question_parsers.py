@@ -1,5 +1,6 @@
 from core.agent_creator import (
-    parse_trigger, parse_persistence, parse_notify, parse_quota,
+    parse_trigger, parse_persistence, parse_notify, parse_notify_multi,
+    parse_quota,
 )
 
 
@@ -35,6 +36,29 @@ def test_parse_notify():
     assert parse_notify("write to file") == "file"
     assert parse_notify("just save it") == "file"
     assert parse_notify("hmm") is None
+
+
+def test_parse_notify_multi_single_channel():
+    # Single-channel inputs return one channel name (no commas).
+    assert parse_notify_multi("speak") == "tts"
+    assert parse_notify_multi("just log it") == "comm_log"
+    assert parse_notify_multi("save to file") == "file"
+    assert parse_notify_multi("post to chat") == "chat"
+    assert parse_notify_multi("hmm") is None
+
+
+def test_parse_notify_multi_multi_channel():
+    # Combined phrases return a comma-joined list (order: file, chat, tts,
+    # toast_card, comm_log).
+    assert parse_notify_multi("speak and save to file") == "file,tts"
+    assert parse_notify_multi("chat and speak") == "chat,tts"
+    assert parse_notify_multi("speak, save to file, and post to chat") \
+        == "file,chat,tts"
+
+
+def test_parse_notify_multi_save_to_log_is_file_not_comm_log():
+    # 'save' wins over plain 'log' to avoid double-classification.
+    assert parse_notify_multi("save to log file") == "file"
 
 
 def test_parse_quota():

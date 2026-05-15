@@ -127,3 +127,27 @@ def test_report_file_channel_appends_across_runs(tmp_path, monkeypatch):
     log = tmp_path / ".plia_ai" / "agent_results" / "r1.log"
     text = log.read_text(encoding="utf-8")
     assert "run 1" in text and "run 2" in text
+
+
+def test_report_multi_channel_fans_out_to_each(tmp_path, monkeypatch):
+    """notify='tts,chat,file' should dispatch to all three channels."""
+    monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
+    spoken = []
+    d = ResultDispatcher(speak=spoken.append)
+    chats = []
+    d.chat_message_append.connect(lambda rid, body: chats.append(body))
+    saved = []
+    d.file_saved.connect(lambda rid, path: saved.append(path))
+
+    d.report(_state("tts,chat,file"),
+             RunResult(True, "found 1", "d", items_found=1,
+                       items=[{"title": "acme/repo"}]))
+
+    # All three channels fired exactly once.
+    assert len(spoken) == 1
+    assert len(chats) == 1
+    assert len(saved) == 1
+    assert "found 1" in spoken[0]
+    assert "found 1" in chats[0]
+    from pathlib import Path
+    assert Path(saved[0]).exists()
