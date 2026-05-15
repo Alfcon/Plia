@@ -163,3 +163,141 @@ def parse_quota(text: str) -> Optional[dict]:
     limit = int(m.group(1))
     criterion = "top_rated" if ("top" in t or "rated" in t or "best" in t) else "any"
     return {"limit": limit, "criterion": criterion}
+
+
+from dataclasses import dataclass, field
+from typing import Callable, Dict
+
+from core.agent_scheduler import parse_cadence
+
+_CANCEL_WORDS = ("cancel", "never mind", "nevermind", "stop", "forget it")
+
+
+@dataclass
+class WizardStep:
+    question: str
+    examples: List[str] = field(default_factory=list)
+    done: bool = False
+    cancelled: bool = False
+    answers: Optional[Dict] = None
+
+
+_Q_TRIGGER = WizardStep(
+    "How should this agent run — scheduled, on-demand, or quota?",
+    ["scheduled", "on demand", "quota (stop after N results)"])
+_Q_CADENCE = WizardStep(
+    "How often should it run?",
+    ["every hour", "every 6 hours", "twice a day", "every Monday morning"])
+_Q_QUOTA = WizardStep(
+    "How many results should it collect before stopping?",
+    ["top 10", "just 20", "find 5 things"])
+_Q_PERSISTENCE = WizardStep(
+    "Should it survive restarts, or run for this session only?",
+    ["persistent", "session only"])
+_Q_NOTIFY = WizardStep(
+    "How should it notify you — speak aloud, toast and dashboard card, "
+    "or communication log?",
+    ["speak", "toast and card", "communication log"])
+
+
+class WizardController:
+    """Channel-agnostic Q&A state machine for creating a live agent.
+
+    Adapters (voice, chat) call current_question() to get the prompt and
+    answer(text) to advance. answer() returns the next WizardStep; when
+    step.done is True, step.answers holds the collected configuration (or
+    step.cancelled is True if the user bailed out).
+    """
+
+    def __init__(self, task: str, classify_fn: Callable[[str], str]):
+        self.task = task
+        self._classify_fn = classify_fn
+        self._state = "ASK_TRIGGER"
+        self._answers: Dict = {
+            "task": task, "trigger": None, "cadence": None, "quota": None,
+            "persistence": None, "notify": None, "executor": None, "tools": None,
+        }
+
+    def current_question(self) -> WizardStep:
+        return {
+            "ASK_TRIGGER": _Q_TRIGGER,
+            "ASK_CADENCE": _Q_CADENCE,
+            "ASK_QUOTA": _Q_QUOTA,
+            "ASK_PERSISTENCE": _Q_PERSISTENCE,
+            "ASK_NOTIFY": _Q_NOTIFY,
+            "CONFIRM": self._confirm_step(),
+        }[self._state]
+
+    def answer(self, text: str) -> WizardStep:
+        if any(w in (text or "").lower() for w in _CANCEL_WORDS):
+            return WizardStep("Cancelled.", done=True, cancelled=True)
+
+        if self._state == "ASK_TRIGGER":
+            trigger = parse_trigger(text)
+            if trigger is None:
+                return _Q_TRIGGER
+            self._answers["trigger"] = trigger
+            if trigger == "scheduled":
+                self._state = "ASK_CADENCE"
+            elif trigger == "quota":
+                self._state = "ASK_QUOTA"
+            else:
+                self._state = "ASK_PERSISTENCE"
+            return self.current_question()
+
+        if self._state == "ASK_CADENCE":
+            cadence = parse_cadence(text)
+            if cadence is None:
+                return _Q_CADENCE
+            self._answers["cadence"] = cadence
+            self._state = "ASK_PERSISTENCE"
+            return self.current_question()
+
+        if self._state == "ASK_QUOTA":
+            quota = parse_quota(text)
+            if quota is None:
+                return _Q_QUOTA
+            self._answers["quota"] = quota
+            self._state = "ASK_PERSISTENCE"
+            return self.current_question()
+
+        if self._state == "ASK_PERSISTENCE":
+            persistence = parse_persistence(text)
+            if persistence is None:
+                return _Q_PERSISTENCE
+            self._answers["persistence"] = persistence
+            self._state = "ASK_NOTIFY"
+            return self.current_question()
+
+        if self._state == "ASK_NOTIFY":
+            notify = parse_notify(text)
+            if notify is None:
+                return _Q_NOTIFY
+            self._answers["notify"] = notify
+            # silent steps run before CONFIRM
+            self._answers["executor"] = self._classify_fn(self.task)
+            self._answers["tools"] = pick_tools(self.task)
+            self._state = "CONFIRM"
+            return self.current_question()
+
+        if self._state == "CONFIRM":
+            if "yes" in (text or "").lower() or "confirm" in (text or "").lower():
+                return WizardStep("Created.", done=True, answers=dict(self._answers))
+            # "no" -> restart from the trigger question
+            self._state = "ASK_TRIGGER"
+            return _Q_TRIGGER
+
+        raise RuntimeError(f"Unknown wizard state: {self._state}")
+
+    def _confirm_step(self) -> WizardStep:
+        a = self._answers
+        bits = [f"Agent that {a['task']}.", f"Trigger: {a['trigger']}."]
+        if a["cadence"]:
+            bits.append(f"Every {a['cadence']['interval_sec'] // 60} minutes.")
+        if a["quota"]:
+            bits.append(f"Collect {a['quota']['limit']} ({a['quota']['criterion']}).")
+        bits.append(f"Persistence: {a['persistence']}.")
+        bits.append(f"Notify via: {a['notify']}.")
+        bits.append(f"Engine: {a['executor']} with tools {a['tools']}.")
+        return WizardStep("Here is what I'll create. " + " ".join(bits)
+                          + " Say yes to create, or no to start over.")
