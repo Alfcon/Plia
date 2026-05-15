@@ -512,8 +512,7 @@ class VoiceAssistant(QObject):
     
     def _start_agent_wizard(self, task: str):
         """Begin a spoken agent-creation wizard for `task`."""
-        from core.agent_creator import VoiceWizardSession, commit
-        from core.agent_scheduler import AgentScheduler  # noqa: F401  (type ref)
+        from core.agent_creator import VoiceWizardSession
         from config import OLLAMA_URL, RESPONDER_MODEL
 
         def _classify(t: str) -> str:
@@ -522,14 +521,20 @@ class VoiceAssistant(QObject):
             return classify_executor(t, OLLAMA_URL, model)
 
         def _on_done(answers: dict):
-            # Phase 5 wires the real scheduler/dispatcher here. For now the
-            # wizard collects answers and confirms verbally; full commit is
-            # completed once app-level wiring exists.
-            tts.queue_sentence(
-                f"Agent configured to {answers['task']}. "
-                "It will appear in your Active Agents tab."
-            )
-            self._pending_agent_answers = answers
+            try:
+                from core.agent_runtime import get_runtime
+                state = get_runtime().commit_answers(answers)
+                tts.queue_sentence(
+                    f"Created {state.display_name}. "
+                    "It is now live in your Active Agents tab."
+                )
+                self.refresh_agents_requested.emit()
+            except Exception as exc:
+                print(f"[VoiceAssistant] commit failed: {exc}")
+                tts.queue_sentence(
+                    "I configured the agent but could not save it. "
+                    "Please check the logs."
+                )
 
         def _on_cancel():
             tts.queue_sentence("Agent creation cancelled.")
