@@ -95,3 +95,15 @@ def test_store_keeps_persistent_entries_on_load(tmp_path):
     fresh = AgentStateStore(path=path)
     fresh.load()
     assert len(fresh.all()) == 2
+
+
+def test_changed_signal_fires_on_upsert_and_remove(tmp_path):
+    store = AgentStateStore(path=tmp_path / "s.json")
+    hits = []
+    store.changed.connect(lambda: hits.append(1))
+
+    store.upsert(_sample_state(role_id="x"))
+    assert len(hits) == 1
+
+    store.remove("x")
+    assert len(hits) == 2
