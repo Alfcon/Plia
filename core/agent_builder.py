@@ -397,9 +397,19 @@ _SYSTEM_PROMPT = textwrap.dedent("""\
     1.  Output ONLY raw Python source code. No markdown fences, no explanation
         text before or after, no triple backticks.
     2.  The file must be immediately runnable with  `python <file>.py`  and must
-        include a  `if __name__ == "__main__":` block.
-    3.  Export a callable  `run(**kwargs) -> str`  at module level so Plia can
-        call it programmatically. It must return a human-readable result string.
+        include a  `if __name__ == "__main__":` block. When the script is run
+        with a  `--json`  flag, the __main__ block must print exactly one line
+        of JSON: the dict returned by run(). It may also accept optional
+        `--task <str>`  and  `--context <str>`  flags and forward them to run().
+    3.  Export a callable  `run(**kwargs) -> dict`  at module level so Plia can
+        call it programmatically. It MUST return a dict with these exact keys:
+          {
+            "success":     bool,
+            "summary":     str,   # one-line human-readable result
+            "details":     str,   # full multi-line output
+            "items_found": int,   # count of things found this run (0 if N/A)
+            "items":       list,  # list of dicts describing findings (may be [])
+          }
     4.  Use only Python standard library modules PLUS any packages already listed
         in Plia's requirements.txt:
           PySide6, requests, psutil, pynvml, python-kasa, playwright,
