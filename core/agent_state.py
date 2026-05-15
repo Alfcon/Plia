@@ -57,3 +57,77 @@ class AgentState:
         known = {f for f in cls.__dataclass_fields__}  # type: ignore[attr-defined]
         filtered = {k: v for k, v in raw.items() if k in known}
         return cls(**filtered)
+
+
+class AgentStateStore(QObject):
+    """Thread-safe JSON-backed store of AgentState with a `changed` signal."""
+
+    changed = Signal()
+
+    def __init__(self, path: Path = STATE_FILE, parent=None):
+        super().__init__(parent)
+        self._path = Path(path)
+        self._lock = threading.Lock()
+        self._states: Dict[str, AgentState] = {}
+        self._save_timer: Optional[QTimer] = None
+
+    # ── Persistence ───────────────────────────────────────────────────────
+    def load(self) -> None:
+        """Read the state file. Session-scoped entries are dropped."""
+        with self._lock:
+            self._states = {}
+            if not self._path.exists():
+                return
+            try:
+                raw = json.loads(self._path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                print(f"[AgentStateStore] Load failed: {exc}")
+                return
+            for entry in raw if isinstance(raw, list) else []:
+                try:
+                    state = AgentState.from_dict(entry)
+                except Exception as exc:
+                    print(f"[AgentStateStore] Skipping bad entry: {exc}")
+                    continue
+                if state.persistence == "session":
+                    continue
+                self._states[state.role_id] = state
+
+    def save(self) -> None:
+        with self._lock:
+            data = [s.to_dict() for s in self._states.values()]
+            try:
+                self._path.write_text(
+                    json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+                )
+            except Exception as exc:
+                print(f"[AgentStateStore] Save failed: {exc}")
+
+    def save_debounced(self, delay_ms: int = 500) -> None:
+        """Coalesce rapid mutations into a single disk write."""
+        if self._save_timer is None:
+            self._save_timer = QTimer()
+            self._save_timer.setSingleShot(True)
+            self._save_timer.timeout.connect(self.save)
+        self._save_timer.start(delay_ms)
+
+    # ── CRUD ──────────────────────────────────────────────────────────────
+    def all(self) -> List[AgentState]:
+        with self._lock:
+            return list(self._states.values())
+
+    def get(self, role_id: str) -> Optional[AgentState]:
+        with self._lock:
+            return self._states.get(role_id)
+
+    def upsert(self, state: AgentState) -> None:
+        with self._lock:
+            self._states[state.role_id] = state
+        self.save()
+        self.changed.emit()
+
+    def remove(self, role_id: str) -> None:
+        with self._lock:
+            self._states.pop(role_id, None)
+        self.save()
+        self.changed.emit()

@@ -52,3 +52,23 @@ def test_agent_state_from_dict_tolerates_missing_optional_fields():
     assert state.last_fire_at is None
     assert state.runs == 0
     assert state.history == []
+
+
+from core.agent_state import AgentStateStore
+
+
+def test_store_save_and_load_round_trip(tmp_path):
+    path = tmp_path / "agent_state.json"
+    store = AgentStateStore(path=path)
+    store.upsert(_sample_state(role_id="a"))
+    store.upsert(_sample_state(role_id="b"))
+
+    fresh = AgentStateStore(path=path)
+    fresh.load()
+    ids = sorted(s.role_id for s in fresh.all())
+    assert ids == ["a", "b"]
+
+
+def test_store_get_returns_none_for_unknown(tmp_path):
+    store = AgentStateStore(path=tmp_path / "s.json")
+    assert store.get("nope") is None
