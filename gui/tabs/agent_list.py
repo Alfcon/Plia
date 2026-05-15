@@ -570,6 +570,12 @@ class AgentListTab(QWidget):
         super().__init__(parent)
         self._build_ui()
         agent_registry.agents_changed.connect(self.refresh)
+        # Also refresh when the live-agent store changes (wizard creates / deletes)
+        try:
+            from core.agent_runtime import get_runtime
+            get_runtime().store.changed.connect(self.refresh)
+        except Exception as exc:
+            print(f"[AgentListTab] could not connect to live-agent store: {exc}")
         self.refresh()
 
     def _build_ui(self):
@@ -615,9 +621,11 @@ class AgentListTab(QWidget):
 
     def refresh(self):
         self._clear_rows()
-        agents = agent_registry.all_agents()
 
-        if not agents:
+        live_states = self._fetch_live_states()
+        custom_agents = agent_registry.all_agents()
+
+        if not live_states and not custom_agents:
             empty = CardWidget(self._scroll_content)
             lay = QVBoxLayout(empty)
             lay.setContentsMargins(16, 16, 16, 16)
@@ -625,15 +633,33 @@ class AgentListTab(QWidget):
             self._list_layout.addWidget(empty)
             return
 
-        for agent in agents:
-            name = agent.get("name", "")
-            row = AgentListRow(name, agent, self._scroll_content)
-            row.run_requested.connect(self._on_run_agent)
-            row.edit_requested.connect(self._on_edit_agent)
-            row.delete_requested.connect(self._on_delete_agent)
-            self._list_layout.addWidget(row)
+        # ── Live agents (wizard-created, scheduler-backed) ────────────────
+        if live_states:
+            self._list_layout.addWidget(SubtitleLabel("Live Agents", self._scroll_content))
+            from gui.tabs.agents import LiveAgentRow
+            for state in live_states:
+                self._list_layout.addWidget(LiveAgentRow(state, self._scroll_content))
+
+        # ── Custom (prompt-only) agents from the legacy registry ──────────
+        if custom_agents:
+            self._list_layout.addWidget(SubtitleLabel("Custom Agents", self._scroll_content))
+            for agent in custom_agents:
+                name = agent.get("name", "")
+                row = AgentListRow(name, agent, self._scroll_content)
+                row.run_requested.connect(self._on_run_agent)
+                row.edit_requested.connect(self._on_edit_agent)
+                row.delete_requested.connect(self._on_delete_agent)
+                self._list_layout.addWidget(row)
 
         self._list_layout.addStretch(1)
+
+    def _fetch_live_states(self):
+        try:
+            from core.agent_runtime import get_runtime
+            return sorted(get_runtime().store.all(), key=lambda s: s.display_name)
+        except Exception as exc:
+            print(f"[AgentListTab] could not fetch live agents: {exc}")
+            return []
 
     # ---------------------------------------------------------------------
     # Add/Create
