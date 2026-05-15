@@ -72,3 +72,26 @@ def test_store_save_and_load_round_trip(tmp_path):
 def test_store_get_returns_none_for_unknown(tmp_path):
     store = AgentStateStore(path=tmp_path / "s.json")
     assert store.get("nope") is None
+
+
+def test_store_drops_session_entries_on_load(tmp_path):
+    path = tmp_path / "agent_state.json"
+    store = AgentStateStore(path=path)
+    store.upsert(_sample_state(role_id="keep", persistence="persistent"))
+    store.upsert(_sample_state(role_id="drop", persistence="session"))
+
+    fresh = AgentStateStore(path=path)
+    fresh.load()
+    ids = [s.role_id for s in fresh.all()]
+    assert ids == ["keep"]
+
+
+def test_store_keeps_persistent_entries_on_load(tmp_path):
+    path = tmp_path / "agent_state.json"
+    store = AgentStateStore(path=path)
+    store.upsert(_sample_state(role_id="p1", persistence="persistent"))
+    store.upsert(_sample_state(role_id="p2", persistence="persistent"))
+
+    fresh = AgentStateStore(path=path)
+    fresh.load()
+    assert len(fresh.all()) == 2
