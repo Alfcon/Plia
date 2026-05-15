@@ -301,3 +301,97 @@ class WizardController:
         bits.append(f"Engine: {a['executor']} with tools {a['tools']}.")
         return WizardStep("Here is what I'll create. " + " ".join(bits)
                           + " Say yes to create, or no to start over.")
+
+
+import yaml
+from datetime import datetime
+from pathlib import Path
+
+from core.agent_state import AgentState, now_iso
+
+
+def _slugify(text: str) -> str:
+    s = re.sub(r"[^\w\s]", "", (text or "").lower())
+    s = re.sub(r"\s+", "_", s.strip())
+    return s[:40] or "agent"
+
+
+def write_role_yaml(*, roles_dir, slug: str, display_name: str,
+                    task: str, tools: List[str]) -> Path:
+    """Write a RoleDefinition YAML under roles_dir. Dedupes the filename
+    with a numeric suffix if a role of that slug already exists."""
+    roles_dir = Path(roles_dir)
+    roles_dir.mkdir(parents=True, exist_ok=True)
+
+    final_slug = slug
+    path = roles_dir / f"{final_slug}.yml"
+    i = 2
+    while path.exists():
+        final_slug = f"{slug}_{i}"
+        path = roles_dir / f"{final_slug}.yml"
+        i += 1
+
+    role = {
+        "id": final_slug,
+        "name": display_name,
+        "description": f"Agent that {task}.",
+        "responsibilities": [task],
+        "autonomous_actions": list(tools),
+        "approval_required": [],
+        "kpis": [],
+        "communication_style": {
+            "tone": "concise", "verbosity": "brief", "formality": "neutral",
+        },
+        "heartbeat_instructions": f"Your task: {task}. "
+                                  "Report concise, useful results each run.",
+        "sub_roles": [],
+        "tools": list(tools),
+        "authority_level": 1,
+    }
+    path.write_text(yaml.safe_dump(role, sort_keys=False, allow_unicode=True),
+                    encoding="utf-8")
+    return path
+
+
+def commit(answers: Dict, *, roles_dir, state_store, scheduler,
+           multi_agent_system, instance_factory,
+           script_path: Optional[str] = None,
+           icon: str = "🤖") -> AgentState:
+    """Write the role YAML + AgentState, register the AgentInstance, reload
+    roles, and arm the scheduler. Returns the new AgentState.
+
+    instance_factory(role_id, display_name) -> AgentInstance is injected so
+    tests do not need a real MultiAgentSystem hierarchy.
+    """
+    task = answers["task"]
+    display_name = task[:60].strip().title()
+    slug = _slugify(display_name)
+
+    role_path = write_role_yaml(
+        roles_dir=roles_dir, slug=slug, display_name=display_name,
+        task=task, tools=answers.get("tools") or [],
+    )
+    role_id = role_path.stem
+
+    instance = instance_factory(role_id, display_name)
+
+    state = AgentState(
+        role_id=role_id,
+        instance_id=getattr(instance, "id", role_id),
+        display_name=display_name,
+        icon=icon,
+        executor=answers["executor"],
+        trigger=answers["trigger"],
+        persistence=answers["persistence"],
+        notify=answers["notify"],
+        status="active",
+        created_at=now_iso(),
+        script_path=script_path,
+        cadence=answers.get("cadence"),
+        quota=answers.get("quota"),
+    )
+
+    multi_agent_system.reload_roles()
+    state_store.upsert(state)
+    scheduler.arm(state)
+    return state
