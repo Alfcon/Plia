@@ -852,6 +852,14 @@ class MainWindow(FluentWindow):
         except Exception as exc:
             print(f"[App] sys_monitor cleanup failed: {exc}")
 
+        # Title-bar SystemMonitor is a SEPARATE component with its own QThread.
+        try:
+            tb_mon = getattr(self, "system_monitor", None)
+            if tb_mon is not None and hasattr(tb_mon, "cleanup"):
+                tb_mon.cleanup()
+        except Exception as exc:
+            print(f"[App] titlebar system_monitor cleanup failed: {exc}")
+
         # AgentStatusThread fires on Active Agents tab refresh; usually short
         # but join it defensively if mid-flight.
         try:

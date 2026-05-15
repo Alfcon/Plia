@@ -290,6 +290,7 @@ class SystemMonitor(QFrame):
     def _init_worker(self):
         """Initialize the background worker and thread."""
         self.monitor_thread = QThread()
+        self.monitor_thread.setObjectName("TitleBarMonitor")
         self.worker = MonitorWorker()
         self.worker.moveToThread(self.monitor_thread)
         
@@ -372,8 +373,25 @@ class SystemMonitor(QFrame):
             color = "#81c784"  # Green
         label.setStyleSheet(f"color: {color}; font-weight: bold;")
 
-    def __del__(self):
-        """Cleanup thread."""
+    def cleanup(self):
+        """Stop the background worker thread. Call from the owning window's
+        closeEvent — relying on __del__ is unreliable because Qt may have
+        already torn down the underlying QThread by the time it fires."""
+        if hasattr(self, 'timer'):
+            try:
+                self.timer.stop()
+            except Exception:
+                pass
         if hasattr(self, 'monitor_thread'):
-            self.monitor_thread.quit()
-            self.monitor_thread.wait()
+            try:
+                self.monitor_thread.quit()
+                self.monitor_thread.wait()
+            except Exception:
+                pass
+
+    def __del__(self):
+        # Defensive — primary cleanup is via cleanup() above.
+        try:
+            self.cleanup()
+        except Exception:
+            pass
