@@ -770,6 +770,14 @@ class DashboardView(QWidget):
         hdr_lay.addStretch()
         lay.addWidget(hdr)
 
+        # ── Live-agent result cards ──────────────────────────────────────
+        from PySide6.QtWidgets import QVBoxLayout as _QVBox
+        self._agent_cards_box = QWidget()
+        self._agent_cards_layout = _QVBox(self._agent_cards_box)
+        self._agent_cards_layout.setContentsMargins(0, 0, 0, 0)
+        self._agent_cards_layout.setSpacing(6)
+        lay.addWidget(self._agent_cards_box)
+
         # ── Communication log ────────────────────────────────
         self.log = CommunicationLog()
         self.log.setMinimumHeight(120)
@@ -1050,6 +1058,45 @@ class DashboardView(QWidget):
     def add_system_message(self, text: str, tag: str = "system") -> None:
         """Allow external callers to inject messages into the log."""
         self.log.append_message(text, tag)
+
+    def add_agent_card(self, payload: dict) -> None:
+        """Add a live-agent result card to the right panel. Newest on top,
+        capped at 5 visible cards."""
+        from PySide6.QtWidgets import QFrame, QVBoxLayout, QLabel
+
+        card = QFrame()
+        card.setObjectName("agentResultCard")
+        ok = payload.get("success", True)
+        border = "#4caf50" if ok else "#ef5350"
+        card.setStyleSheet(
+            f"QFrame#agentResultCard {{ border: 1px solid {border};"
+            f" border-radius: 6px; background: rgba(255,255,255,0.04); }}"
+        )
+        col = QVBoxLayout(card)
+        col.setContentsMargins(8, 6, 8, 6)
+        col.setSpacing(2)
+
+        header = QLabel(f"{payload.get('icon', '🤖')}  {payload.get('title', 'Agent')}")
+        header.setStyleSheet("font-weight: 600;")
+        col.addWidget(header)
+
+        summary = QLabel(payload.get("summary", ""))
+        summary.setWordWrap(True)
+        col.addWidget(summary)
+
+        for item in payload.get("items", [])[:5]:
+            row = QLabel(f"  • {item.get('title', '?')}")
+            row.setStyleSheet("color: #9aa0aa;")
+            col.addWidget(row)
+
+        self._agent_cards_layout.insertWidget(0, card)
+
+        # cap at 5 visible cards
+        while self._agent_cards_layout.count() > 5:
+            old = self._agent_cards_layout.takeAt(self._agent_cards_layout.count() - 1)
+            w = old.widget()
+            if w is not None:
+                w.deleteLater()
 
     # ── Cleanup ───────────────────────────────────────────────
     def closeEvent(self, event) -> None:           # noqa: N802

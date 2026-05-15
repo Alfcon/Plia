@@ -1067,6 +1067,7 @@ class ChatHandlers(QObject):
         self._worker.create_agent_signal.connect(self._on_create_agent_from_chat)
         self._worker.agent_result_signal.connect(self._on_agent_result)
         self._worker.build_agent_signal.connect(self._on_agent_built)
+        self._worker.live_agent_wizard_signal.connect(self._on_live_agent_wizard)
         self._worker.build_status_signal.connect(self._on_status)
         self._worker.done.connect(self._on_done)
         self._worker.done.connect(self._thread.quit)
@@ -1213,6 +1214,7 @@ class ChatHandlers(QObject):
         self._worker.create_agent_signal.connect(self._on_create_agent_from_chat)
         self._worker.agent_result_signal.connect(self._on_agent_result)
         self._worker.build_agent_signal.connect(self._on_agent_built)
+        self._worker.live_agent_wizard_signal.connect(self._on_live_agent_wizard)
         self._worker.build_status_signal.connect(self._on_status)
 
         # After worker finishes: append compact pair to self.messages so
@@ -1294,3 +1296,21 @@ class ChatHandlers(QObject):
                 self.main_window.navigate_to_agent_list()
         except Exception as exc:
             print(f"[ChatHandlers] agents_tab refresh failed: {exc}")
+
+    def _on_live_agent_wizard(self, task: str):
+        """Open the chat-channel creation wizard for a live agent.
+
+        Uses self.main_window as the dialog parent and refreshes the Active
+        Agents tab on success.
+        """
+        try:
+            from gui.tabs.creation_wizard import CreationWizardDialog
+            dlg = CreationWizardDialog(task, parent=self.main_window)
+            if dlg.exec():
+                agents_tab = getattr(self.main_window, "agents_tab", None)
+                if agents_tab is not None and hasattr(agents_tab, "refresh"):
+                    agents_tab.refresh()
+        except Exception as e:
+            print(f"[ChatHandlers] live-agent wizard failed: {e}")
+            import traceback
+            traceback.print_exc()

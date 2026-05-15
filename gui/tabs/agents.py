@@ -873,6 +873,215 @@ class RunAgentThread(QThread):
 # Main view
 # ---------------------------------------------------------------------------
 
+class LiveAgentRow(QFrame):
+    """One live agent: status line + Run/Pause/Resume/Stop/Edit/Delete + history."""
+
+    def __init__(self, state, parent=None):
+        super().__init__(parent)
+        self._state = state
+        self.setObjectName("liveAgentRow")
+        self._build()
+
+    def _build(self):
+        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout
+
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 6, 8, 6)
+        outer.setSpacing(4)
+
+        s = self._state
+        head = QLabel(f"{s.icon}  {s.display_name}   "
+                      f"<span style='color:#9aa0aa'>● {s.status}</span>")
+        outer.addWidget(head)
+
+        sub_bits = [f"Trigger: {s.trigger}"]
+        if s.trigger == "scheduled" and s.cadence:
+            mins = s.cadence.get("interval_sec", 0) // 60
+            sub_bits.append(f"every {mins} min")
+        if s.trigger == "quota" and s.quota:
+            sub_bits.append(f"quota {s.quota.get('progress', 0)}/{s.quota.get('limit', 0)}")
+        sub_bits.append(f"runs: {s.runs}")
+        if s.last_fire_at:
+            sub_bits.append(f"last: {s.last_fire_at}")
+        sub = QLabel(" · ".join(sub_bits))
+        sub.setStyleSheet("color:#9aa0aa;")
+        outer.addWidget(sub)
+
+        btn_row = QHBoxLayout()
+        from core.agent_runtime import get_runtime
+        rt = get_runtime()
+
+        def _refresh_parent():
+            p = self.parent()
+            while p is not None and not isinstance(p, LiveAgentsSection):
+                p = p.parent()
+            if p is not None:
+                p.refresh()
+
+        if s.status != "terminated":
+            run_btn = PushButton("▶ Run now")
+            run_btn.clicked.connect(
+                lambda: (rt.scheduler.fire_now(s.role_id), _refresh_parent()))
+            btn_row.addWidget(run_btn)
+
+            if s.trigger != "on_demand":
+                if s.status == "paused":
+                    resume_btn = PushButton("▶ Resume")
+                    resume_btn.clicked.connect(
+                        lambda: (rt.scheduler.resume(s.role_id), _refresh_parent()))
+                    btn_row.addWidget(resume_btn)
+                else:
+                    pause_btn = PushButton("⏸ Pause")
+                    pause_btn.clicked.connect(
+                        lambda: (rt.scheduler.pause(s.role_id), _refresh_parent()))
+                    btn_row.addWidget(pause_btn)
+
+            stop_btn = PushButton("⏹ Stop")
+            stop_btn.clicked.connect(
+                lambda: (rt.scheduler.disarm(s.role_id),
+                         self._terminate(rt), _refresh_parent()))
+            btn_row.addWidget(stop_btn)
+
+            edit_btn = PushButton("⚙ Edit")
+            edit_btn.clicked.connect(lambda: self._open_editor(_refresh_parent))
+            btn_row.addWidget(edit_btn)
+
+        del_btn = PushButton("🗑 Delete")
+        del_btn.clicked.connect(lambda: self._delete(rt, _refresh_parent))
+        btn_row.addWidget(del_btn)
+        btn_row.addStretch(1)
+        outer.addLayout(btn_row)
+
+        if s.history:
+            hist = QLabel("\n".join(
+                f"  {h.get('ran_at', '?')}  "
+                f"{'✓' if h.get('success') else '✗'}  {h.get('summary', '')}"
+                for h in s.history[-5:]))
+            hist.setStyleSheet("color:#7d828c; font-size:11px;")
+            outer.addWidget(hist)
+
+    def _terminate(self, rt):
+        from core.multi_agent import multi_agent_system
+        st = rt.store.get(self._state.role_id)
+        if st is None:
+            return
+        st.status = "terminated"
+        rt.store.upsert(st)
+        inst = rt._get_instance(self._state.role_id)
+        if inst is not None:
+            multi_agent_system.terminate_agent(inst.id)
+
+    def _delete(self, rt, refresh_cb):
+        from pathlib import Path
+        rt.scheduler.disarm(self._state.role_id)
+        rt.store.remove(self._state.role_id)
+        role_file = Path.home() / ".plia_ai" / "roles" / f"{self._state.role_id}.yml"
+        if role_file.exists():
+            role_file.unlink()
+        if self._state.script_path:
+            sp = Path(self._state.script_path)
+            if sp.exists():
+                sp.unlink()
+        refresh_cb()
+
+    def _open_editor(self, refresh_cb):
+        from gui.tabs.agent_editor import LiveAgentEditorDialog
+        dlg = LiveAgentEditorDialog(self._state, parent=self)
+        if dlg.exec():
+            refresh_cb()
+
+
+class LiveAgentsSection(QWidget):
+    """Lists every live agent from the runtime's state store, with bulk
+    controls (Pause all / Resume all) and a status filter."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QComboBox
+
+        self._layout = QVBoxLayout(self)
+        self._layout.setContentsMargins(0, 0, 0, 0)
+        self._layout.setSpacing(6)
+
+        self._header = SubtitleLabel("Live Agents")
+        self._layout.addWidget(self._header)
+
+        # ── bulk controls row ────────────────────────────────────────────
+        controls = QHBoxLayout()
+        pause_all = PushButton("⏸ Pause all")
+        pause_all.clicked.connect(self._pause_all)
+        resume_all = PushButton("▶ Resume all")
+        resume_all.clicked.connect(self._resume_all)
+        controls.addWidget(pause_all)
+        controls.addWidget(resume_all)
+        self._filter = QComboBox()
+        self._filter.addItems(["All", "Active", "Paused", "Terminated"])
+        self._filter.currentTextChanged.connect(lambda _: self.refresh())
+        controls.addWidget(self._filter)
+        controls.addStretch(1)
+        self._layout.addLayout(controls)
+
+        self._rows_box = QWidget()
+        from PySide6.QtWidgets import QVBoxLayout as _V
+        self._rows_layout = _V(self._rows_box)
+        self._rows_layout.setContentsMargins(0, 0, 0, 0)
+        self._rows_layout.setSpacing(6)
+        self._layout.addWidget(self._rows_box)
+        self.refresh()
+
+    def _pause_all(self):
+        from core.agent_runtime import get_runtime
+        rt = get_runtime()
+        for s in rt.store.all():
+            if s.status == "active" and s.trigger != "on_demand":
+                rt.scheduler.pause(s.role_id)
+        self.refresh()
+
+    def _resume_all(self):
+        from core.agent_runtime import get_runtime
+        rt = get_runtime()
+        for s in rt.store.all():
+            if s.status == "paused":
+                rt.scheduler.resume(s.role_id)
+        self.refresh()
+
+    def refresh(self):
+        # clear existing rows
+        while self._rows_layout.count():
+            item = self._rows_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+
+        from core.agent_runtime import get_runtime
+        all_states = sorted(get_runtime().store.all(), key=lambda s: s.display_name)
+
+        # apply the status filter
+        chosen = self._filter.currentText()
+        if chosen == "All":
+            states = all_states
+        else:
+            states = [s for s in all_states if s.status == chosen.lower()]
+
+        if not states:
+            msg = ("No live agents yet. Say \"Create an agent that…\" "
+                   "or use the chat to set one up.") if not all_states \
+                else f"No {chosen.lower()} agents."
+            empty = BodyLabel(msg)
+            empty.setStyleSheet("color:#7d828c;")
+            self._rows_layout.addWidget(empty)
+        else:
+            for state in states:
+                self._rows_layout.addWidget(LiveAgentRow(state))
+
+        # count strip always reflects ALL agents, not the filtered view
+        active = sum(1 for s in all_states if s.status == "active")
+        paused = sum(1 for s in all_states if s.status == "paused")
+        term = sum(1 for s in all_states if s.status == "terminated")
+        self._header.setText(
+            f"Live Agents   ({active} active · {paused} paused · {term} terminated)")
+
+
 class AgentsTab(QWidget):
     """
     Active Agents page — shows real-time status of every AI model,
@@ -1020,6 +1229,10 @@ class AgentsTab(QWidget):
             task_lbl.setStyleSheet("color: #33b5e5; padding: 8px 12px 4px 12px;")
             task_lbl.setWordWrap(True)
             lay.addWidget(task_lbl)
+
+        # ── Live Agents (scheduled / on-demand / quota workers) ──────────
+        self._live_agents_section = LiveAgentsSection()
+        lay.addWidget(self._live_agents_section)
 
         self._content.addWidget(card)
 
@@ -1249,15 +1462,19 @@ class AgentsTab(QWidget):
     def refresh(self):
         self._build_multi_agent_section()
         if self._thread and self._thread.isRunning():
-            return
-        self._refresh_btn.setEnabled(False)
-        self._refresh_btn.setText("Checking…")
-        for row in self._rows.values():
-            row.update_status("loading", "Checking…")
+            pass
+        else:
+            self._refresh_btn.setEnabled(False)
+            self._refresh_btn.setText("Checking…")
+            for row in self._rows.values():
+                row.update_status("loading", "Checking…")
 
-        self._thread = AgentStatusThread()
-        self._thread.finished.connect(self._apply_statuses)
-        self._thread.start()
+            self._thread = AgentStatusThread()
+            self._thread.finished.connect(self._apply_statuses)
+            self._thread.start()
+
+        if getattr(self, "_live_agents_section", None) is not None:
+            self._live_agents_section.refresh()
 
     def _apply_statuses(self, statuses: dict):
         for key, row in self._rows.items():
