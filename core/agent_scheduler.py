@@ -82,3 +82,24 @@ def parse_cadence(text: str, now: Optional[datetime] = None) -> Optional[Dict]:
         return {"interval_sec": 86400, "anchor_iso": None}
 
     return None
+
+
+def compute_next_fire(cadence: Dict, from_dt: datetime) -> datetime:
+    """Given a cadence dict and a reference time, return the next fire time.
+
+    - No anchor: from_dt + interval.
+    - Future anchor: the anchor itself.
+    - Past anchor: advance by whole intervals until strictly after from_dt.
+    """
+    interval = int(cadence["interval_sec"])
+    anchor_iso = cadence.get("anchor_iso")
+    if not anchor_iso:
+        return from_dt + timedelta(seconds=interval)
+
+    anchor = datetime.fromisoformat(anchor_iso)
+    if anchor > from_dt:
+        return anchor
+
+    elapsed = (from_dt - anchor).total_seconds()
+    steps = int(elapsed // interval) + 1
+    return anchor + timedelta(seconds=steps * interval)
