@@ -129,6 +129,8 @@ class FunctionExecutor:
                 return self._network_tools(params)
             elif func_name == "mcp_tool_call":
                 return self._mcp_tool_call(params)
+            elif func_name == "http_get":
+                return self._http_get(params)
             else:
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
@@ -987,6 +989,35 @@ class FunctionExecutor:
             return {"success": False, "message": "Invalid MCP client response.", "data": None}
 
         return result
+
+    def _http_get(self, params: Dict) -> Dict:
+        """Read-only HTTP GET. Returns status code + size-capped text body.
+
+        Used by API-driven live agents (GitHub, generic REST). Only http/https
+        URLs are allowed; the body is capped at 100 KB of text.
+        """
+        url = (params.get("url") or "").strip()
+        if not url or not url.startswith(("http://", "https://")):
+            return {"success": False,
+                    "message": "Invalid or missing URL (must be http/https).",
+                    "data": None}
+        MAX_BODY = 100_000
+        try:
+            import requests
+            headers = {"User-Agent": "Plia-Agent/1.0"}
+            resp = requests.get(url, headers=headers, timeout=15, allow_redirects=True)
+            body = (resp.text or "")[:MAX_BODY]
+            return {
+                "success": bool(resp.ok),
+                "message": f"HTTP {resp.status_code} ({len(body)} chars)",
+                "data": {
+                    "status_code": resp.status_code,
+                    "body": body,
+                    "url": resp.url,
+                },
+            }
+        except Exception as e:
+            return {"success": False, "message": f"HTTP GET failed: {e}", "data": None}
 
 
 # Global instance
