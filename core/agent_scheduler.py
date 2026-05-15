@@ -139,7 +139,7 @@ class AgentScheduler(QObject):
 
     def __init__(self, *, state_store, task_manager, runner_builder,
                  instance_provider, now_provider=None, timer_factory=None,
-                 parent=None):
+                 reporter=None, parent=None):
         super().__init__(parent)
         self._store = state_store
         self._task_manager = task_manager
@@ -147,6 +147,7 @@ class AgentScheduler(QObject):
         self._instance_provider = instance_provider
         self._now = now_provider or datetime.now
         self._timer_factory = timer_factory or _default_timer_factory
+        self._reporter = reporter or (lambda state, result: None)
         self._timers: Dict[str, object] = {}
         self._in_flight: set = set()
 
@@ -244,5 +245,43 @@ class AgentScheduler(QObject):
     def _on_run_complete(self, role_id: str, record: Dict) -> None:
         """Called (from a worker thread) when AgentTaskManager finishes a run."""
         self._in_flight.discard(role_id)
-        # Reporting + quota handling are added in Task 6.
         self._handle_completion(role_id, record)
+
+    HISTORY_CAP = 50
+
+    def _handle_completion(self, role_id: str, record: Dict) -> None:
+        from core.executors.run_result import RunResult
+
+        state = self._store.get(role_id)
+        if state is None:
+            return
+
+        result = RunResult.from_runner_output(record.get("result"))
+
+        # always: append to history (FIFO cap)
+        state.history.append({
+            "ran_at": self._now().isoformat(timespec="seconds"),
+            "success": result.success,
+            "summary": result.summary,
+            "details": result.details,
+            "items_found": result.items_found,
+            "items": result.items,
+            "error": result.error,
+        })
+        if len(state.history) > self.HISTORY_CAP:
+            state.history = state.history[-self.HISTORY_CAP:]
+
+        # quota accounting
+        if state.trigger == "quota" and state.quota is not None and result.success:
+            state.quota["progress"] = int(state.quota.get("progress", 0)) + result.items_found
+            if state.quota["progress"] >= int(state.quota.get("limit", 0)):
+                state.status = "terminated"
+                self.disarm(role_id)
+
+        self._store.upsert(state)
+
+        # hand off to the reporter (Phase 5 wires the real ResultDispatcher here)
+        try:
+            self._reporter(state, result)
+        except Exception as exc:
+            print(f"[AgentScheduler] reporter error: {exc}")
