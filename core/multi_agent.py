@@ -474,4 +474,6 @@ class MultiAgentSystem:
         }
 
 
-multi_agent_system = MultiAgentSystem()
+_ROLES_DIR = Path.home() / ".plia_ai" / "roles"
+_ROLES_DIR.mkdir(parents=True, exist_ok=True)
+multi_agent_system = MultiAgentSystem(str(_ROLES_DIR))
