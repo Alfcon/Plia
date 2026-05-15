@@ -95,7 +95,48 @@ class MainWindow(FluentWindow):
         self._init_background()
         self._preload_models()
         self._init_voice_assistant()
-        
+        self._init_agent_runtime()
+
+    def _init_agent_runtime(self):
+        """Start the live-agent runtime: load persisted agents, arm the
+        scheduler, and connect the ResultDispatcher to the UI."""
+        try:
+            from core.agent_runtime import get_runtime
+            rt = get_runtime()
+            rt.start()
+
+            disp = rt.dispatcher
+            disp.agent_history_appended.connect(self._on_agent_history_appended)
+            disp.show_toast.connect(self._on_agent_toast)
+            disp.dashboard_card_added.connect(self._on_agent_card)
+            disp.comm_log_append.connect(self._on_agent_comm_log)
+            print("[App] ✓ Agent runtime started")
+        except Exception as e:
+            print(f"[App] ✗ Agent runtime failed to start: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _on_agent_history_appended(self, role_id: str):
+        if self.agents_tab is not None and hasattr(self.agents_tab, "refresh"):
+            self.agents_tab.refresh()
+
+    def _on_agent_toast(self, title: str, body: str, success: bool):
+        try:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            fn = InfoBar.success if success else InfoBar.error
+            fn(title=title, content=body, duration=4000,
+               position=InfoBarPosition.TOP_RIGHT, parent=self)
+        except Exception as e:
+            print(f"[App] toast failed: {e}")
+
+    def _on_agent_card(self, payload: dict):
+        if getattr(self, "dashboard_view", None) is not None:
+            self.dashboard_view.add_agent_card(payload)
+
+    def _on_agent_comm_log(self, role_id: str, title: str, body: str):
+        if getattr(self, "dashboard_view", None) is not None:
+            self.dashboard_view.add_system_message(f"{title}\n{body}", tag="system")
+
     def _preload_models(self):
         """Start the background thread to preload models."""
         self.preloader_thread = ModelPreloaderThread()
