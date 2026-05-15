@@ -918,33 +918,36 @@ class LiveAgentRow(QFrame):
             if p is not None:
                 p.refresh()
 
-        if s.status != "terminated":
-            run_btn = PushButton("▶ Run now")
-            run_btn.clicked.connect(
-                lambda: (rt.scheduler.fire_now(s.role_id), _refresh_parent()))
-            btn_row.addWidget(run_btn)
+        # Run now is always available; a terminated agent is reactivated
+        # before the run so the user can "run again" on a stopped agent.
+        run_btn = PushButton("▶ Run now")
+        run_btn.clicked.connect(
+            lambda: (self._run_now(rt), _refresh_parent()))
+        btn_row.addWidget(run_btn)
 
-            if s.trigger != "on_demand":
-                if s.status == "paused":
-                    resume_btn = PushButton("▶ Resume")
-                    resume_btn.clicked.connect(
-                        lambda: (rt.scheduler.resume(s.role_id), _refresh_parent()))
-                    btn_row.addWidget(resume_btn)
-                else:
-                    pause_btn = PushButton("⏸ Pause")
-                    pause_btn.clicked.connect(
-                        lambda: (rt.scheduler.pause(s.role_id), _refresh_parent()))
-                    btn_row.addWidget(pause_btn)
+        # Pause / Resume only make sense for scheduled or quota agents that
+        # are still alive (active or paused).
+        if s.trigger != "on_demand" and s.status != "terminated":
+            if s.status == "paused":
+                resume_btn = PushButton("▶ Resume")
+                resume_btn.clicked.connect(
+                    lambda: (rt.scheduler.resume(s.role_id), _refresh_parent()))
+                btn_row.addWidget(resume_btn)
+            else:
+                pause_btn = PushButton("⏸ Pause")
+                pause_btn.clicked.connect(
+                    lambda: (rt.scheduler.pause(s.role_id), _refresh_parent()))
+                btn_row.addWidget(pause_btn)
 
-            stop_btn = PushButton("⏹ Stop")
-            stop_btn.clicked.connect(
-                lambda: (rt.scheduler.disarm(s.role_id),
-                         self._terminate(rt), _refresh_parent()))
-            btn_row.addWidget(stop_btn)
+        stop_btn = PushButton("⏹ Stop")
+        stop_btn.clicked.connect(
+            lambda: (rt.scheduler.disarm(s.role_id),
+                     self._terminate(rt), _refresh_parent()))
+        btn_row.addWidget(stop_btn)
 
-            edit_btn = PushButton("⚙ Edit")
-            edit_btn.clicked.connect(lambda: self._open_editor(_refresh_parent))
-            btn_row.addWidget(edit_btn)
+        edit_btn = PushButton("⚙ Edit")
+        edit_btn.clicked.connect(lambda: self._open_editor(_refresh_parent))
+        btn_row.addWidget(edit_btn)
 
         del_btn = PushButton("🗑 Delete")
         del_btn.clicked.connect(lambda: self._delete(rt, _refresh_parent))
@@ -959,6 +962,20 @@ class LiveAgentRow(QFrame):
                 for h in s.history[-5:]))
             hist.setStyleSheet("color:#7d828c; font-size:11px;")
             outer.addWidget(hist)
+
+    def _run_now(self, rt):
+        """Fire the agent now. If it was terminated, reactivate it first so
+        the user can re-run a stopped agent without re-creating it."""
+        st = rt.store.get(self._state.role_id)
+        if st is None:
+            return
+        if st.status == "terminated":
+            st.status = "active"
+            rt.store.upsert(st)
+            # For scheduled/quota agents, re-arm the timer now that we're active.
+            if st.trigger != "on_demand":
+                rt.scheduler.arm(st)
+        rt.scheduler.fire_now(self._state.role_id)
 
     def _terminate(self, rt):
         from core.multi_agent import multi_agent_system
