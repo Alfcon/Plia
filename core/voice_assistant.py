@@ -532,13 +532,13 @@ class VoiceAssistant(QObject):
                     self.stt_listener.prime_followup()
 
         try:
-            tts.signals().speaking_finished.connect(_on_speaking_finished)
+            tts.signals.speaking_finished.connect(_on_speaking_finished)
         except Exception as exc:
             print(f"[VoiceAssistant] could not connect TTS finished signal: {exc}")
 
         def _teardown_followup():
             try:
-                tts.signals().speaking_finished.disconnect(_on_speaking_finished)
+                tts.signals.speaking_finished.disconnect(_on_speaking_finished)
             except (TypeError, RuntimeError):
                 pass
 
