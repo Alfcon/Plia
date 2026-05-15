@@ -366,3 +366,32 @@ class AgentScheduler(QObject):
         except ValueError:
             return False
         return (now - last).total_seconds() > int(cadence["interval_sec"])
+
+
+def build_default_runner(state, *, role_tools, ollama_url: str, model: str):
+    """Construct the executor runner for an AgentState.
+
+    state.executor == "script"    -> subprocess runner over state.script_path
+    state.executor == "tool_loop" -> Ollama tool-call loop over role_tools
+    """
+    from core.executors.script_executor import make_script_runner
+    from core.executors.tool_loop_executor import make_tool_loop_runner
+    from core.executors.run_result import RunResult
+
+    if state.executor == "script":
+        if not state.script_path:
+            def _missing(*, agent, task, context):
+                return RunResult(
+                    success=False,
+                    summary="Agent has no script path.",
+                    details="state.executor is 'script' but script_path is unset.",
+                    error="script_not_found",
+                )
+            return _missing
+        return make_script_runner(state.script_path)
+
+    return make_tool_loop_runner(
+        allowed_tools=list(role_tools or []),
+        ollama_url=ollama_url,
+        model=model,
+    )
