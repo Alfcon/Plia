@@ -111,6 +111,52 @@ def test_tool_loop_hits_iteration_cap(monkeypatch):
     assert result.error == "iteration_cap"
 
 
+def test_tool_loop_nudges_retry_when_no_tool_and_empty(monkeypatch):
+    """If the LLM returns 0 items without calling any tools, the loop nudges
+    it once. After the nudge it calls a tool, then a final answer is accepted."""
+    _stub_ollama(monkeypatch, [
+        # Turn 1: model skips tools and returns empty result.
+        {"message": {"content": "SUMMARY: nothing\nITEMS_FOUND: 0\nITEMS_JSON: []"},
+         "prompt_eval_count": 1, "eval_count": 1},
+        # Turn 2 (after nudge): model finally calls the tool.
+        {"message": {"tool_calls": [
+            {"function": {"name": "web_search", "arguments": {"query": "x"}}}]},
+         "prompt_eval_count": 1, "eval_count": 1},
+        # Turn 3: model answers with real items.
+        {"message": {"content":
+            "SUMMARY: found 1\nITEMS_FOUND: 1\nITEMS_JSON: [{\"title\": \"a\", \"url\": \"u\"}]"},
+         "prompt_eval_count": 1, "eval_count": 1},
+    ])
+    monkeypatch.setattr(tle.function_executor, "execute",
+                        lambda name, params: {"success": True, "data": []})
+    runner = tle.make_tool_loop_runner(
+        allowed_tools=["web_search"], ollama_url="http://x/api",
+        model="m", max_steps=8, token_budget=100_000)
+    result = runner(agent=_FakeAgent(), task="t", context="")
+    assert result.success is True
+    assert result.items_found == 1
+    # tool WAS called this time, so no warning marker
+    assert result.error is None
+
+
+def test_tool_loop_flags_no_tool_call_when_items_returned(monkeypatch):
+    """If the LLM returns items without calling any tools, we accept the
+    result but mark it as likely hallucinated."""
+    _stub_ollama(monkeypatch, [
+        {"message": {"content":
+            "SUMMARY: from memory\nITEMS_FOUND: 1\nITEMS_JSON: [{\"title\": \"fake\", \"url\": \"u\"}]"},
+         "prompt_eval_count": 1, "eval_count": 1},
+    ])
+    runner = tle.make_tool_loop_runner(
+        allowed_tools=["web_search"], ollama_url="http://x/api",
+        model="m", max_steps=8, token_budget=100_000)
+    result = runner(agent=_FakeAgent(), task="t", context="")
+    assert result.success is True
+    assert result.items_found == 1
+    assert result.error == "no_tool_call"
+    assert "fabricated" in result.details.lower() or "did not call" in result.details.lower()
+
+
 def test_tool_loop_hits_token_budget(monkeypatch):
     _stub_ollama(monkeypatch, [
         {"message": {"tool_calls": [

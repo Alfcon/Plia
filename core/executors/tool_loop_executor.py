@@ -46,13 +46,22 @@ def _catalog_text(allowed_tools: List[str]) -> str:
     if not allowed_tools:
         return "You have no tools available. Answer from reasoning alone."
     return (
-        "You may call these tools: " + ", ".join(allowed_tools) +
-        ".\nStay strictly on the task topic and ignore unrelated search hits.\n"
-        "When finished, reply with plain text in this exact format:\n"
-        "SUMMARY: <one concise sentence summarising what you found>\n"
+        "You have these tools available: " + ", ".join(allowed_tools) + ".\n\n"
+        "RULES (read carefully):\n"
+        "1. You MUST call at least one tool before answering. Do not answer "
+        "from memory or guesswork.\n"
+        "2. NEVER invent URLs, repository names, titles, prices, or facts. "
+        "Every item you return must come from a tool result you actually "
+        "observed in this conversation.\n"
+        "3. Stay strictly on the task topic and ignore unrelated search hits.\n"
+        "4. If tool results are empty or unhelpful, return ITEMS_FOUND: 0 and "
+        "say so honestly in SUMMARY. Do not fill the gap with made-up items.\n\n"
+        "When you have enough information, reply with plain text in this exact format "
+        "(no extra prose before SUMMARY):\n"
+        "SUMMARY: <one concise sentence describing what you actually found>\n"
         "ITEMS_FOUND: <integer count>\n"
         'ITEMS_JSON: <json array; each item MUST be an object with at least '
-        '"title" and "url" keys, e.g. '
+        '"title" and "url" keys taken directly from tool results, e.g. '
         '[{"title": "acme/repo", "url": "https://github.com/acme/repo"}]>'
     )
 
@@ -100,6 +109,8 @@ def make_tool_loop_runner(*, allowed_tools: List[str], ollama_url: str,
 
         catalog = _build_catalog(allowed_tools)
         tokens_used = 0
+        tool_calls_made = 0       # how many tools the LLM actually invoked
+        forced_retry_used = False # we allow one nudge if it tries to answer without calling tools
 
         for _step in range(max_steps):
             payload = {"model": model, "messages": messages,
@@ -141,13 +152,43 @@ def make_tool_loop_runner(*, allowed_tools: List[str], ollama_url: str,
                         continue
                     try:
                         tool_result = function_executor.execute(name, args)
+                        tool_calls_made += 1
                     except Exception as exc:
                         tool_result = {"success": False, "message": str(exc)}
                     messages.append({"role": "tool",
                                      "content": json.dumps(tool_result)[:6000]})
                 continue
 
-            return _parse_final(msg.get("content", "") or "")
+            # Final response (model returned plain text, no tool_calls).
+            final = _parse_final(msg.get("content", "") or "")
+
+            if tool_calls_made == 0:
+                # Skipped tools entirely AND came back empty? Almost certainly
+                # the model didn't bother doing the work. Nudge it once.
+                if final.items_found == 0 and not forced_retry_used:
+                    forced_retry_used = True
+                    messages.append(msg)
+                    primary_tool = allowed_tools[0] if allowed_tools else "the available tool"
+                    messages.append({
+                        "role": "user",
+                        "content": (
+                            "Your previous answer found 0 items and you did "
+                            "not call any tools. You MUST call "
+                            f"`{primary_tool}` first to gather real data, "
+                            "then answer in the SUMMARY / ITEMS_FOUND / "
+                            "ITEMS_JSON format."
+                        ),
+                    })
+                    continue
+                # Items returned but no tool was called — likely fabricated.
+                final.error = "no_tool_call"
+                final.details = (
+                    "⚠️ The agent did not call any tools before answering. "
+                    "Results below may be fabricated — consider using a "
+                    "larger model (e.g. qwen3:8b) for reliable tool use.\n\n"
+                    + final.details
+                )
+            return final
 
         return RunResult(
             success=True,
