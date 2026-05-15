@@ -922,6 +922,29 @@ class SettingsTab(ScrollArea):
         )
         self.general_group.addSettingCard(self.auto_news_card)
 
+        # ── Web Search ────────────────────────────────────────────────────
+        self.search_group = SettingCardGroup("Web Search", self.scrollWidget)
+
+        self.search_backend_card = ComboBoxCard(
+            FIF.GLOBE,
+            "Search Backend",
+            "Which engine the web_search tool uses. 'auto' uses Brave when a key is set, else DuckDuckGo.",
+            ["auto", "brave", "duckduckgo"],
+            "search.backend",
+            self.search_group,
+        )
+        self.search_group.addSettingCard(self.search_backend_card)
+
+        self.brave_key_card = TextInputCard(
+            FIF.CERTIFICATE,
+            "Brave Search API Key",
+            "Get a free key (2000 queries/month) at https://api.search.brave.com",
+            "search.brave_api_key",
+            "",
+            self.search_group,
+        )
+        self.search_group.addSettingCard(self.brave_key_card)
+
         # ── Privacy & Redaction ────────────────────────────────────────────────
         self.privacy_group = SettingCardGroup("Privacy & Redaction", self.scrollWidget)
 
@@ -955,6 +978,7 @@ class SettingsTab(ScrollArea):
         self.privacy_group.addSettingCard(self.redaction_blocklist_card)
 
         self.expandLayout.addWidget(self.general_group)
+        self.expandLayout.addWidget(self.search_group)
         self.expandLayout.addWidget(self.privacy_group)
 
         # ── Morning Digest ───────────────────────────────────────────────────

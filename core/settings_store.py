@@ -111,6 +111,13 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "finance": {
         "currency": "USD",
     },
+    # ── Web search backend ──────────────────────────────────────────────
+    # Backend "brave" requires a (free) API key from https://api.search.brave.com.
+    # With an empty key Plia falls back to DuckDuckGo automatically.
+    "search": {
+        "backend":      "auto",   # "auto" | "brave" | "duckduckgo"
+        "brave_api_key": "",
+    },
     # ── UI (standalone plia2.py launcher) ────────────────────────────────
     "ui": {
         "opacity":       0.98,

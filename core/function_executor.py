@@ -326,40 +326,95 @@ class FunctionExecutor:
 
         Returns up to 20 results so the SearchBrowserWindow can paginate them.
         The 'results' list contains dicts with keys: title, body, url.
+
+        Backend is chosen from settings.search.backend:
+          - "brave"      → Brave Search API (requires brave_api_key)
+          - "duckduckgo" → DuckDuckGo via ddgs (no key)
+          - "auto"       → Brave if a key is set, otherwise DuckDuckGo
         """
         query = params.get("query", "")
-
         if not query:
             return {"success": False, "message": "No search query provided", "data": None}
 
+        # Resolve backend lazily so live settings changes take effect.
+        backend = "duckduckgo"
+        brave_key = ""
         try:
-            # Try ddgs first (metasearch aggregator), fall back to duckduckgo_search
+            from core.settings_store import settings as app_settings
+            backend = (app_settings.get("search.backend", "auto") or "auto").lower()
+            brave_key = (app_settings.get("search.brave_api_key", "") or "").strip()
+        except Exception:
+            pass
+        if backend == "auto":
+            backend = "brave" if brave_key else "duckduckgo"
+
+        if backend == "brave":
+            result = self._search_brave(query, brave_key)
+            if result is not None:
+                return result
+            # Brave failed (no key, network error, quota) — fall back to DDG.
+            print("[web_search] Brave search failed; falling back to DuckDuckGo.")
+
+        return self._search_duckduckgo(query)
+
+    def _search_brave(self, query: str, api_key: str) -> Optional[Dict]:
+        """Brave Search API. Returns None if the key is missing or the call
+        fails, so the caller can fall back to another backend."""
+        if not api_key:
+            return None
+        try:
+            import requests
+            resp = requests.get(
+                "https://api.search.brave.com/res/v1/web/search",
+                params={"q": query, "count": 20},
+                headers={"Accept": "application/json",
+                         "X-Subscription-Token": api_key},
+                timeout=15,
+            )
+            if resp.status_code != 200:
+                print(f"[web_search] Brave HTTP {resp.status_code}: {resp.text[:200]}")
+                return None
+            payload = resp.json()
+            results = (payload.get("web") or {}).get("results") or []
+            formatted = []
+            for r in results[:20]:
+                formatted.append({
+                    "title": r.get("title", ""),
+                    "body":  (r.get("description", "") or "")[:300],
+                    "url":   r.get("url", ""),
+                })
+            return {
+                "success": True,
+                "message": f"Found {len(formatted)} results for '{query}' (Brave)",
+                "data": {"query": query, "results": formatted, "backend": "brave"},
+            }
+        except Exception as e:
+            print(f"[web_search] Brave error: {e}")
+            return None
+
+    def _search_duckduckgo(self, query: str) -> Dict:
+        try:
             try:
                 from ddgs import DDGS
             except ImportError:
                 from duckduckgo_search import DDGS
-
             with DDGS() as ddgs:
                 raw = list(ddgs.text(query, max_results=20))
-
             if raw:
-                # Normalise all results (body truncated to 300 chars for LLM context)
-                formatted = []
-                for r in raw:
-                    formatted.append({
-                        "title": r.get("title", ""),
-                        "body":  r.get("body", "")[:300],
-                        "url":   r.get("href", ""),
-                    })
-
+                formatted = [
+                    {"title": r.get("title", ""),
+                     "body":  r.get("body", "")[:300],
+                     "url":   r.get("href", "")}
+                    for r in raw
+                ]
                 return {
                     "success": True,
-                    "message": f"Found {len(formatted)} results for '{query}'",
-                    "data": {"query": query, "results": formatted},
+                    "message": f"Found {len(formatted)} results for '{query}' (DuckDuckGo)",
+                    "data": {"query": query, "results": formatted, "backend": "duckduckgo"},
                 }
-
-            return {"success": True, "message": f"No results found for '{query}'", "data": None}
-
+            return {"success": True,
+                    "message": f"No results found for '{query}'",
+                    "data": {"query": query, "results": [], "backend": "duckduckgo"}}
         except Exception as e:
             return {"success": False, "message": f"Search failed: {e}", "data": None}
     
