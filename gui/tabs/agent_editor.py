@@ -405,7 +405,7 @@ class LiveAgentEditorDialog(QDialog):
 
     # confirmed tool names from core/function_executor.py
     ALL_TOOLS = [
-        "web_search", "http_get", "list_plia_features",
+        "web_search", "http_get", "list_plia_features", "github_readme",
         "read_emails", "get_system_info",
         "get_stock_price", "convert_currency", "translate_text",
         "manage_notes", "network_tools", "control_media",

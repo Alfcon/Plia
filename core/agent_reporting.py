@@ -41,18 +41,54 @@ def _item_label(item: Any) -> str:
 
 def _format_chat_item(item: Any) -> str:
     """Render an item for the chat tab. Prefers a markdown link if a URL is
-    present so users can click through to the source."""
+    present so users can click through. If the item carries comparison fields
+    (e.g. repo_has_that_plia_lacks / plia_has_that_repo_lacks), render those
+    as indented bullets underneath."""
     if not isinstance(item, dict):
         return str(item)[:200]
     title = (item.get("title") or item.get("name") or item.get("repo")
              or item.get("repository") or item.get("project")
              or item.get("headline"))
     url = item.get("url") or item.get("link") or item.get("href")
+
     if title and url:
-        return f"[{title}]({url})"
-    if url:
-        return str(url)
-    return _item_label(item)
+        head = f"[{title}]({url})"
+    elif title:
+        head = str(title)
+    elif url:
+        head = str(url)
+    else:
+        return _item_label(item)
+
+    # Optional comparison-style sub-lists. Accept several common key names so
+    # the LLM doesn't have to hit one exact label.
+    def _coerce_list(v: Any) -> list:
+        if v is None: return []
+        if isinstance(v, list): return [str(x) for x in v if x]
+        if isinstance(v, str): return [v]
+        return [str(v)]
+
+    extras = _coerce_list(
+        item.get("repo_has_that_plia_lacks")
+        or item.get("repo_has")
+        or item.get("extra_features")
+        or item.get("differences")
+    )
+    missing = _coerce_list(
+        item.get("plia_has_that_repo_lacks")
+        or item.get("plia_has")
+        or item.get("missing_features")
+    )
+    description = item.get("description") or item.get("summary")
+
+    lines = [head]
+    if description:
+        lines.append(f"    {description}")
+    if extras:
+        lines.append(f"    🆕 Repo has that Plia lacks: {', '.join(extras)}")
+    if missing:
+        lines.append(f"    ✓ Plia has that repo lacks: {', '.join(missing)}")
+    return "\n".join(lines)
 
 
 class ResultDispatcher(QObject):

@@ -133,6 +133,8 @@ class FunctionExecutor:
                 return self._http_get(params)
             elif func_name == "list_plia_features":
                 return self._list_plia_features(params)
+            elif func_name == "github_readme":
+                return self._github_readme(params)
             else:
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
@@ -1171,6 +1173,72 @@ class FunctionExecutor:
                 "capabilities": capabilities,
             },
         }
+
+    def _github_readme(self, params: Dict) -> Dict:
+        """Fetch the raw README markdown for a GitHub repository.
+
+        Accepts:
+          - params['repo'] = 'owner/repo'                       (preferred)
+          - params['url']  = 'https://github.com/owner/repo'    (any GitHub URL — extra path components ignored)
+
+        Uses the GitHub REST API which serves raw markdown directly when
+        the Accept: application/vnd.github.raw header is set. Unauthenticated
+        requests are rate-limited to 60/hour by GitHub.
+        """
+        import re
+        raw_target = (params.get("repo") or params.get("url")
+                      or params.get("query") or "").strip()
+        if not raw_target:
+            return {"success": False,
+                    "message": ("Provide repo='owner/name' or "
+                                "url='https://github.com/owner/name'."),
+                    "data": None}
+
+        m = re.search(r"github\.com/([^/\s]+)/([^/\s#?]+)", raw_target)
+        if m:
+            owner, repo = m.group(1), m.group(2)
+        elif raw_target.count("/") == 1 and not raw_target.startswith("http"):
+            owner, repo = raw_target.split("/", 1)
+        else:
+            return {"success": False,
+                    "message": f"Could not parse '{raw_target}' as a GitHub repo.",
+                    "data": None}
+        repo = repo.removesuffix(".git").rstrip("/")
+
+        try:
+            import requests
+            api_url = f"https://api.github.com/repos/{owner}/{repo}/readme"
+            resp = requests.get(
+                api_url,
+                headers={"Accept": "application/vnd.github.raw",
+                         "User-Agent": "Plia-Agent/1.0"},
+                timeout=15,
+            )
+            if resp.status_code == 200:
+                body = (resp.text or "")[:100_000]
+                return {
+                    "success": True,
+                    "message": f"Fetched README for {owner}/{repo} ({len(body)} chars).",
+                    "data": {
+                        "repo": f"{owner}/{repo}",
+                        "url": f"https://github.com/{owner}/{repo}",
+                        "readme": body,
+                    },
+                }
+            if resp.status_code == 404:
+                return {"success": False,
+                        "message": f"{owner}/{repo} has no README (HTTP 404).",
+                        "data": None}
+            if resp.status_code == 403:
+                return {"success": False,
+                        "message": ("GitHub API rate-limited (HTTP 403). "
+                                    "Unauthenticated limit is 60/hour."),
+                        "data": None}
+            return {"success": False,
+                    "message": f"GitHub API HTTP {resp.status_code} for {owner}/{repo}.",
+                    "data": None}
+        except Exception as e:
+            return {"success": False, "message": f"github_readme failed: {e}", "data": None}
 
 
 # Global instance
