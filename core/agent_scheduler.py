@@ -336,3 +336,33 @@ class AgentScheduler(QObject):
             runner=runner,
             on_complete=lambda record, rid=role_id: self._on_run_complete(rid, record),
         )
+
+    # ── startup ───────────────────────────────────────────────────────────
+    def load_and_arm(self) -> None:
+        """Called on Plia startup. Arms every active scheduled/quota agent.
+
+        Catch-up: if a scheduled agent's last fire is older than one full
+        interval, fire it once immediately, then arm the next tick.
+        """
+        now = self._now()
+        for state in self._store.all():
+            if state.status != "active":
+                continue
+            if state.trigger == "on_demand":
+                continue
+
+            if state.trigger == "scheduled" and self._is_overdue(state, now):
+                if state.role_id not in self._in_flight:
+                    self._launch_run(state)
+
+            self.arm(state)
+
+    def _is_overdue(self, state, now: datetime) -> bool:
+        if not state.last_fire_at:
+            return False
+        cadence = state.cadence or {"interval_sec": 3600, "anchor_iso": None}
+        try:
+            last = datetime.fromisoformat(state.last_fire_at)
+        except ValueError:
+            return False
+        return (now - last).total_seconds() > int(cadence["interval_sec"])

@@ -317,3 +317,86 @@ def test_fire_now_launches_immediately(tmp_path):
     assert task_id == "task-now"
     assert len(launched) == 1
     assert store.get("on_demand_a").runs == 1
+
+
+def test_load_and_arm_arms_active_scheduled_agents(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+    store.upsert(scheduled_state(role_id="active_one"))
+    store.upsert(scheduled_state(role_id="paused_one", status="paused"))
+
+    fresh = AgentStateStore(path=tmp_path / "state.json")
+    fresh.load()
+    sched = AgentScheduler(
+        state_store=fresh, task_manager=None,
+        runner_builder=lambda s: (lambda **kw: None),
+        instance_provider=lambda rid: object(),
+        now_provider=fixed_clock(now), timer_factory=factory,
+        reporter=lambda s, r: None,
+    )
+    sched.load_and_arm()
+
+    assert "active_one" in created
+    assert "paused_one" not in created
+
+
+def test_load_and_arm_catch_up_fires_missed_scheduled_agent(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+    # last fired at 09:00, interval 1h -> many ticks missed by 14:00
+    missed = scheduled_state(role_id="missed")
+    missed.last_fire_at = "2026-05-14T09:00:00"
+    store.upsert(missed)
+
+    fresh = AgentStateStore(path=tmp_path / "state.json")
+    fresh.load()
+    launched = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            launched.append(task)
+            return "catchup-task"
+
+    sched = AgentScheduler(
+        state_store=fresh, task_manager=FakeTaskManager(),
+        runner_builder=lambda s: (lambda **kw: None),
+        instance_provider=lambda rid: object(),
+        now_provider=fixed_clock(now), timer_factory=factory,
+        reporter=lambda s, r: None,
+    )
+    sched.load_and_arm()
+
+    assert len(launched) == 1  # caught up once
+    assert "missed" in created  # and re-armed for the future
+
+
+def test_load_and_arm_no_catch_up_when_recently_fired(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+    recent = scheduled_state(role_id="recent")
+    recent.last_fire_at = "2026-05-14T13:45:00"  # 15 min ago, interval 1h
+    store.upsert(recent)
+
+    fresh = AgentStateStore(path=tmp_path / "state.json")
+    fresh.load()
+    launched = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            launched.append(task)
+            return "x"
+
+    sched = AgentScheduler(
+        state_store=fresh, task_manager=FakeTaskManager(),
+        runner_builder=lambda s: (lambda **kw: None),
+        instance_provider=lambda rid: object(),
+        now_provider=fixed_clock(now), timer_factory=factory,
+        reporter=lambda s, r: None,
+    )
+    sched.load_and_arm()
+
+    assert launched == []  # not overdue -> no catch-up
+    assert "recent" in created
