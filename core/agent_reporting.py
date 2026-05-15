@@ -117,14 +117,14 @@ class ResultDispatcher(QObject):
             "title": state.display_name,
             "summary": result.summary,
             "items_found": result.items_found,
-            "items": list(result.items[:5]),
+            "items": list(result.items or []),
             "success": bool(result.success),
         })
 
     def _report_comm_log(self, state, result) -> None:
         title = f"{state.icon} {state.display_name}"
         body = result.summary
-        for item in (result.items or [])[:5]:
+        for item in (result.items or []):
             body += f"\n  • {_item_label(item)}"
         self.comm_log_append.emit(state.role_id, title, body)
 
@@ -139,7 +139,7 @@ class ResultDispatcher(QObject):
             body = f"**{header}** — failed: {result.error or 'unknown error'}\n{result.details}"
         else:
             body = f"**{header}**\n{result.summary}"
-            for item in (result.items or [])[:10]:
+            for item in (result.items or []):
                 body += f"\n  • {_format_chat_item(item)}"
         self.chat_message_append.emit(state.role_id, body)
 
@@ -160,7 +160,7 @@ class ResultDispatcher(QObject):
             if result.error:
                 lines.append(f"  error: {result.error}")
             lines.append(f"  items_found: {result.items_found}")
-            for item in (result.items or [])[:25]:
+            for item in (result.items or []):
                 lines.append(f"  • {_item_label(item)}")
             lines.append("")
             with log_path.open("a", encoding="utf-8") as f:
