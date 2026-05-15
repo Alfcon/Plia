@@ -395,3 +395,40 @@ def commit(answers: Dict, *, roles_dir, state_store, scheduler,
     state_store.upsert(state)
     scheduler.arm(state)
     return state
+
+
+class VoiceWizardSession:
+    """Wraps WizardController for spoken multi-turn use.
+
+    The owner (VoiceAssistant) calls start() once, then routes every
+    subsequent utterance to answer(text) until `finished` is True.
+    """
+
+    def __init__(self, *, task: str, classify_fn: Callable[[str], str],
+                 speak: Callable[[str], None],
+                 on_done: Callable[[Dict], None],
+                 on_cancel: Callable[[], None]):
+        self._wizard = WizardController(task, classify_fn=classify_fn)
+        self._speak = speak
+        self._on_done = on_done
+        self._on_cancel = on_cancel
+        self.finished = False
+
+    def start(self) -> None:
+        step = self._wizard.current_question()
+        self._speak(step.question)
+
+    def answer(self, text: str) -> None:
+        if self.finished:
+            return
+        step = self._wizard.answer(text)
+        if step.cancelled:
+            self.finished = True
+            self._speak("Cancelled.")
+            self._on_cancel()
+            return
+        if step.done:
+            self.finished = True
+            self._on_done(step.answers)
+            return
+        self._speak(step.question)
