@@ -397,3 +397,153 @@ class AgentEditorWindow(QDialog):
             multi_agent_system.reload_roles()
             self._selected_role_id = None
             self.refresh()
+
+
+class LiveAgentEditorDialog(QDialog):
+    """Edit a live agent's schedule, tools, notification channel, and
+    persistence. Executor type is read-only (changing it needs recreation)."""
+
+    # confirmed tool names from core/function_executor.py
+    ALL_TOOLS = [
+        "web_search", "http_get", "read_emails", "get_system_info",
+        "get_stock_price", "convert_currency", "translate_text",
+        "manage_notes", "network_tools", "control_media",
+        "send_email", "create_calendar_event", "add_task",
+        "file_operations", "system_command", "control_desktop",
+    ]
+    DESTRUCTIVE = {"send_email", "create_calendar_event", "add_task",
+                   "file_operations", "system_command", "control_desktop"}
+
+    def __init__(self, state, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Edit Live Agent — {state.display_name}")
+        self._state = state
+        self._build()
+
+    def _build(self):
+        from PySide6.QtWidgets import (
+            QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QComboBox,
+            QCheckBox, QPushButton, QScrollArea, QWidget,
+        )
+
+        root = QVBoxLayout(self)
+        root.addWidget(QLabel(f"<b>{self._state.icon}  {self._state.display_name}</b>"))
+        root.addWidget(QLabel(f"Engine: {self._state.executor} (read-only)"))
+
+        # ── Schedule ──────────────────────────────────────────────────────
+        root.addWidget(QLabel("Trigger"))
+        self._trigger = QComboBox()
+        self._trigger.addItems(["scheduled", "on_demand", "quota"])
+        self._trigger.setCurrentText(self._state.trigger)
+        root.addWidget(self._trigger)
+
+        root.addWidget(QLabel("Cadence (e.g. 'every 6 hours') — scheduled only"))
+        self._cadence = QLineEdit()
+        if self._state.cadence:
+            mins = self._state.cadence.get("interval_sec", 0) // 60
+            self._cadence.setText(f"every {mins} minutes")
+        root.addWidget(self._cadence)
+
+        root.addWidget(QLabel("Quota limit — quota only"))
+        self._quota = QLineEdit()
+        if self._state.quota:
+            self._quota.setText(str(self._state.quota.get("limit", "")))
+        root.addWidget(self._quota)
+
+        # ── Notify ────────────────────────────────────────────────────────
+        root.addWidget(QLabel("Notify channel"))
+        self._notify = QComboBox()
+        self._notify.addItems(["tts", "toast_card", "comm_log"])
+        self._notify.setCurrentText(self._state.notify)
+        root.addWidget(self._notify)
+
+        # ── Persistence ───────────────────────────────────────────────────
+        root.addWidget(QLabel("Persistence"))
+        self._persistence = QComboBox()
+        self._persistence.addItems(["persistent", "session"])
+        self._persistence.setCurrentText(self._state.persistence)
+        root.addWidget(self._persistence)
+
+        # ── Tools ─────────────────────────────────────────────────────────
+        root.addWidget(QLabel("Allowed tools (red = destructive, opt-in)"))
+        tools_box = QWidget()
+        tools_layout = QVBoxLayout(tools_box)
+        from core.multi_agent import multi_agent_system
+        role = multi_agent_system.roles.get(self._state.role_id)
+        current_tools = set(role.tools) if role else set()
+        self._tool_checks = {}
+        for tool in self.ALL_TOOLS:
+            cb = QCheckBox(tool)
+            cb.setChecked(tool in current_tools)
+            if tool in self.DESTRUCTIVE:
+                cb.setStyleSheet("color:#ef5350;")
+            tools_layout.addWidget(cb)
+            self._tool_checks[tool] = cb
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(tools_box)
+        scroll.setMinimumHeight(160)
+        root.addWidget(scroll)
+
+        # ── Buttons ───────────────────────────────────────────────────────
+        btn_row = QHBoxLayout()
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        save = QPushButton("Save")
+        save.clicked.connect(self._save)
+        btn_row.addStretch(1)
+        btn_row.addWidget(cancel)
+        btn_row.addWidget(save)
+        root.addLayout(btn_row)
+
+    def _save(self):
+        from core.agent_runtime import get_runtime
+        from core.agent_scheduler import parse_cadence
+        from core.multi_agent import multi_agent_system
+        import yaml
+        from pathlib import Path
+
+        rt = get_runtime()
+        state = rt.store.get(self._state.role_id)
+        if state is None:
+            self.reject()
+            return
+
+        # disarm before mutating schedule
+        rt.scheduler.disarm(state.role_id)
+
+        state.trigger = self._trigger.currentText()
+        state.notify = self._notify.currentText()
+        state.persistence = self._persistence.currentText()
+
+        if state.trigger == "scheduled":
+            cad = parse_cadence(self._cadence.text())
+            state.cadence = cad or {"interval_sec": 3600, "anchor_iso": None}
+            state.quota = None
+        elif state.trigger == "quota":
+            try:
+                limit = int(self._quota.text().strip())
+            except ValueError:
+                limit = 10
+            state.quota = {"limit": limit, "criterion": "any", "progress": 0}
+            state.cadence = None
+        else:  # on_demand
+            state.cadence = None
+            state.quota = None
+
+        # update tools in the role YAML
+        selected = [t for t, cb in self._tool_checks.items() if cb.isChecked()]
+        role_file = Path.home() / ".plia_ai" / "roles" / f"{state.role_id}.yml"
+        if role_file.exists():
+            raw = yaml.safe_load(role_file.read_text(encoding="utf-8")) or {}
+            raw["tools"] = selected
+            raw["autonomous_actions"] = selected
+            role_file.write_text(
+                yaml.safe_dump(raw, sort_keys=False, allow_unicode=True),
+                encoding="utf-8")
+            multi_agent_system.reload_roles()
+
+        rt.store.upsert(state)
+        if state.status == "active":
+            rt.scheduler.arm(state)
+        self.accept()
