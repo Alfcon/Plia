@@ -103,3 +103,81 @@ def compute_next_fire(cadence: Dict, from_dt: datetime) -> datetime:
     elapsed = (from_dt - anchor).total_seconds()
     steps = int(elapsed // interval) + 1
     return anchor + timedelta(seconds=steps * interval)
+
+
+from PySide6.QtCore import QObject, QTimer
+
+
+def _default_timer_factory(role_id: str, callback):
+    """Create a real single-shot QTimer wired to `callback`."""
+    timer = QTimer()
+    timer.setSingleShot(True)
+    timer.timeout.connect(callback)
+
+    class _Wrapped:
+        def start(self, ms): timer.start(ms)
+        def stop(self): timer.stop()
+
+    return _Wrapped()
+
+
+# quota agents poll on a fixed short interval (seconds)
+QUOTA_INTERVAL_SEC = 600
+
+
+class AgentScheduler(QObject):
+    """Holds one timer per live agent; fires AgentTaskManager.launch on tick.
+
+    Dependency-injected for testability:
+      state_store       — AgentStateStore (Phase 1)
+      task_manager      — AgentTaskManager (core/multi_agent.py)
+      runner_builder    — callable(AgentState) -> runner callable
+      instance_provider — callable(role_id) -> AgentInstance
+      now_provider      — callable() -> datetime          (defaults to datetime.now)
+      timer_factory     — callable(role_id, callback) -> timer-like object
+    """
+
+    def __init__(self, *, state_store, task_manager, runner_builder,
+                 instance_provider, now_provider=None, timer_factory=None,
+                 parent=None):
+        super().__init__(parent)
+        self._store = state_store
+        self._task_manager = task_manager
+        self._runner_builder = runner_builder
+        self._instance_provider = instance_provider
+        self._now = now_provider or datetime.now
+        self._timer_factory = timer_factory or _default_timer_factory
+        self._timers: Dict[str, object] = {}
+        self._in_flight: set = set()
+
+    # ── arming ────────────────────────────────────────────────────────────
+    def arm(self, state) -> None:
+        """Compute next_fire_at and start a timer if the agent is scheduled
+        or quota-driven. on_demand agents are never armed."""
+        if state.status != "active":
+            return
+        if state.trigger == "on_demand":
+            return
+
+        now = self._now()
+        if state.trigger == "scheduled":
+            cadence = state.cadence or {"interval_sec": 3600, "anchor_iso": None}
+        else:  # quota
+            cadence = {"interval_sec": QUOTA_INTERVAL_SEC, "anchor_iso": None}
+
+        next_dt = compute_next_fire(cadence, now)
+        delay_ms = max(0, int((next_dt - now).total_seconds() * 1000))
+
+        state.next_fire_at = next_dt.isoformat(timespec="seconds")
+        self._store.upsert(state)
+
+        self.disarm(state.role_id)  # clear any existing timer
+        timer = self._timer_factory(state.role_id,
+                                    lambda rid=state.role_id: self._on_tick(rid))
+        self._timers[state.role_id] = timer
+        timer.start(delay_ms)
+
+    def disarm(self, role_id: str) -> None:
+        timer = self._timers.pop(role_id, None)
+        if timer is not None:
+            timer.stop()
