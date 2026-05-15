@@ -263,3 +263,57 @@ def test_completion_with_dict_result_is_normalised(tmp_path):
     assert reported[0].success is False
     assert reported[0].error == "runner_returned_dict"
     assert store.get("d1").history[0]["success"] is False
+
+
+def test_pause_stops_timer_and_sets_status(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    sched, store = build_scheduler(tmp_path, now, factory)
+    state = scheduled_state(role_id="p1")
+    store.upsert(state)
+    sched.arm(state)
+
+    sched.pause("p1")
+    assert created["p1"].cancelled is True
+    assert store.get("p1").status == "paused"
+
+
+def test_resume_rearms_and_sets_active(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, created = make_timer_factory()
+    sched, store = build_scheduler(tmp_path, now, factory)
+    state = scheduled_state(role_id="p2")
+    store.upsert(state)
+    sched.arm(state)
+    sched.pause("p2")
+
+    sched.resume("p2")
+    assert store.get("p2").status == "active"
+    assert created["p2"].armed_ms == 3600 * 1000
+
+
+def test_fire_now_launches_immediately(tmp_path):
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, _ = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+    launched = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            launched.append(task)
+            return "task-now"
+
+    sched = AgentScheduler(
+        state_store=store, task_manager=FakeTaskManager(),
+        runner_builder=lambda s: (lambda **kw: None),
+        instance_provider=lambda rid: f"inst-{rid}",
+        now_provider=fixed_clock(now), timer_factory=factory,
+        reporter=lambda s, r: None,
+    )
+    state = scheduled_state(role_id="on_demand_a", trigger="on_demand", cadence=None)
+    store.upsert(state)
+
+    task_id = sched.fire_now("on_demand_a")
+    assert task_id == "task-now"
+    assert len(launched) == 1
+    assert store.get("on_demand_a").runs == 1

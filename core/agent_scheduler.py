@@ -285,3 +285,54 @@ class AgentScheduler(QObject):
             self._reporter(state, result)
         except Exception as exc:
             print(f"[AgentScheduler] reporter error: {exc}")
+
+    # ── lifecycle controls ────────────────────────────────────────────────
+    def pause(self, role_id: str) -> None:
+        state = self._store.get(role_id)
+        if state is None:
+            return
+        self.disarm(role_id)
+        state.status = "paused"
+        self._store.upsert(state)
+
+    def resume(self, role_id: str) -> None:
+        state = self._store.get(role_id)
+        if state is None or state.status == "terminated":
+            return
+        state.status = "active"
+        self._store.upsert(state)
+        self.arm(state)
+
+    def fire_now(self, role_id: str) -> Optional[str]:
+        """Run an agent immediately, regardless of trigger mode.
+
+        Returns the AgentTaskManager task id, or None if the agent could not
+        be run (missing, terminated, or already in flight).
+        """
+        state = self._store.get(role_id)
+        if state is None or state.status == "terminated":
+            return None
+        if role_id in self._in_flight:
+            return None
+
+        instance = self._instance_provider(role_id)
+        if instance is None:
+            return None
+        runner = self._runner_builder(state)
+        context = ""
+        if state.history:
+            context = str(state.history[-1].get("summary", ""))
+
+        self._in_flight.add(role_id)
+        now = self._now()
+        state.last_fire_at = now.isoformat(timespec="seconds")
+        state.runs += 1
+        self._store.upsert(state)
+
+        return self._task_manager.launch(
+            agent=instance,
+            task=str(getattr(instance, "current_task", None) or state.display_name),
+            context=context,
+            runner=runner,
+            on_complete=lambda record, rid=role_id: self._on_run_complete(rid, record),
+        )
