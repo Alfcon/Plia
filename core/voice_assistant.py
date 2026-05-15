@@ -70,7 +70,8 @@ class VoiceAssistant(QObject):
             }
         ]
         self.current_session_id = None
-        
+        self.active_wizard = None  # VoiceWizardSession while a creation wizard is running
+
     def initialize(self) -> bool:
         """Initialize voice assistant components."""
         try:
@@ -155,6 +156,15 @@ class VoiceAssistant(QObject):
         if not text:
             return
 
+        # ── Active creation wizard — route answers to it ─────────────────
+        if self.active_wizard is not None and not self.active_wizard.finished:
+            self.speech_recognized.emit(text)
+            self.active_wizard.answer(text)
+            if self.active_wizard.finished:
+                self.active_wizard = None
+            self.processing_finished.emit()
+            return
+
         # ── Early intercept: "read option N" / "read file N" ────────────
         # Must be checked HERE before _process_query, because the desktop
         # agent trigger in _process_query can capture "read …" commands and
@@ -192,6 +202,13 @@ class VoiceAssistant(QObject):
         """Process user query through the pipeline."""
         try:
             text_lower = user_text.lower().strip()
+
+            # ── Create-agent intent — start the creation wizard ──────────
+            from core.agent_creator import parse_intent
+            _agent_task = parse_intent(user_text)
+            if _agent_task:
+                self._start_agent_wizard(_agent_task)
+                return
 
             # ── Search browser navigation — MUST be checked first ────────
             # These must intercept before the desktop-trigger check because
@@ -493,6 +510,40 @@ class VoiceAssistant(QObject):
             self.error_occurred.emit(error_msg)
             self.processing_finished.emit()
     
+    def _start_agent_wizard(self, task: str):
+        """Begin a spoken agent-creation wizard for `task`."""
+        from core.agent_creator import VoiceWizardSession, commit
+        from core.agent_scheduler import AgentScheduler  # noqa: F401  (type ref)
+        from config import OLLAMA_URL, RESPONDER_MODEL
+
+        def _classify(t: str) -> str:
+            from core.agent_creator import classify_executor
+            model = app_settings.get("models.chat", RESPONDER_MODEL)
+            return classify_executor(t, OLLAMA_URL, model)
+
+        def _on_done(answers: dict):
+            # Phase 5 wires the real scheduler/dispatcher here. For now the
+            # wizard collects answers and confirms verbally; full commit is
+            # completed once app-level wiring exists.
+            tts.queue_sentence(
+                f"Agent configured to {answers['task']}. "
+                "It will appear in your Active Agents tab."
+            )
+            self._pending_agent_answers = answers
+
+        def _on_cancel():
+            tts.queue_sentence("Agent creation cancelled.")
+
+        self.active_wizard = VoiceWizardSession(
+            task=task,
+            classify_fn=_classify,
+            speak=tts.queue_sentence,
+            on_done=_on_done,
+            on_cancel=_on_cancel,
+        )
+        self.active_wizard.start()
+        self.processing_finished.emit()
+
     def _handle_weather_query(self, user_text: str):
         """Fetch weather, speak a summary, and emit signal to show the weather window."""
         try:
