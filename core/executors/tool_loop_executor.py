@@ -45,9 +45,16 @@ def _build_catalog(allowed_tools: List[str]) -> List[Dict]:
 def _catalog_text(allowed_tools: List[str]) -> str:
     if not allowed_tools:
         return "You have no tools available. Answer from reasoning alone."
-    return ("You may call these tools: " + ", ".join(allowed_tools) +
-            ".\nWhen finished, reply with plain text in this exact format:\n"
-            "SUMMARY: <one line>\nITEMS_FOUND: <integer>\nITEMS_JSON: <json array>")
+    return (
+        "You may call these tools: " + ", ".join(allowed_tools) +
+        ".\nStay strictly on the task topic and ignore unrelated search hits.\n"
+        "When finished, reply with plain text in this exact format:\n"
+        "SUMMARY: <one concise sentence summarising what you found>\n"
+        "ITEMS_FOUND: <integer count>\n"
+        'ITEMS_JSON: <json array; each item MUST be an object with at least '
+        '"title" and "url" keys, e.g. '
+        '[{"title": "acme/repo", "url": "https://github.com/acme/repo"}]>'
+    )
 
 
 def _parse_final(content: str) -> "RunResult":

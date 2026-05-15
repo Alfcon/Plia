@@ -39,6 +39,22 @@ def _item_label(item: Any) -> str:
     return str(item)[:200]
 
 
+def _format_chat_item(item: Any) -> str:
+    """Render an item for the chat tab. Prefers a markdown link if a URL is
+    present so users can click through to the source."""
+    if not isinstance(item, dict):
+        return str(item)[:200]
+    title = (item.get("title") or item.get("name") or item.get("repo")
+             or item.get("repository") or item.get("project")
+             or item.get("headline"))
+    url = item.get("url") or item.get("link") or item.get("href")
+    if title and url:
+        return f"[{title}]({url})"
+    if url:
+        return str(url)
+    return _item_label(item)
+
+
 class ResultDispatcher(QObject):
     agent_history_appended = Signal(str)            # role_id
     show_toast = Signal(str, str, bool)             # title, body, success
@@ -113,14 +129,18 @@ class ResultDispatcher(QObject):
         self.comm_log_append.emit(state.role_id, title, body)
 
     def _report_chat(self, state, result) -> None:
-        """Format a result as a chat message and emit for the chat tab to render."""
+        """Format a result as a chat message and emit for the chat tab to render.
+
+        Items are rendered as markdown links when URLs are present so the user
+        can click through directly to the source.
+        """
         header = f"{state.icon} {state.display_name}"
         if not result.success:
             body = f"**{header}** — failed: {result.error or 'unknown error'}\n{result.details}"
         else:
             body = f"**{header}**\n{result.summary}"
             for item in (result.items or [])[:10]:
-                body += f"\n  • {_item_label(item)}"
+                body += f"\n  • {_format_chat_item(item)}"
         self.chat_message_append.emit(state.role_id, body)
 
     def _report_file(self, state, result) -> None:

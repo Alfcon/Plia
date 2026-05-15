@@ -140,9 +140,15 @@ class MainWindow(FluentWindow):
             self.dashboard_view.add_system_message(f"{title}\n{body}", tag="system")
 
     def _on_agent_chat_message(self, role_id: str, body: str):
-        """Post an agent result as a chat message bubble. Force-initialise the
-        chat tab if it hasn't been opened yet (it's lazy by default) so the
-        message lands where the user asked, not on the dashboard."""
+        """Post an agent result to its OWN chat session (sidebar entry).
+
+        Each live agent gets a dedicated session so reports don't pollute the
+        user's active conversation and stay browsable in the chat history.
+        A toast announces the new entry; the user clicks the sidebar to read it.
+        """
+        from core.history import history_manager
+
+        # Lazy init the chat tab so the sidebar shows the new session.
         try:
             if self.chat_tab is None and getattr(self, "chat_lazy", None) is not None:
                 real = self.chat_lazy.initialize()
@@ -153,12 +159,51 @@ class MainWindow(FluentWindow):
         except Exception as exc:
             print(f"[App] chat tab init failed: {exc}")
 
+        # Map role_id → session_id (per-agent session), created on first message.
+        if not hasattr(self, "_agent_chat_sessions"):
+            self._agent_chat_sessions = {}
+        session_id = self._agent_chat_sessions.get(role_id)
+
         try:
-            if self.chat_tab is not None:
-                self.add_message_bubble("assistant", body)
-                return
+            if session_id is None:
+                # Title the session after the agent so it's easy to spot.
+                rt_state = None
+                try:
+                    from core.agent_runtime import get_runtime
+                    rt_state = get_runtime().store.get(role_id)
+                except Exception:
+                    pass
+                title = (
+                    f"🤖 {rt_state.display_name}"
+                    if rt_state is not None else f"🤖 Agent {role_id}"
+                )
+                session_id = history_manager.create_session(title=title)
+                self._agent_chat_sessions[role_id] = session_id
+
+            history_manager.add_message(session_id, "assistant", body)
+
+            # Refresh the chat sidebar so the new session appears immediately.
+            if self.chat_tab is not None and hasattr(self.handlers, "refresh_sidebar"):
+                self.handlers.refresh_sidebar()
+
+            # Brief toast so the user knows where to look.
+            try:
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                title_short = (
+                    rt_state.display_name if rt_state is not None else "Agent"
+                )
+                InfoBar.success(
+                    title=f"💬 {title_short}",
+                    content="Posted to its chat session — see the sidebar.",
+                    duration=3000,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    parent=self,
+                )
+            except Exception:
+                pass
+            return
         except Exception as exc:
-            print(f"[App] chat bubble failed: {exc}")
+            print(f"[App] per-agent chat session write failed: {exc}")
 
         # Last-resort fallback so the result isn't lost.
         if getattr(self, "dashboard_view", None) is not None:
