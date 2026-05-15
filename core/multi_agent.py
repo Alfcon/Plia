@@ -299,7 +299,9 @@ class AgentTaskManager:
         self._tasks: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.Lock()
 
-    def launch(self, *, agent: AgentInstance, task: str, context: str, runner: Callable[..., Dict[str, Any]]) -> str:
+    def launch(self, *, agent: AgentInstance, task: str, context: str,
+               runner: Callable[..., Dict[str, Any]],
+               on_complete: Optional[Callable[[Dict[str, Any]], None]] = None) -> str:
         task_id = _uuid()
         record = {
             "id": task_id,
@@ -327,6 +329,11 @@ class AgentTaskManager:
                     record["status"] = "failed"
                     record["completedAt"] = _now_ms()
                     record["result"] = {"success": False, "response": str(exc)}
+            if on_complete is not None:
+                try:
+                    on_complete(dict(record))
+                except Exception as cb_exc:
+                    print(f"[AgentTaskManager] on_complete callback error: {cb_exc}")
 
         threading.Thread(target=_run, daemon=True).start()
         return task_id
