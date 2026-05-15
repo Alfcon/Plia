@@ -21,6 +21,7 @@ Voice wrapper:
 from __future__ import annotations
 
 import re
+import requests
 from typing import List, Optional
 
 # ── Intent detection ──────────────────────────────────────────────────────
@@ -76,3 +77,41 @@ def pick_tools(task: str) -> List[str]:
         if any(kw in t for kw in keywords):
             return list(tools)
     return ["web_search"]
+
+
+# ── Executor classifier ───────────────────────────────────────────────────
+_CLASSIFY_PROMPT = (
+    "You are picking the execution model for a Plia agent.\n"
+    "TASK: {task}\n\n"
+    "Reply with exactly one word:\n"
+    "- script    -> task is deterministic and repeatable "
+    "(search+download, RSS fetch, fixed-API check)\n"
+    "- tool_loop -> task is exploratory or multi-step "
+    "(research, compare, decide based on findings)"
+)
+
+
+def classify_executor(task: str, ollama_url: str, model: str) -> str:
+    """Ask the local LLM whether this task suits a generated script or a
+    tool-loop. Defaults to 'tool_loop' on any failure (safer — runs under
+    an iteration cap)."""
+    base = ollama_url.rstrip("/api").rstrip("/")
+    payload = {
+        "model": model,
+        "messages": [{"role": "user",
+                      "content": _CLASSIFY_PROMPT.format(task=task)}],
+        "stream": False,
+        "options": {"num_predict": 8, "temperature": 0.0},
+    }
+    try:
+        resp = requests.post(f"{base}/api/chat", json=payload, timeout=30)
+        resp.raise_for_status()
+        content = (resp.json().get("message", {}).get("content", "") or "").lower()
+    except Exception as exc:
+        print(f"[agent_creator] classify_executor failed: {exc}")
+        return "tool_loop"
+    if "script" in content and "tool_loop" not in content:
+        return "script"
+    if "tool_loop" in content:
+        return "tool_loop"
+    return "tool_loop"
