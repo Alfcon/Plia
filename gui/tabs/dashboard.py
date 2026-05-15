@@ -1085,8 +1085,9 @@ class DashboardView(QWidget):
         summary.setWordWrap(True)
         col.addWidget(summary)
 
+        from core.agent_reporting import _item_label
         for item in payload.get("items", [])[:5]:
-            row = QLabel(f"  • {item.get('title', '?')}")
+            row = QLabel(f"  • {_item_label(item)}")
             row.setStyleSheet("color: #9aa0aa;")
             col.addWidget(row)
 

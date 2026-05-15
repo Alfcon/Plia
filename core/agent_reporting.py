@@ -16,9 +16,27 @@ All cross-thread delivery happens via Qt queued signal connections.
 
 from __future__ import annotations
 
-from typing import Callable, Optional
+from typing import Any, Callable, Dict, Optional
 
 from PySide6.QtCore import QObject, Signal
+
+
+def _item_label(item: Any) -> str:
+    """Best-effort human label for an item returned by an agent.
+
+    Different agents/LLMs use different field names. Try the common ones in
+    order, fall back to stringifying the dict so the user never sees a bare
+    '?' for non-empty items.
+    """
+    if not isinstance(item, dict):
+        return str(item)[:200]
+    for key in ("title", "name", "url", "link", "repo", "repository",
+                "project", "headline", "summary", "description", "text"):
+        v = item.get(key)
+        if v:
+            return str(v)[:200]
+    # Last-ditch: stringify the whole dict so something useful shows.
+    return str(item)[:200]
 
 
 class ResultDispatcher(QObject):
@@ -91,7 +109,7 @@ class ResultDispatcher(QObject):
         title = f"{state.icon} {state.display_name}"
         body = result.summary
         for item in (result.items or [])[:5]:
-            body += f"\n  • {item.get('title', '?')}"
+            body += f"\n  • {_item_label(item)}"
         self.comm_log_append.emit(state.role_id, title, body)
 
     def _report_chat(self, state, result) -> None:
@@ -102,7 +120,7 @@ class ResultDispatcher(QObject):
         else:
             body = f"**{header}**\n{result.summary}"
             for item in (result.items or [])[:10]:
-                body += f"\n  • {item.get('title', '?')}"
+                body += f"\n  • {_item_label(item)}"
         self.chat_message_append.emit(state.role_id, body)
 
     def _report_file(self, state, result) -> None:
@@ -123,7 +141,7 @@ class ResultDispatcher(QObject):
                 lines.append(f"  error: {result.error}")
             lines.append(f"  items_found: {result.items_found}")
             for item in (result.items or [])[:25]:
-                lines.append(f"  • {item.get('title', '?')}")
+                lines.append(f"  • {_item_label(item)}")
             lines.append("")
             with log_path.open("a", encoding="utf-8") as f:
                 f.write("\n".join(lines) + "\n")

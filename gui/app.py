@@ -140,15 +140,27 @@ class MainWindow(FluentWindow):
             self.dashboard_view.add_system_message(f"{title}\n{body}", tag="system")
 
     def _on_agent_chat_message(self, role_id: str, body: str):
-        """Post an agent result as a chat message bubble. Falls back to the
-        dashboard log if the chat tab isn't initialised yet."""
+        """Post an agent result as a chat message bubble. Force-initialise the
+        chat tab if it hasn't been opened yet (it's lazy by default) so the
+        message lands where the user asked, not on the dashboard."""
         try:
-            if getattr(self, "chat_tab", None) is not None:
+            if self.chat_tab is None and getattr(self, "chat_lazy", None) is not None:
+                real = self.chat_lazy.initialize()
+                if real is not None:
+                    self.chat_tab = real
+                    if not self._chat_signals_connected:
+                        self._connect_chat_signals()
+        except Exception as exc:
+            print(f"[App] chat tab init failed: {exc}")
+
+        try:
+            if self.chat_tab is not None:
                 self.add_message_bubble("assistant", body)
                 return
         except Exception as exc:
             print(f"[App] chat bubble failed: {exc}")
-        # Fallback so the result isn't lost when the chat tab hasn't been opened.
+
+        # Last-resort fallback so the result isn't lost.
         if getattr(self, "dashboard_view", None) is not None:
             self.dashboard_view.add_system_message(body, tag="system")
 
