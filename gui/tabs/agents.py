@@ -873,6 +873,59 @@ class RunAgentThread(QThread):
 # Main view
 # ---------------------------------------------------------------------------
 
+class RunWithPromptDialog(QDialog):
+    """Asks the user for a one-off prompt to feed an agent's next run.
+
+    The prompt does NOT modify the agent's stored task description — it is
+    passed to AgentScheduler.fire_now(..., task=prompt) for just this run.
+    Useful for Manager / orchestrator agents whose work changes per question.
+    """
+
+    def __init__(self, state, parent=None):
+        super().__init__(parent)
+        self._state = state
+        self.setWindowTitle(f"Run {state.display_name} with prompt…")
+        self._build()
+
+    def _build(self):
+        from PySide6.QtWidgets import QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
+
+        root = QVBoxLayout(self)
+        root.addWidget(QLabel(
+            f"<b>{self._state.icon}  {self._state.display_name}</b>"
+        ))
+        root.addWidget(QLabel(
+            "Type a one-off prompt for this run. The agent's stored task "
+            "description will NOT be changed."
+        ))
+
+        self._prompt = QTextEdit()
+        self._prompt.setPlaceholderText(
+            "e.g. Find Jarvis-style assistants on GitHub and compare them to Plia."
+        )
+        self._prompt.setMinimumHeight(100)
+        root.addWidget(self._prompt)
+
+        btn_row = QHBoxLayout()
+        cancel = QPushButton("Cancel")
+        cancel.clicked.connect(self.reject)
+        run_btn = QPushButton("▶ Run")
+        run_btn.setDefault(True)
+        run_btn.clicked.connect(self._on_accept)
+        btn_row.addStretch(1)
+        btn_row.addWidget(cancel)
+        btn_row.addWidget(run_btn)
+        root.addLayout(btn_row)
+
+    def _on_accept(self):
+        if self.get_prompt():
+            self.accept()
+        # Empty prompt: do nothing — user can fill it in or hit Cancel.
+
+    def get_prompt(self) -> str:
+        return self._prompt.toPlainText().strip()
+
+
 class LiveAgentRow(QFrame):
     """One live agent: status line + Run/Pause/Resume/Stop/Edit/Delete + history."""
 
@@ -925,6 +978,12 @@ class LiveAgentRow(QFrame):
             lambda: (self._run_now(rt), _refresh_parent()))
         btn_row.addWidget(run_btn)
 
+        # "Run with prompt..." — fire with a one-off task override so the user
+        # can drive an agent with a fresh prompt without editing its task.
+        prompt_btn = PushButton("💬 Run with prompt…")
+        prompt_btn.clicked.connect(lambda: self._run_with_prompt(rt, _refresh_parent))
+        btn_row.addWidget(prompt_btn)
+
         # Pause / Resume only make sense for scheduled or quota agents that
         # are still alive (active or paused).
         if s.trigger != "on_demand" and s.status != "terminated":
@@ -976,6 +1035,27 @@ class LiveAgentRow(QFrame):
             if st.trigger != "on_demand":
                 rt.scheduler.arm(st)
         rt.scheduler.fire_now(self._state.role_id)
+
+    def _run_with_prompt(self, rt, refresh_cb):
+        """Open a small dialog asking for a one-off prompt and fire the agent
+        with that prompt as the task (the stored task description is not
+        changed)."""
+        dlg = RunWithPromptDialog(self._state, parent=self)
+        if not dlg.exec():
+            return
+        prompt = dlg.get_prompt()
+        if not prompt:
+            return
+        st = rt.store.get(self._state.role_id)
+        if st is None:
+            return
+        if st.status == "terminated":
+            st.status = "active"
+            rt.store.upsert(st)
+            if st.trigger != "on_demand":
+                rt.scheduler.arm(st)
+        rt.scheduler.fire_now(self._state.role_id, task=prompt)
+        refresh_cb()
 
     def _terminate(self, rt):
         from core.multi_agent import multi_agent_system

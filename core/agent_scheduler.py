@@ -303,8 +303,16 @@ class AgentScheduler(QObject):
         self._store.upsert(state)
         self.arm(state)
 
-    def fire_now(self, role_id: str) -> Optional[str]:
+    def fire_now(self, role_id: str, task: Optional[str] = None) -> Optional[str]:
         """Run an agent immediately, regardless of trigger mode.
+
+        Args:
+          role_id: which agent to fire.
+          task:    optional one-off prompt for this run. If None, falls back
+                   to the agent's `current_task` then to its display name.
+                   Lets callers (e.g. the "Run with prompt..." dialog) drive
+                   an agent with a fresh prompt without editing its
+                   stored task description.
 
         Returns the AgentTaskManager task id, or None if the agent could not
         be run (missing, terminated, or already in flight).
@@ -329,9 +337,16 @@ class AgentScheduler(QObject):
         state.runs += 1
         self._store.upsert(state)
 
+        if task and task.strip():
+            final_task = task.strip()
+        else:
+            final_task = str(
+                getattr(instance, "current_task", None) or state.display_name
+            )
+
         return self._task_manager.launch(
             agent=instance,
-            task=str(getattr(instance, "current_task", None) or state.display_name),
+            task=final_task,
             context=context,
             runner=runner,
             on_complete=lambda record, rid=role_id: self._on_run_complete(rid, record),

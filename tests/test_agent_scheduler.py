@@ -319,6 +319,61 @@ def test_fire_now_launches_immediately(tmp_path):
     assert store.get("on_demand_a").runs == 1
 
 
+def test_fire_now_uses_task_override(tmp_path):
+    """fire_now(role_id, task=...) should pass that task through to the
+    runner instead of the agent's display name."""
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, _ = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+    captured = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            captured.append(task)
+            return "task-id"
+
+    sched = AgentScheduler(
+        state_store=store, task_manager=FakeTaskManager(),
+        runner_builder=lambda s: (lambda **kw: None),
+        instance_provider=lambda rid: f"inst-{rid}",
+        now_provider=fixed_clock(now), timer_factory=factory,
+        reporter=lambda s, r: None,
+    )
+    state = scheduled_state(role_id="prompt_agent", trigger="on_demand", cadence=None)
+    store.upsert(state)
+
+    sched.fire_now("prompt_agent", task="Find Jarvis-style repos and rank them")
+    assert captured == ["Find Jarvis-style repos and rank them"]
+
+
+def test_fire_now_blank_task_falls_back_to_display_name(tmp_path):
+    """An empty / whitespace-only task override is treated as 'no override'
+    and the existing fallback (current_task → display_name) kicks in."""
+    now = datetime(2026, 5, 14, 14, 0, 0)
+    factory, _ = make_timer_factory()
+    store = AgentStateStore(path=tmp_path / "state.json")
+    captured = []
+
+    class FakeTaskManager:
+        def launch(self, *, agent, task, context, runner, on_complete=None):
+            captured.append(task)
+            return "tid"
+
+    sched = AgentScheduler(
+        state_store=store, task_manager=FakeTaskManager(),
+        runner_builder=lambda s: (lambda **kw: None),
+        instance_provider=lambda rid: type("I", (), {"id": rid})(),
+        now_provider=fixed_clock(now), timer_factory=factory,
+        reporter=lambda s, r: None,
+    )
+    state = scheduled_state(role_id="blank_a", trigger="on_demand",
+                            cadence=None)
+    store.upsert(state)
+
+    sched.fire_now("blank_a", task="   ")
+    assert captured == [state.display_name]
+
+
 def test_load_and_arm_arms_active_scheduled_agents(tmp_path):
     now = datetime(2026, 5, 14, 14, 0, 0)
     factory, created = make_timer_factory()
