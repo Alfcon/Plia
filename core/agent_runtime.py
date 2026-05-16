@@ -77,6 +77,17 @@ class _Runtime:
         """Load persisted agents and arm the scheduler. Idempotent."""
         if self._started:
             return
+        # Force plugin discovery so any user `.py` files in ~/.plia_ai/plugins/
+        # are loaded BEFORE agents run (otherwise the editor would only see
+        # them after first invocation).
+        try:
+            from core.plugins import registry as _plugins
+            n = len(_plugins.names())
+            if n:
+                print(f"[agent_runtime] ✓ Loaded {n} plugin tool(s) "
+                      f"from ~/.plia_ai/plugins/")
+        except Exception as exc:
+            print(f"[agent_runtime] plugin load failed: {exc}")
         self.store.load()
         multi_agent_system.reload_roles()
         for state in self.store.all():
