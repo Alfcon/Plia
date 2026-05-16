@@ -82,10 +82,76 @@ class _Runtime:
         for state in self.store.all():
             if self._get_instance(state.role_id) is None:
                 self._make_instance(state.role_id, state.display_name)
+        self._repair_broken_state()
+        self._relink_orphan_roles()
         self._migrate_legacy_custom_agents()
         self._seed_builtins()
         self.scheduler.load_and_arm()
         self._started = True
+
+    def _repair_broken_state(self) -> None:
+        """Heal agents whose persisted state references things that don't
+        exist any more (e.g. executor='script' with a missing script_path).
+        Such agents are silently rewritten to a tool_loop default so the
+        next Run won't fail with 'no_json' / 'script_not_found'."""
+        from pathlib import Path
+        repaired = 0
+        for state in self.store.all():
+            if state.executor == "script":
+                sp = state.script_path or ""
+                if not sp or not Path(sp).exists():
+                    state.executor = "tool_loop"
+                    state.script_path = None
+                    self.store.upsert(state)
+                    repaired += 1
+        if repaired:
+            print(f"[agent_runtime] ✓ Repaired {repaired} agent(s) with missing scripts → tool_loop")
+
+    def _relink_orphan_roles(self) -> None:
+        """If a role YAML exists in ~/.plia_ai/roles but no AgentState entry
+        references it, recreate the state entry with sensible defaults so
+        the agent reappears in the UI. Avoids losing agents to accidental
+        state-file truncation."""
+        from core.agent_state import AgentState, now_iso
+
+        try:
+            role_files = list(_ROLES_DIR.glob("*.yml"))
+        except Exception:
+            role_files = []
+        existing = {s.role_id for s in self.store.all()}
+        recovered = 0
+        for path in role_files:
+            slug = path.stem
+            if slug in existing:
+                continue
+            role = multi_agent_system.roles.get(slug)
+            if role is None:
+                continue  # YAML exists but didn't load — skip rather than guess
+            display_name = getattr(role, "name", slug) or slug
+            try:
+                instance = self._make_instance(slug, display_name)
+                state = AgentState(
+                    role_id=slug,
+                    instance_id=getattr(instance, "id", slug),
+                    display_name=display_name,
+                    icon="🤖",
+                    executor="tool_loop",
+                    trigger="on_demand",
+                    persistence="persistent",
+                    notify="chat",
+                    status="active",
+                    created_at=now_iso(),
+                    script_path=None,
+                    cadence=None,
+                    quota=None,
+                )
+                self.store.upsert(state)
+                recovered += 1
+            except Exception as exc:
+                print(f"[agent_runtime] could not relink orphan role {slug!r}: {exc}")
+        if recovered:
+            print(f"[agent_runtime] ✓ Recovered {recovered} orphan role YAML(s) "
+                  "as Live Agents")
 
     def _migrate_legacy_custom_agents(self) -> None:
         """One-time import of legacy custom_agents.json entries into the live
@@ -135,14 +201,17 @@ class _Runtime:
             while self.store.get(slug) is not None:
                 slug = f"{base_slug}_{i}"
                 i += 1
-            file_path = entry.get("file_path") or ""
+            # Legacy custom-agent .py scripts emit plain text, not the
+            # structured JSON our script_executor expects. Migrate every
+            # legacy agent as a tool_loop so it Just Works with the LLM
+            # + web_search; the original prompt becomes the task.
             try:
                 write_role_yaml(
                     roles_dir=_ROLES_DIR,
                     slug=slug,
                     display_name=display_name,
                     task=task,
-                    tools=["web_search"] if not file_path else [],
+                    tools=["web_search"],
                 )
                 multi_agent_system.reload_roles()
                 instance = self._make_instance(slug, display_name)
@@ -151,13 +220,13 @@ class _Runtime:
                     instance_id=getattr(instance, "id", slug),
                     display_name=display_name,
                     icon=entry.get("icon") or "🤖",
-                    executor="script" if file_path else "tool_loop",
+                    executor="tool_loop",
                     trigger="on_demand",
                     persistence="persistent",
                     notify="chat",
                     status="active",
                     created_at=now_iso(),
-                    script_path=file_path or None,
+                    script_path=None,
                     cadence=None,
                     quota=None,
                 )
