@@ -943,8 +943,18 @@ class LiveAgentRow(QFrame):
         outer.setSpacing(4)
 
         s = self._state
-        head = QLabel(f"{s.icon}  {s.display_name}   "
-                      f"<span style='color:#9aa0aa'>● {s.status}</span>")
+        # Green dot when a run is in flight RIGHT NOW; otherwise dim.
+        try:
+            from core.agent_runtime import get_runtime as _get_runtime
+            _running_now = s.role_id in _get_runtime().scheduler._in_flight
+        except Exception:
+            _running_now = False
+        if _running_now:
+            dot = "<span style='color:#4caf50; font-weight:bold;'>● running</span>"
+        else:
+            dot = f"<span style='color:#9aa0aa'>● {s.status}</span>"
+        head = QLabel(f"{s.icon}  {s.display_name}   {dot}")
+        head.setTextFormat(Qt.RichText)
         outer.addWidget(head)
 
         sub_bits = [f"Trigger: {s.trigger}"]

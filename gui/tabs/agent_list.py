@@ -570,12 +570,17 @@ class AgentListTab(QWidget):
         super().__init__(parent)
         self._build_ui()
         agent_registry.agents_changed.connect(self.refresh)
-        # Also refresh when the live-agent store changes (wizard creates / deletes)
+        # Refresh when the live-agent store changes (wizard creates/deletes)
+        # AND when a run starts/finishes so the running indicator (green dot)
+        # appears immediately.
         try:
             from core.agent_runtime import get_runtime
-            get_runtime().store.changed.connect(self.refresh)
+            rt = get_runtime()
+            rt.store.changed.connect(self.refresh)
+            rt.scheduler.run_started.connect(self.refresh)
+            rt.scheduler.run_finished.connect(self.refresh)
         except Exception as exc:
-            print(f"[AgentListTab] could not connect to live-agent store: {exc}")
+            print(f"[AgentListTab] could not connect to live-agent signals: {exc}")
         self.refresh()
 
     def _build_ui(self):

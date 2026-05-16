@@ -105,7 +105,7 @@ def compute_next_fire(cadence: Dict, from_dt: datetime) -> datetime:
     return anchor + timedelta(seconds=steps * interval)
 
 
-from PySide6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer, Signal
 
 
 def _default_timer_factory(role_id: str, callback):
@@ -135,7 +135,14 @@ class AgentScheduler(QObject):
       instance_provider — callable(role_id) -> AgentInstance
       now_provider      — callable() -> datetime          (defaults to datetime.now)
       timer_factory     — callable(role_id, callback) -> timer-like object
+
+    Signals:
+      run_started(role_id)   — emitted just before an agent's runner is invoked
+      run_finished(role_id)  — emitted when the run callback fires (any outcome)
     """
+
+    run_started = Signal(str)
+    run_finished = Signal(str)
 
     def __init__(self, *, state_store, task_manager, runner_builder,
                  instance_provider, now_provider=None, timer_factory=None,
@@ -211,6 +218,7 @@ class AgentScheduler(QObject):
         state.last_fire_at = now.isoformat(timespec="seconds")
         state.runs += 1
         self._store.upsert(state)
+        self.run_started.emit(state.role_id)
 
         self._task_manager.launch(
             agent=instance,
@@ -246,6 +254,7 @@ class AgentScheduler(QObject):
         """Called (from a worker thread) when AgentTaskManager finishes a run."""
         self._in_flight.discard(role_id)
         self._handle_completion(role_id, record)
+        self.run_finished.emit(role_id)
 
     HISTORY_CAP = 50
 
@@ -336,6 +345,7 @@ class AgentScheduler(QObject):
         state.last_fire_at = now.isoformat(timespec="seconds")
         state.runs += 1
         self._store.upsert(state)
+        self.run_started.emit(role_id)
 
         if task and task.strip():
             final_task = task.strip()
