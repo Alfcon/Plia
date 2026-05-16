@@ -102,3 +102,10 @@ htmlcov/
 # ----- Claude Code local state (worktrees, settings) -----
 .claude/
 .remember/
+
+# ----- Distro packages (installers checked into repo by mistake) -----
+*.deb
+*.rpm
+*.AppImage
+*.msi
+*.exe
