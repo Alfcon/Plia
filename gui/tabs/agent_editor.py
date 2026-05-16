@@ -145,17 +145,28 @@ def _normalize_role_data(form: RoleFormData) -> Dict[str, Any]:
 class RoleEditorDialog(QDialog):
     def __init__(self, parent=None, role: Optional[Dict[str, Any]] = None):
         super().__init__(parent)
-        self.setWindowTitle("Edit Agent Role")
-        self.setMinimumSize(760, 760)
         self._role = role or {}
+        # Distinct title for new vs edit so the user knows which mode they're in.
+        if self._role:
+            self.setWindowTitle(
+                f"Edit Role — {self._role.get('name') or self._role.get('id') or 'untitled'}"
+            )
+        else:
+            self.setWindowTitle("New Agent Role")
+        # Resizable; sized so the form is comfortably visible by default.
+        self.setMinimumSize(720, 560)
+        self.resize(900, 760)
+        self.setSizeGripEnabled(True)
         self._build()
 
     def _build(self) -> None:
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(24, 24, 24, 24)
-        layout.setSpacing(12)
+        from PySide6.QtWidgets import QScrollArea, QWidget as _QWidget
 
-        layout.addWidget(TitleLabel("Jarvis-Style Agent Editor"))
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(20, 20, 20, 20)
+        outer.setSpacing(10)
+
+        outer.addWidget(TitleLabel("Jarvis-Style Agent Editor"))
 
         info = CaptionLabel(
             "Edit role YAML used by the multi-agent runtime.\n"
@@ -163,7 +174,18 @@ class RoleEditorDialog(QDialog):
             "KPIs use one line per item: name|metric|target|check_interval"
         )
         info.setWordWrap(True)
-        layout.addWidget(info)
+        outer.addWidget(info)
+
+        # ── Scrollable form area ─────────────────────────────────────────
+        # Without this, the ~14 fields get vertically squished by the dialog's
+        # min-height and labels visually overlap their inputs.
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        form_host = _QWidget()
+        layout = QVBoxLayout(form_host)
+        layout.setContentsMargins(0, 0, 8, 0)  # right padding for scrollbar
+        layout.setSpacing(10)
 
         self.id_edit = LineEdit()
         self.name_edit = LineEdit()
@@ -199,8 +221,15 @@ class RoleEditorDialog(QDialog):
 
         for label_text, widget in fields:
             layout.addWidget(StrongBodyLabel(label_text))
-            widget.setMinimumHeight(72 if isinstance(widget, QTextEdit) else 36)
+            if isinstance(widget, QTextEdit):
+                widget.setMinimumHeight(88)
+                widget.setMaximumHeight(140)
+            else:
+                widget.setMinimumHeight(34)
             layout.addWidget(widget)
+
+        scroll.setWidget(form_host)
+        outer.addWidget(scroll, 1)  # let the scroll area take all stretch
 
         self.verbosity_edit.setPlaceholderText("adaptive | concise | detailed")
         self.formality_edit.setPlaceholderText("adaptive | formal | casual")
@@ -243,6 +272,8 @@ class RoleEditorDialog(QDialog):
             self.tools_edit.setPlainText("\n".join(role.get("tools", [])))
             self.authority_edit.setText(str(role.get("authority_level", 5)))
 
+        # Buttons live on the OUTER layout so they stay pinned to the bottom
+        # of the dialog while the form above scrolls.
         btn_row = QHBoxLayout()
         btn_row.addStretch()
         cancel = QPushButton("Cancel")
@@ -251,7 +282,7 @@ class RoleEditorDialog(QDialog):
         save.clicked.connect(self._save)
         btn_row.addWidget(cancel)
         btn_row.addWidget(save)
-        layout.addLayout(btn_row)
+        outer.addLayout(btn_row)
 
     def _save(self) -> None:
         data = _normalize_role_data(
@@ -359,15 +390,28 @@ class AgentEditorWindow(QDialog):
         roles = _load_role_files()
         if not roles:
             self._roles_area.addWidget(CaptionLabel("No role files found in ~/.plia_ai/roles"))
+            self._role_buttons = {}
             return
 
+        # Track buttons so we can visually mark the selected role.
+        self._role_buttons = {}
         for role in roles:
-            btn = PushButton(f"{role.get('name', role.get('id', 'role'))}  ({role.get('id', '')})")
-            btn.clicked.connect(lambda _, rid=role.get("id", ""): self._select_role(rid))
+            rid = role.get("id", "")
+            btn = PushButton(f"{role.get('name', rid or 'role')}  ({rid})")
+            btn.setCheckable(True)
+            btn.clicked.connect(lambda _, _rid=rid: self._select_role(_rid))
             self._roles_area.addWidget(btn)
+            self._role_buttons[rid] = btn
+
+        # Restore visual selection if a role was already picked.
+        if self._selected_role_id and self._selected_role_id in self._role_buttons:
+            self._role_buttons[self._selected_role_id].setChecked(True)
 
     def _select_role(self, role_id: str) -> None:
         self._selected_role_id = role_id
+        # Highlight the chosen role; un-check all others.
+        for rid, btn in getattr(self, "_role_buttons", {}).items():
+            btn.setChecked(rid == role_id)
         path = _role_file(role_id)
         if path.exists():
             role = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -384,12 +428,24 @@ class AgentEditorWindow(QDialog):
 
     def _edit_selected(self) -> None:
         if not self._selected_role_id:
+            QMessageBox.information(
+                self,
+                "No role selected",
+                "Click a role in the list on the left first, then press "
+                "Edit Selected.",
+            )
             return
         RoleEditorDialog.open_edit(self, self._selected_role_id)
         self.refresh()
 
     def _delete_selected(self) -> None:
         if not self._selected_role_id:
+            QMessageBox.information(
+                self,
+                "No role selected",
+                "Click a role in the list on the left first, then press "
+                "Delete Selected.",
+            )
             return
         reply = QMessageBox.question(self, "Delete Role", f"Delete role '{self._selected_role_id}'?")
         if reply == QMessageBox.Yes:
