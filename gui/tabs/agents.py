@@ -1327,9 +1327,8 @@ class AgentsTab(QWidget):
             task_lbl.setWordWrap(True)
             lay.addWidget(task_lbl)
 
-        # ── Live Agents (scheduled / on-demand / quota workers) ──────────
-        self._live_agents_section = LiveAgentsSection()
-        lay.addWidget(self._live_agents_section)
+        # Live Agents live on the Agent List page (inventory + management).
+        # The Active Agents tab stays focused on system-component health.
 
         self._content.addWidget(card)
 
@@ -1569,9 +1568,6 @@ class AgentsTab(QWidget):
             self._thread = AgentStatusThread()
             self._thread.finished.connect(self._apply_statuses)
             self._thread.start()
-
-        if getattr(self, "_live_agents_section", None) is not None:
-            self._live_agents_section.refresh()
 
     def _apply_statuses(self, statuses: dict):
         for key, row in self._rows.items():
