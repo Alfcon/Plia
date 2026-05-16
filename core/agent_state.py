@@ -48,6 +48,10 @@ class AgentState:
     last_fire_at: Optional[str] = None
     runs: int = 0
     history: List[Dict[str, Any]] = field(default_factory=list)
+    # Used only when executor == "direct_tool": invoke this single tool
+    # with these static arguments, no LLM in the loop.
+    direct_tool_id: Optional[str] = None
+    direct_tool_args: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

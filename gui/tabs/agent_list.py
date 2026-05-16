@@ -600,6 +600,16 @@ class AgentListTab(QWidget):
         self._add_btn.clicked.connect(self._open_create)
         actions.addWidget(self._add_btn)
 
+        # "Schedule a Tool Call" is the deterministic, LLM-free shortcut:
+        # pick one tool + args + cadence and you get a scheduled agent.
+        self._schedule_tool_btn = PushButton(FIF.STOP_WATCH, "Schedule a Tool Call")
+        self._schedule_tool_btn.setToolTip(
+            "Create a deterministic agent that invokes ONE tool with fixed "
+            "arguments on a schedule. No LLM involved at run time."
+        )
+        self._schedule_tool_btn.clicked.connect(self._open_schedule_tool)
+        actions.addWidget(self._schedule_tool_btn)
+
         self._refresh_btn = PushButton(FIF.SYNC, "Refresh")
         self._refresh_btn.clicked.connect(self.refresh)
         actions.addWidget(self._refresh_btn)
@@ -675,6 +685,25 @@ class AgentListTab(QWidget):
         if dlg.exec() != QDialog.Accepted:
             return
         self._create_from_dialog_result(dlg.get_result())
+
+    def _open_schedule_tool(self):
+        """Open the deterministic 'Schedule a Tool Call' dialog."""
+        from gui.tabs.schedule_tool_dialog import ScheduleToolDialog
+        dlg = ScheduleToolDialog(parent=self)
+        if dlg.exec() == QDialog.Accepted:
+            self.refresh()
+            try:
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                state = dlg.get_created_state()
+                InfoBar.success(
+                    title="Scheduled tool agent created",
+                    content=f"{state.display_name} — trigger: {state.trigger}",
+                    duration=3500,
+                    position=InfoBarPosition.TOP_RIGHT,
+                    parent=self,
+                )
+            except Exception:
+                pass
 
     def create_agent_from_chat(self, prefill: dict):
         dlg = CreateAgentDialog(prefill=prefill or {}, parent=self)

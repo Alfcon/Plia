@@ -396,11 +396,15 @@ class AgentScheduler(QObject):
 def build_default_runner(state, *, role_tools, ollama_url: str, model: str):
     """Construct the executor runner for an AgentState.
 
-    state.executor == "script"    -> subprocess runner over state.script_path
-    state.executor == "tool_loop" -> Ollama tool-call loop over role_tools
+    state.executor == "script"      -> subprocess runner over state.script_path
+    state.executor == "tool_loop"   -> Ollama tool-call loop over role_tools
+    state.executor == "direct_tool" -> Invoke one named tool with fixed args
+                                       (no LLM in the loop). Reads
+                                       state.direct_tool_id / direct_tool_args.
     """
     from core.executors.script_executor import make_script_runner
     from core.executors.tool_loop_executor import make_tool_loop_runner
+    from core.executors.direct_tool_executor import make_direct_tool_runner
     from core.executors.run_result import RunResult
 
     if state.executor == "script":
@@ -414,6 +418,12 @@ def build_default_runner(state, *, role_tools, ollama_url: str, model: str):
                 )
             return _missing
         return make_script_runner(state.script_path)
+
+    if state.executor == "direct_tool":
+        return make_direct_tool_runner(
+            tool_id=state.direct_tool_id or "",
+            arguments=state.direct_tool_args or {},
+        )
 
     return make_tool_loop_runner(
         allowed_tools=list(role_tools or []),
