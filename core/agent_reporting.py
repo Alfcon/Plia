@@ -71,12 +71,17 @@ def _format_chat_item(item: Any) -> str:
     extras = _coerce_list(
         item.get("repo_has_that_plia_lacks")
         or item.get("repo_has")
+        or item.get("repo_features")
+        or item.get("their_features")
         or item.get("extra_features")
         or item.get("differences")
+        or item.get("features")
     )
     missing = _coerce_list(
         item.get("plia_has_that_repo_lacks")
         or item.get("plia_has")
+        or item.get("plia_features")
+        or item.get("our_features")
         or item.get("missing_features")
     )
     description = item.get("description") or item.get("summary")
