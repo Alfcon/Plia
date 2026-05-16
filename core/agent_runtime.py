@@ -82,9 +82,110 @@ class _Runtime:
         for state in self.store.all():
             if self._get_instance(state.role_id) is None:
                 self._make_instance(state.role_id, state.display_name)
+        self._migrate_legacy_custom_agents()
         self._seed_builtins()
         self.scheduler.load_and_arm()
         self._started = True
+
+    def _migrate_legacy_custom_agents(self) -> None:
+        """One-time import of legacy custom_agents.json entries into the live
+        agent store. Marked complete via a settings flag so we don't run again
+        even if the user deletes the migrated agents."""
+        try:
+            from core.settings_store import settings as app_settings
+            if app_settings.get("agents.legacy_migrated", False):
+                return
+        except Exception:
+            app_settings = None
+
+        from pathlib import Path
+        import json
+
+        legacy_path = Path.home() / ".plia_ai" / "custom_agents.json"
+        if not legacy_path.exists():
+            if app_settings is not None:
+                app_settings.set("agents.legacy_migrated", True)
+            return
+
+        try:
+            raw = json.loads(legacy_path.read_text(encoding="utf-8"))
+        except Exception as exc:
+            print(f"[agent_runtime] could not read legacy custom_agents.json: {exc}")
+            return
+        if not isinstance(raw, list) or not raw:
+            if app_settings is not None:
+                app_settings.set("agents.legacy_migrated", True)
+            return
+
+        from core.agent_creator import write_role_yaml, _slugify
+        from core.agent_state import AgentState, now_iso
+
+        migrated = 0
+        for entry in raw:
+            if not isinstance(entry, dict):
+                continue
+            display_name = (entry.get("display_name") or entry.get("name") or "").strip()
+            if not display_name:
+                continue
+            task = (entry.get("description") or entry.get("prompt") or display_name).strip()
+            # Pick a slug that isn't already taken in the live store.
+            base_slug = _slugify(display_name)
+            slug = base_slug
+            i = 2
+            while self.store.get(slug) is not None:
+                slug = f"{base_slug}_{i}"
+                i += 1
+            file_path = entry.get("file_path") or ""
+            try:
+                write_role_yaml(
+                    roles_dir=_ROLES_DIR,
+                    slug=slug,
+                    display_name=display_name,
+                    task=task,
+                    tools=["web_search"] if not file_path else [],
+                )
+                multi_agent_system.reload_roles()
+                instance = self._make_instance(slug, display_name)
+                state = AgentState(
+                    role_id=slug,
+                    instance_id=getattr(instance, "id", slug),
+                    display_name=display_name,
+                    icon=entry.get("icon") or "🤖",
+                    executor="script" if file_path else "tool_loop",
+                    trigger="on_demand",
+                    persistence="persistent",
+                    notify="chat",
+                    status="active",
+                    created_at=now_iso(),
+                    script_path=file_path or None,
+                    cadence=None,
+                    quota=None,
+                )
+                self.store.upsert(state)
+                migrated += 1
+            except Exception as exc:
+                print(f"[agent_runtime] migration of {display_name!r} failed: {exc}")
+
+        if app_settings is not None:
+            app_settings.set("agents.legacy_migrated", True)
+        if migrated:
+            # Rename the legacy file so agent_registry stops surfacing them
+            # under "Custom Agents" — keep it as a *.bak in case the user
+            # wants to inspect the originals.
+            try:
+                legacy_path.rename(legacy_path.with_suffix(".json.migrated.bak"))
+            except Exception as exc:
+                print(f"[agent_runtime] could not rename legacy file: {exc}")
+            # Force agent_registry to drop its in-memory cache so the
+            # Custom Agents section becomes empty immediately.
+            try:
+                from core.agent_registry import agent_registry
+                agent_registry._load()
+                agent_registry.agents_changed.emit()
+            except Exception:
+                pass
+            print(f"[agent_runtime] ✓ Migrated {migrated} legacy Custom Agent(s) "
+                  "to Live Agents (backup kept at custom_agents.json.migrated.bak)")
 
     def _seed_builtins(self) -> None:
         """Create built-in agents we always ship with, if they're missing.

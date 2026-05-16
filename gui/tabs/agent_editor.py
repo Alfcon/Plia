@@ -616,6 +616,44 @@ class LiveAgentEditorDialog(QDialog):
         scroll.setMinimumHeight(160)
         root.addWidget(scroll)
 
+        # ── Available sub-agents (read-only) ──────────────────────────────
+        # When this agent has list_agents + run_agent tools enabled, it can
+        # invoke any of these as a sub-agent. Showing the list here makes it
+        # easy to reference them by name in the task description.
+        root.addWidget(QLabel(
+            "Available sub-agents (invoke from this agent's task via list_agents + run_agent):"
+        ))
+        sibs_box = QWidget()
+        sibs_layout = QVBoxLayout(sibs_box)
+        sibs_layout.setContentsMargins(0, 0, 0, 0)
+        try:
+            from core.agent_runtime import get_runtime
+            rt = get_runtime()
+            siblings = [s for s in rt.store.all() if s.role_id != self._state.role_id]
+        except Exception:
+            siblings = []
+        if not siblings:
+            empty = QLabel("(no other live agents yet)")
+            empty.setStyleSheet("color:#7d828c;")
+            sibs_layout.addWidget(empty)
+        else:
+            from core.multi_agent import multi_agent_system as _mas
+            for s in sorted(siblings, key=lambda x: x.display_name):
+                role = _mas.roles.get(s.role_id)
+                tools = ", ".join(role.tools) if role and getattr(role, "tools", None) else "—"
+                row = QLabel(
+                    f"  • <b>{s.display_name}</b>"
+                    f"  <span style='color:#7d828c'>(role_id: {s.role_id}, tools: {tools})</span>"
+                )
+                row.setTextFormat(Qt.RichText)
+                sibs_layout.addWidget(row)
+        sibs_scroll = QScrollArea()
+        sibs_scroll.setWidgetResizable(True)
+        sibs_scroll.setWidget(sibs_box)
+        sibs_scroll.setMinimumHeight(80)
+        sibs_scroll.setMaximumHeight(160)
+        root.addWidget(sibs_scroll)
+
         # ── Buttons ───────────────────────────────────────────────────────
         btn_row = QHBoxLayout()
         cancel = QPushButton("Cancel")
