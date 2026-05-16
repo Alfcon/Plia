@@ -52,6 +52,9 @@ class AgentState:
     # with these static arguments, no LLM in the loop.
     direct_tool_id: Optional[str] = None
     direct_tool_args: Optional[Dict[str, Any]] = None
+    # Only used when trigger == "conditional": describes the event watcher
+    # (see core/agent_watchers.py for supported shapes).
+    condition: Optional[Dict[str, Any]] = None
 
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)

@@ -429,6 +429,7 @@ def commit(answers: Dict, *, roles_dir, state_store, scheduler,
         script_path=script_path,
         cadence=answers.get("cadence"),
         quota=answers.get("quota"),
+        condition=answers.get("condition"),
     )
 
     multi_agent_system.reload_roles()

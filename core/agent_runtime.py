@@ -19,6 +19,7 @@ from core.agent_state import AgentStateStore
 from core.agent_scheduler import AgentScheduler, build_default_runner
 from core.agent_reporting import ResultDispatcher
 from core.agent_creator import commit
+from core.agent_watchers import WatchManager
 from core.multi_agent import multi_agent_system, AgentInstance
 from config import OLLAMA_URL, RESPONDER_MODEL
 
@@ -29,14 +30,25 @@ class _Runtime:
     def __init__(self):
         self.store = AgentStateStore()
         self.dispatcher = ResultDispatcher()
+        self.watch_manager = WatchManager()
         self.scheduler = AgentScheduler(
             state_store=self.store,
             task_manager=multi_agent_system.task_manager,
             runner_builder=self._build_runner,
             instance_provider=self._get_instance,
             reporter=self.dispatcher.report,
+            watch_manager=self.watch_manager,
         )
+        # Conditional triggers: a watcher firing dispatches the agent.
+        self.watch_manager.triggered.connect(self._on_watch_trigger)
         self._started = False
+
+    def _on_watch_trigger(self, role_id: str) -> None:
+        """Bridge WatchManager.triggered → scheduler.fire_now."""
+        try:
+            self.scheduler.fire_now(role_id)
+        except Exception as exc:
+            print(f"[agent_runtime] watch trigger for {role_id!r} failed: {exc}")
 
     # ── model helper ──────────────────────────────────────────────────────
     def _model(self) -> str:

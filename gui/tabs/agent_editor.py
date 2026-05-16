@@ -555,7 +555,7 @@ class LiveAgentEditorDialog(QDialog):
         # ── Schedule ──────────────────────────────────────────────────────
         root.addWidget(QLabel("Trigger"))
         self._trigger = QComboBox()
-        self._trigger.addItems(["scheduled", "on_demand", "quota"])
+        self._trigger.addItems(["scheduled", "on_demand", "quota", "conditional"])
         self._trigger.setCurrentText(self._state.trigger)
         root.addWidget(self._trigger)
 
@@ -571,6 +571,41 @@ class LiveAgentEditorDialog(QDialog):
         if self._state.quota:
             self._quota.setText(str(self._state.quota.get("limit", "")))
         root.addWidget(self._quota)
+
+        # ── Condition (only relevant when trigger == "conditional") ───────
+        cond = self._state.condition or {}
+        root.addWidget(QLabel("Condition type — conditional only"))
+        self._cond_type = QComboBox()
+        self._cond_type.addItems(["file_watch", "http_poll", "rss"])
+        if cond.get("type") in ("file_watch", "http_poll", "rss"):
+            self._cond_type.setCurrentText(cond["type"])
+        root.addWidget(self._cond_type)
+
+        root.addWidget(QLabel(
+            "Target (file path for file_watch, URL for http_poll / rss)"
+        ))
+        self._cond_target = QLineEdit()
+        self._cond_target.setPlaceholderText(
+            "/home/me/inbox  OR  https://example.com/feed.xml")
+        target = cond.get("path") or cond.get("url") or ""
+        self._cond_target.setText(target)
+        root.addWidget(self._cond_target)
+
+        root.addWidget(QLabel(
+            "Poll interval (seconds, minimum 5) — conditional only"
+        ))
+        self._cond_interval = QLineEdit()
+        try:
+            poll_default = int(cond.get("poll_interval_sec", 60))
+        except (TypeError, ValueError):
+            poll_default = 60
+        self._cond_interval.setText(str(poll_default))
+        root.addWidget(self._cond_interval)
+
+        self._cond_subdirs = QCheckBox(
+            "Watch subdirectories (file_watch only — directory targets)")
+        self._cond_subdirs.setChecked(bool(cond.get("watch_subdirs", False)))
+        root.addWidget(self._cond_subdirs)
 
         # ── Notify channels (multi-select) ────────────────────────────────
         root.addWidget(QLabel("Notify channels (pick one or more)"))
@@ -708,6 +743,7 @@ class LiveAgentEditorDialog(QDialog):
             cad = parse_cadence(self._cadence.text())
             state.cadence = cad or {"interval_sec": 3600, "anchor_iso": None}
             state.quota = None
+            state.condition = None
         elif state.trigger == "quota":
             try:
                 limit = int(self._quota.text().strip())
@@ -715,9 +751,27 @@ class LiveAgentEditorDialog(QDialog):
                 limit = 10
             state.quota = {"limit": limit, "criterion": "any", "progress": 0}
             state.cadence = None
+            state.condition = None
+        elif state.trigger == "conditional":
+            ctype = self._cond_type.currentText()
+            target = self._cond_target.text().strip()
+            try:
+                interval = max(5, int(self._cond_interval.text().strip()))
+            except ValueError:
+                interval = 60
+            cond: dict = {"type": ctype, "poll_interval_sec": interval}
+            if ctype == "file_watch":
+                cond["path"] = target
+                cond["watch_subdirs"] = bool(self._cond_subdirs.isChecked())
+            else:  # http_poll / rss
+                cond["url"] = target
+            state.condition = cond
+            state.cadence = None
+            state.quota = None
         else:  # on_demand
             state.cadence = None
             state.quota = None
+            state.condition = None
 
         # ── Update role YAML (tools, name, task) ──────────────────────────
         selected = [t for t, cb in self._tool_checks.items() if cb.isChecked()]

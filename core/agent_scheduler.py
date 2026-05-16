@@ -146,7 +146,7 @@ class AgentScheduler(QObject):
 
     def __init__(self, *, state_store, task_manager, runner_builder,
                  instance_provider, now_provider=None, timer_factory=None,
-                 reporter=None, parent=None):
+                 reporter=None, watch_manager=None, parent=None):
         super().__init__(parent)
         self._store = state_store
         self._task_manager = task_manager
@@ -155,16 +155,29 @@ class AgentScheduler(QObject):
         self._now = now_provider or datetime.now
         self._timer_factory = timer_factory or _default_timer_factory
         self._reporter = reporter or (lambda state, result: None)
+        self._watch_manager = watch_manager
         self._timers: Dict[str, object] = {}
         self._in_flight: set = set()
 
     # ── arming ────────────────────────────────────────────────────────────
     def arm(self, state) -> None:
-        """Compute next_fire_at and start a timer if the agent is scheduled
-        or quota-driven. on_demand agents are never armed."""
+        """Compute next_fire_at and start a timer (or watcher) if the agent
+        is scheduled, quota-driven, or conditional. on_demand agents are
+        never armed."""
         if state.status != "active":
             return
         if state.trigger == "on_demand":
+            return
+
+        if state.trigger == "conditional":
+            self.disarm(state.role_id)  # clear any prior timer/watcher
+            if self._watch_manager is not None and state.condition:
+                ok = self._watch_manager.register(state.role_id, state.condition)
+                if not ok:
+                    print(f"[AgentScheduler] could not register watcher for "
+                          f"{state.role_id!r}: {state.condition!r}")
+            state.next_fire_at = None
+            self._store.upsert(state)
             return
 
         now = self._now()
@@ -189,6 +202,8 @@ class AgentScheduler(QObject):
         timer = self._timers.pop(role_id, None)
         if timer is not None:
             timer.stop()
+        if self._watch_manager is not None:
+            self._watch_manager.unregister(role_id)
 
     # ── firing ────────────────────────────────────────────────────────────
     def _on_tick(self, role_id: str) -> None:
