@@ -111,6 +111,52 @@ class MCPClient:
         """True when tool discovery completed (even if discovery found 0 tools)."""
         return self._ready_event.is_set()
 
+    def list_servers(self) -> List[Dict[str, Any]]:
+        """Return the configured servers with current status — for the UI.
+
+        Each item: {id, command, args, env, transport, connected: bool,
+                    tools: list[{tool_id, tool_name, description}]}.
+        """
+        out: List[Dict[str, Any]] = []
+        for cfg in self._server_configs:
+            tools = [
+                {
+                    "tool_id":     t.tool_id,
+                    "tool_name":   t.tool_name,
+                    "description": t.description,
+                }
+                for t in self._tools_by_id.values()
+                if t.server_id == cfg.id
+            ]
+            out.append({
+                "id":        cfg.id,
+                "transport": cfg.transport,
+                "command":   cfg.command,
+                "args":      list(cfg.args),
+                "env":       dict(cfg.env),
+                "connect_timeout_seconds": cfg.connect_timeout_seconds,
+                "call_timeout_seconds":    cfg.call_timeout_seconds,
+                "connected": cfg.id in self._sessions_by_server_id,
+                "tools":     tools,
+            })
+        return out
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """Flat list of all discovered MCP tools across all servers."""
+        return [
+            {
+                "tool_id":     t.tool_id,
+                "server_id":   t.server_id,
+                "tool_name":   t.tool_name,
+                "description": t.description,
+            }
+            for t in sorted(self._tools_by_id.values(),
+                            key=lambda x: (x.server_id, x.tool_name))
+        ]
+
+    def discovery_error(self) -> Optional[str]:
+        return self._discovery_error
+
     def get_tool_catalog_text(self, user_prompt: Optional[str] = None) -> str:
         """
         Return a short human-readable tool catalog for router prompting.

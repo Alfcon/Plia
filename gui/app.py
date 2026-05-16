@@ -529,6 +529,10 @@ class MainWindow(FluentWindow):
         # "web_searches" channel. Persistent log under ~/.plia_ai/.
         from gui.tabs.web_searches import WebSearchesTab
         self.web_searches_lazy = LazyTab(WebSearchesTab, "webSearchesInterface")
+        # MCP Servers tab — manage external Model Context Protocol servers
+        # configured at ~/.plia/mcp.json.
+        from gui.tabs.mcp_servers import MCPServersTab
+        self.mcp_servers_lazy = LazyTab(MCPServersTab, "mcpServersInterface")
 
         self.addSubInterface(self.chat_lazy, FIF.CHAT, "Chat")
         self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
@@ -536,6 +540,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.agents_lazy, FIF.ROBOT, "Active Agents")
         self.addSubInterface(self.agent_list_lazy, FIF.ROBOT, "Agent List")
         self.addSubInterface(self.web_searches_lazy, FIF.SEARCH, "Web Searches")
+        self.addSubInterface(self.mcp_servers_lazy, FIF.CONNECT, "MCP Servers")
         self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
         self.addSubInterface(self.reading_files_lazy, FIF.FOLDER, "Reading Files")
         
