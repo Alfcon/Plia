@@ -7,10 +7,26 @@ import time
 import requests
 from typing import Optional
 from config import (
-    RESPONDER_MODEL, OLLAMA_URL, QWEN_TIMEOUT_SECONDS, 
+    RESPONDER_MODEL, OLLAMA_URL, QWEN_TIMEOUT_SECONDS,
     QWEN_KEEP_ALIVE, GRAY, RESET, CYAN
 )
 from core.model_manager import get_running_models, sync_unload_model
+
+from PySide6.QtCore import QObject, Signal
+
+
+class _ModelEvents(QObject):
+    """Process-wide signal hub for model lifecycle events.
+
+    Lives on its own so cross-thread callers (the QwenManager monitor runs
+    in a daemon thread) reach the GUI safely via Qt's queued connections.
+    """
+    # Emitted when QwenManager unloads the responder model.
+    # Args: model_name, reason ("timeout" / "manual" / etc.), elapsed_seconds
+    responder_unloaded = Signal(str, str, float)
+
+
+events = _ModelEvents()
 
 
 class QwenModelManager:
@@ -82,12 +98,16 @@ class QwenModelManager:
                 # Restart timeout monitoring
                 self._start_timeout_monitor()
     
-    def unload(self, reason: str = "manual"):
-        """Unload Qwen model to free VRAM."""
+    def unload(self, reason: str = "manual", elapsed: float = 0.0):
+        """Unload Qwen model to free VRAM.
+
+        Emits `events.responder_unloaded(model, reason, elapsed)` after a
+        successful unload so the GUI can notify the user (TTS + comm log).
+        """
         with self.lock:
             if not self.is_loaded:
                 return
-            
+
             try:
                 print(f"{GRAY}[QwenManager] Unloading {self.model_name} ({reason})...{RESET}")
                 sync_unload_model(self.model_name)
@@ -97,6 +117,13 @@ class QwenModelManager:
                 print(f"{GRAY}[QwenManager] {self.model_name} unloaded.{RESET}")
             except Exception as e:
                 print(f"{GRAY}[QwenManager] Error unloading {self.model_name}: {e}{RESET}")
+                return
+        # Signal AFTER releasing the lock so listeners can call back into
+        # other systems without risk of deadlock.
+        try:
+            events.responder_unloaded.emit(self.model_name, reason, float(elapsed))
+        except Exception:
+            pass
     
     def _start_timeout_monitor(self):
         """Start or restart timeout monitoring thread."""
@@ -130,7 +157,7 @@ class QwenModelManager:
                 
                 if elapsed >= QWEN_TIMEOUT_SECONDS:
                     print(f"{GRAY}[QwenManager] Timeout reached ({elapsed:.0f}s), unloading {self.model_name}...{RESET}")
-                    self.unload("timeout")
+                    self.unload("timeout", elapsed=elapsed)
                     break
     
     def check_status(self) -> dict:

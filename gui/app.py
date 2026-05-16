@@ -112,6 +112,16 @@ class MainWindow(FluentWindow):
             disp.comm_log_append.connect(self._on_agent_comm_log)
             disp.chat_message_append.connect(self._on_agent_chat_message)
             disp.file_saved.connect(self._on_agent_file_saved)
+            # Tell the user (TTS + comm log) when the responder LLM is
+            # auto-unloaded to free VRAM, so they understand the "not loaded"
+            # state in the Active Agents tab.
+            try:
+                from core.model_persistence import events as _model_events
+                _model_events.responder_unloaded.connect(
+                    self._on_responder_unloaded
+                )
+            except Exception as e:
+                print(f"[App] model_persistence signal connect failed: {e}")
             print("[App] ✓ Agent runtime started")
         except Exception as e:
             print(f"[App] ✗ Agent runtime failed to start: {e}")
@@ -208,6 +218,27 @@ class MainWindow(FluentWindow):
         # Last-resort fallback so the result isn't lost.
         if getattr(self, "dashboard_view", None) is not None:
             self.dashboard_view.add_system_message(body, tag="system")
+
+    def _on_responder_unloaded(self, model_name: str, reason: str, elapsed: float):
+        """Notify the user when the responder LLM is auto-unloaded to free VRAM.
+        Posts to the Communication Log and speaks via TTS."""
+        msg = (
+            f"Responder model {model_name} unloaded after "
+            f"{int(elapsed)}s idle to free VRAM. "
+            "It will reload automatically on next use."
+        ) if reason == "timeout" else (
+            f"Responder model {model_name} unloaded ({reason})."
+        )
+        try:
+            if getattr(self, "dashboard_view", None) is not None:
+                self.dashboard_view.add_system_message(f"🧠 {msg}", tag="system")
+        except Exception as exc:
+            print(f"[App] comm-log append failed: {exc}")
+        try:
+            from core.tts import tts
+            tts.queue_sentence(msg)
+        except Exception as exc:
+            print(f"[App] tts queue failed: {exc}")
 
     def _on_agent_file_saved(self, role_id: str, file_path: str):
         """Show a brief toast pointing at the file the agent wrote to."""
