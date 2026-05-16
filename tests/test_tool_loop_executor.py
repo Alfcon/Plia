@@ -111,6 +111,63 @@ def test_tool_loop_hits_iteration_cap(monkeypatch):
     assert result.error == "iteration_cap"
 
 
+def test_tool_loop_extracts_items_from_json_envelope(monkeypatch):
+    """When the LLM returns a JSON envelope (not the SUMMARY/ITEMS_JSON
+    format), we should still extract the items list inside."""
+    json_blob = (
+        '{"success": true, "message": "Found 3 repos", '
+        '"data": {"repositories": ['
+        '{"title": "owner/jarvis", "url": "https://github.com/owner/jarvis"},'
+        '{"title": "fork/jarvis", "url": "https://github.com/fork/jarvis"},'
+        '{"title": "another/repo", "url": "https://github.com/another/repo"}'
+        ']}}'
+    )
+    _stub_ollama(monkeypatch, [
+        {"message": {"tool_calls": [{"function": {"name": "web_search",
+                                                   "arguments": {"query": "x"}}}]},
+         "prompt_eval_count": 1, "eval_count": 1},
+        {"message": {"content": json_blob},
+         "prompt_eval_count": 1, "eval_count": 1},
+    ])
+    monkeypatch.setattr(tle.function_executor, "execute",
+                        lambda name, params: {"success": True})
+    runner = tle.make_tool_loop_runner(
+        allowed_tools=["web_search"], ollama_url="http://x/api",
+        model="m", max_steps=8, token_budget=100_000)
+    result = runner(agent=_FakeAgent(), task="t", context="")
+    assert result.items_found == 3
+    titles = [i["title"] for i in result.items]
+    assert "owner/jarvis" in titles
+    # Summary should come from the envelope's message field.
+    assert result.summary == "Found 3 repos"
+
+
+def test_tool_loop_extracts_items_from_fenced_json(monkeypatch):
+    """Same as above but the LLM wraps the JSON in ```json fences."""
+    json_blob = (
+        "```json\n"
+        '{"data": {"items": ['
+        '{"name": "thing-1", "url": "https://example.com/1"},'
+        '{"name": "thing-2", "url": "https://example.com/2"}'
+        ']}}\n```'
+    )
+    _stub_ollama(monkeypatch, [
+        {"message": {"tool_calls": [{"function": {"name": "web_search",
+                                                   "arguments": {"query": "x"}}}]},
+         "prompt_eval_count": 1, "eval_count": 1},
+        {"message": {"content": json_blob},
+         "prompt_eval_count": 1, "eval_count": 1},
+    ])
+    monkeypatch.setattr(tle.function_executor, "execute",
+                        lambda name, params: {"success": True})
+    runner = tle.make_tool_loop_runner(
+        allowed_tools=["web_search"], ollama_url="http://x/api",
+        model="m", max_steps=8, token_budget=100_000)
+    result = runner(agent=_FakeAgent(), task="t", context="")
+    assert result.items_found == 2
+    assert result.items[0]["name"] == "thing-1"
+
+
 def test_tool_loop_extracts_markdown_links_from_prose(monkeypatch):
     """Prose-only answers (no ITEMS_JSON) still surface clickable items by
     scraping markdown [title](url) links."""

@@ -66,15 +66,52 @@ def _catalog_text(allowed_tools: List[str]) -> str:
     )
 
 
+def _find_items_in_json(obj: Any) -> List[Dict[str, Any]]:
+    """Walk a parsed JSON tree and return the first list-of-dicts that looks
+    like a results array (keys like 'repositories', 'items', 'results',
+    'entries', or any array of dicts whose entries have title-like or
+    url-like fields)."""
+    PREFERRED_KEYS = ("repositories", "items", "results", "entries",
+                      "list", "data", "hits")
+    URL_KEYS = ("url", "link", "href")
+    TITLE_KEYS = ("title", "name", "repo", "repository", "project", "headline")
+
+    def looks_like_item_list(v):
+        if not isinstance(v, list) or not v:
+            return False
+        # Need at least one dict entry with either a URL-like or title-like key.
+        for x in v:
+            if isinstance(x, dict) and (
+                any(k in x for k in URL_KEYS) or any(k in x for k in TITLE_KEYS)
+            ):
+                return True
+        return False
+
+    if isinstance(obj, list) and looks_like_item_list(obj):
+        return [x for x in obj if isinstance(x, dict)]
+    if isinstance(obj, dict):
+        # Preferred top-level keys first.
+        for key in PREFERRED_KEYS:
+            if key in obj and looks_like_item_list(obj[key]):
+                return [x for x in obj[key] if isinstance(x, dict)]
+        # Recurse one level into nested dicts.
+        for v in obj.values():
+            found = _find_items_in_json(v)
+            if found:
+                return found
+    return []
+
+
 def _parse_final(content: str) -> "RunResult":
     """Parse the LLM's final response.
 
-    Preferred format is `SUMMARY: ... \\nITEMS_FOUND: N\\nITEMS_JSON: [...]`,
-    but if the model produced free-form prose we still want a useful result:
-      - Summary falls back to the first non-empty line (no hard truncation).
-      - Items fall back to any `[title](url)` markdown links scraped from prose.
-    This makes prose-loving models (e.g. small Qwen variants on comparison
-    tasks) still surface clickable hits in the chat tab.
+    Preferred format is `SUMMARY: ... \\nITEMS_FOUND: N\\nITEMS_JSON: [...]`.
+    Fallbacks (in order) when the model strays:
+      1. Whole response is a JSON object — find any array of result-like dicts
+         inside (``data.repositories``, ``items``, etc.) and use its ``message``
+         as the summary.
+      2. Free-form prose with markdown ``[title](url)`` links — scrape them.
+      3. Plain prose — summary = first non-empty line, no items.
     """
     from core.executors.run_result import RunResult
 
@@ -83,18 +120,11 @@ def _parse_final(content: str) -> "RunResult":
     found_m = re.search(r"ITEMS_FOUND:\s*(\d+)", text)
     items_m = re.search(r"ITEMS_JSON:\s*(\[.*\])", text, re.DOTALL)
 
+    summary: str = ""
+    items: List[Dict] = []
+
     if summary_m:
         summary = summary_m.group(1).strip()
-    else:
-        # First non-blank line of the response — no character truncation;
-        # details holds the full text anyway.
-        first_line = next(
-            (ln.strip() for ln in text.splitlines() if ln.strip()),
-            "",
-        )
-        summary = first_line or "Done."
-
-    items: List[Dict] = []
     if items_m:
         try:
             parsed = json.loads(items_m.group(1))
@@ -103,8 +133,30 @@ def _parse_final(content: str) -> "RunResult":
         except json.JSONDecodeError:
             items = []
 
-    # Fallback: pull markdown [title](url) links from the prose so prose-only
-    # answers still get clickable hits in chat.
+    # Fallback A: the entire response is a JSON envelope (possibly wrapped
+    # in ```json fences).
+    if not items:
+        stripped = text.strip()
+        # Strip optional ```json...``` or ```...``` fences first.
+        fence_m = re.search(r"```(?:json)?\s*(.*?)\s*```", stripped,
+                            flags=re.DOTALL | re.IGNORECASE)
+        candidate = fence_m.group(1).strip() if fence_m else stripped
+        if candidate.startswith("{") or candidate.startswith("["):
+            try:
+                obj = json.loads(candidate)
+            except json.JSONDecodeError:
+                obj = None
+            if obj is not None:
+                items = _find_items_in_json(obj)
+                # Pick up summary from common envelope keys.
+                if not summary and isinstance(obj, dict):
+                    for k in ("message", "summary", "title"):
+                        v = obj.get(k)
+                        if isinstance(v, str) and v.strip():
+                            summary = v.strip()
+                            break
+
+    # Fallback B: markdown links in prose.
     if not items:
         seen = set()
         for m in re.finditer(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)", text):
@@ -113,6 +165,14 @@ def _parse_final(content: str) -> "RunResult":
                 continue
             seen.add(url)
             items.append({"title": title, "url": url})
+
+    # Last-resort summary: first non-blank line.
+    if not summary:
+        first_line = next(
+            (ln.strip() for ln in text.splitlines() if ln.strip()),
+            "",
+        )
+        summary = first_line or "Done."
 
     items_found = int(found_m.group(1)) if found_m else len(items)
     return RunResult(

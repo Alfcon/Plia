@@ -129,6 +129,26 @@ def test_report_file_channel_appends_across_runs(tmp_path, monkeypatch):
     assert "run 1" in text and "run 2" in text
 
 
+def test_chat_renders_nested_comparison_fields():
+    """Comparison fields nested under 'comparison' (a common LLM shape) are
+    flattened and rendered as labelled bullets in the chat body."""
+    from core.agent_reporting import _format_chat_item
+
+    item = {
+        "title": "owner/jarvis-style-repo",
+        "url": "https://github.com/owner/jarvis-style-repo",
+        "comparison": {
+            "repo_advantages": ["mobile app", "plugin api"],
+            "plia_advantages": ["local LLM", "advanced web search"],
+        },
+    }
+    rendered = _format_chat_item(item)
+    # Includes the clickable markdown link, plus both comparison rows.
+    assert "[owner/jarvis-style-repo](https://github.com/owner/jarvis-style-repo)" in rendered
+    assert "mobile app" in rendered and "plugin api" in rendered
+    assert "local LLM" in rendered and "advanced web search" in rendered
+
+
 def test_report_multi_channel_fans_out_to_each(tmp_path, monkeypatch):
     """notify='tts,chat,file' should dispatch to all three channels."""
     monkeypatch.setattr("pathlib.Path.home", lambda: tmp_path)
