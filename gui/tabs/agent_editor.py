@@ -359,13 +359,15 @@ class AgentEditorWindow(QDialog):
         self._details.setWordWrap(True)
         right_layout.addWidget(self._details)
 
-        add_btn = PrimaryPushButton("Add Role")
-        add_btn.clicked.connect(lambda: self._open_new())
-        right_layout.addWidget(add_btn)
-
-        edit_btn = PushButton("Edit Selected")
+        # Edit is the primary action — clicking a role then Edit is the main
+        # path. Add Role is a secondary action so it doesn't visually compete.
+        edit_btn = PrimaryPushButton("Edit Selected")
         edit_btn.clicked.connect(lambda: self._edit_selected())
         right_layout.addWidget(edit_btn)
+
+        add_btn = PushButton("Add Role")
+        add_btn.clicked.connect(lambda: self._open_new())
+        right_layout.addWidget(add_btn)
 
         delete_btn = PushButton("Delete Selected")
         delete_btn.clicked.connect(lambda: self._delete_selected())
@@ -399,7 +401,13 @@ class AgentEditorWindow(QDialog):
             rid = role.get("id", "")
             btn = PushButton(f"{role.get('name', rid or 'role')}  ({rid})")
             btn.setCheckable(True)
+            btn.setToolTip("Click to select. Double-click to edit.")
             btn.clicked.connect(lambda _, _rid=rid: self._select_role(_rid))
+            # Double-click → open edit dialog directly so users don't have to
+            # remember to hit "Edit Selected" afterwards.
+            btn.mouseDoubleClickEvent = (
+                lambda ev, _rid=rid: self._double_click_role(_rid)
+            )
             self._roles_area.addWidget(btn)
             self._role_buttons[rid] = btn
 
@@ -439,6 +447,12 @@ class AgentEditorWindow(QDialog):
 
     def _open_new(self) -> None:
         RoleEditorDialog.open_new(self)
+        self.refresh()
+
+    def _double_click_role(self, role_id: str) -> None:
+        """Double-clicking a role selects it AND opens the editor."""
+        self._select_role(role_id)
+        RoleEditorDialog.open_edit(self, role_id)
         self.refresh()
 
     def _edit_selected(self) -> None:
