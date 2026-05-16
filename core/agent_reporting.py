@@ -176,15 +176,21 @@ class ResultDispatcher(QObject):
         """Format a result as a chat message and emit for the chat tab to render.
 
         Items are rendered as markdown links when URLs are present so the user
-        can click through directly to the source.
+        can click through. When no items were extracted but the agent
+        produced prose (free-form comparison etc.), show the full details so
+        the answer isn't lost.
         """
         header = f"{state.icon} {state.display_name}"
         if not result.success:
             body = f"**{header}** — failed: {result.error or 'unknown error'}\n{result.details}"
-        else:
+        elif result.items:
             body = f"**{header}**\n{result.summary}"
-            for item in (result.items or []):
+            for item in result.items:
                 body += f"\n  • {_format_chat_item(item)}"
+        else:
+            # Prose-style answer with no extractable items — surface it fully.
+            body_text = (result.details or result.summary or "").strip() or "(no output)"
+            body = f"**{header}**\n{body_text}"
         self.chat_message_append.emit(state.role_id, body)
 
     def _report_web_searches(self, state, result) -> None:

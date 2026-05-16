@@ -111,6 +111,63 @@ def test_tool_loop_hits_iteration_cap(monkeypatch):
     assert result.error == "iteration_cap"
 
 
+def test_tool_loop_extracts_markdown_links_from_prose(monkeypatch):
+    """Prose-only answers (no ITEMS_JSON) still surface clickable items by
+    scraping markdown [title](url) links."""
+    prose = (
+        "Here are the top results:\n"
+        "1. [acme/jarvis](https://github.com/acme/jarvis) — voice assistant\n"
+        "2. [foo/bar](https://github.com/foo/bar) — chatbot\n"
+        "Both look relevant.\n"
+    )
+    _stub_ollama(monkeypatch, [
+        {"message": {"content": prose},
+         "prompt_eval_count": 1, "eval_count": 1},
+        # In case the no-tool guard fires, give a fallback that calls the tool.
+        {"message": {"tool_calls": [{"function": {"name": "web_search",
+                                                   "arguments": {"query": "x"}}}]},
+         "prompt_eval_count": 1, "eval_count": 1},
+        {"message": {"content": prose},
+         "prompt_eval_count": 1, "eval_count": 1},
+    ])
+    monkeypatch.setattr(tle.function_executor, "execute",
+                        lambda name, params: {"success": True})
+    runner = tle.make_tool_loop_runner(
+        allowed_tools=["web_search"], ollama_url="http://x/api",
+        model="m", max_steps=8, token_budget=100_000)
+    result = runner(agent=_FakeAgent(), task="t", context="")
+    assert result.items_found == 2, f"expected 2 items, got {result.items_found}"
+    titles = [i["title"] for i in result.items]
+    urls = [i["url"] for i in result.items]
+    assert "acme/jarvis" in titles and "foo/bar" in titles
+    assert "https://github.com/acme/jarvis" in urls
+
+
+def test_tool_loop_summary_falls_back_to_first_prose_line(monkeypatch):
+    """No SUMMARY: line → summary is the first non-empty line (full, not truncated)."""
+    prose = (
+        "Here is a long answer about Jarvis-style repos.\n"
+        "Details follow with multiple points and **markdown** formatting.\n"
+    )
+    _stub_ollama(monkeypatch, [
+        {"message": {"content": prose},
+         "prompt_eval_count": 1, "eval_count": 1},
+        {"message": {"tool_calls": [{"function": {"name": "web_search",
+                                                   "arguments": {"query": "x"}}}]},
+         "prompt_eval_count": 1, "eval_count": 1},
+        {"message": {"content": prose},
+         "prompt_eval_count": 1, "eval_count": 1},
+    ])
+    monkeypatch.setattr(tle.function_executor, "execute",
+                        lambda name, params: {"success": True})
+    runner = tle.make_tool_loop_runner(
+        allowed_tools=["web_search"], ollama_url="http://x/api",
+        model="m", max_steps=8, token_budget=100_000)
+    result = runner(agent=_FakeAgent(), task="t", context="")
+    # First non-blank line of the prose, not truncated at 200 chars.
+    assert result.summary == "Here is a long answer about Jarvis-style repos."
+
+
 def test_tool_loop_nudges_retry_when_no_tool_and_empty(monkeypatch):
     """If the LLM returns 0 items without calling any tools, the loop nudges
     it once. After the nudge it calls a tool, then a final answer is accepted."""

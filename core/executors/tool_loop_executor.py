@@ -67,12 +67,33 @@ def _catalog_text(allowed_tools: List[str]) -> str:
 
 
 def _parse_final(content: str) -> "RunResult":
+    """Parse the LLM's final response.
+
+    Preferred format is `SUMMARY: ... \\nITEMS_FOUND: N\\nITEMS_JSON: [...]`,
+    but if the model produced free-form prose we still want a useful result:
+      - Summary falls back to the first non-empty line (no hard truncation).
+      - Items fall back to any `[title](url)` markdown links scraped from prose.
+    This makes prose-loving models (e.g. small Qwen variants on comparison
+    tasks) still surface clickable hits in the chat tab.
+    """
     from core.executors.run_result import RunResult
-    summary_m = re.search(r"SUMMARY:\s*(.+)", content)
-    found_m = re.search(r"ITEMS_FOUND:\s*(\d+)", content)
-    items_m = re.search(r"ITEMS_JSON:\s*(\[.*\])", content, re.DOTALL)
-    summary = summary_m.group(1).strip() if summary_m else content.strip()[:200] or "Done."
-    items_found = int(found_m.group(1)) if found_m else 0
+
+    text = content or ""
+    summary_m = re.search(r"SUMMARY:\s*(.+)", text)
+    found_m = re.search(r"ITEMS_FOUND:\s*(\d+)", text)
+    items_m = re.search(r"ITEMS_JSON:\s*(\[.*\])", text, re.DOTALL)
+
+    if summary_m:
+        summary = summary_m.group(1).strip()
+    else:
+        # First non-blank line of the response — no character truncation;
+        # details holds the full text anyway.
+        first_line = next(
+            (ln.strip() for ln in text.splitlines() if ln.strip()),
+            "",
+        )
+        summary = first_line or "Done."
+
     items: List[Dict] = []
     if items_m:
         try:
@@ -81,6 +102,19 @@ def _parse_final(content: str) -> "RunResult":
                 items = parsed
         except json.JSONDecodeError:
             items = []
+
+    # Fallback: pull markdown [title](url) links from the prose so prose-only
+    # answers still get clickable hits in chat.
+    if not items:
+        seen = set()
+        for m in re.finditer(r"\[([^\]\n]+)\]\((https?://[^\s)]+)\)", text):
+            title, url = m.group(1).strip(), m.group(2).strip()
+            if url in seen:
+                continue
+            seen.add(url)
+            items.append({"title": title, "url": url})
+
+    items_found = int(found_m.group(1)) if found_m else len(items)
     return RunResult(
         success=True,
         summary=summary,
