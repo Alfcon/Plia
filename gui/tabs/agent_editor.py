@@ -69,7 +69,19 @@ def _parse_csv_lines(text: str) -> List[str]:
 
 
 def _role_file(role_id: str) -> Path:
-    return ROLES_DIR / f"{role_id}.yaml"
+    """Return the existing role file for `role_id` (.yml or .yaml).
+
+    Phase 4's wizard writes `.yml`; the legacy editor writes `.yaml`. Prefer
+    whichever already exists; otherwise default to `.yml` for new saves so
+    we converge on a single extension.
+    """
+    yml = ROLES_DIR / f"{role_id}.yml"
+    yaml_ = ROLES_DIR / f"{role_id}.yaml"
+    if yml.exists():
+        return yml
+    if yaml_.exists():
+        return yaml_
+    return yml  # new file → write as .yml
 
 
 def _load_role_files() -> List[Dict[str, Any]]:
