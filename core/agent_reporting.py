@@ -103,6 +103,7 @@ class ResultDispatcher(QObject):
     comm_log_append = Signal(str, str, str)         # role_id, title, body
     chat_message_append = Signal(str, str)          # role_id, formatted_body
     file_saved = Signal(str, str)                   # role_id, file_path
+    web_search_logged = Signal(dict)                # entry payload
 
     def __init__(self, *, speak: Optional[Callable[[str], None]] = None, parent=None):
         super().__init__(parent)
@@ -127,6 +128,8 @@ class ResultDispatcher(QObject):
                 self._report_chat(state, result)
             elif ch == "file":
                 self._report_file(state, result)
+            elif ch == "web_searches":
+                self._report_web_searches(state, result)
 
     # ── channels ──────────────────────────────────────────────────────────
     def _speak_text(self, text: str) -> None:
@@ -183,6 +186,22 @@ class ResultDispatcher(QObject):
             for item in (result.items or []):
                 body += f"\n  • {_format_chat_item(item)}"
         self.chat_message_append.emit(state.role_id, body)
+
+    def _report_web_searches(self, state, result) -> None:
+        """Append the run's items to the Web Searches log + re-emit the
+        entry as a signal the UI tab can hook for live updates."""
+        try:
+            from core.web_search_log import log as _ws_log
+        except Exception as exc:
+            print(f"[ResultDispatcher] web_search_log unavailable: {exc}")
+            return
+        entry = _ws_log.add(
+            role_id=state.role_id,
+            agent_name=state.display_name,
+            query=result.summary or state.display_name,
+            items=list(result.items or []),
+        )
+        self.web_search_logged.emit(entry)
 
     def _report_file(self, state, result) -> None:
         """Append a structured run entry to ~/.plia_ai/agent_results/<role_id>.log."""

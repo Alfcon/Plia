@@ -1258,7 +1258,8 @@ class AgentsTab(QWidget):
         self._add_row(lay3, "task_manager",    "Task Manager",    "add_task — to-do list management")
         self._add_row(lay3, "calendar_manager","Calendar Manager","create_calendar_event — event creation")
         self._add_row(lay3, "calendar_sync",   "Calendar Sync",   "Google / Outlook event synchronisation")
-        self._add_row(lay3, "web_search",      "Web Search",      "web_search — DuckDuckGo live search")
+        # Web Search is exposed as a Live Agent on the Agent List page and
+        # has its own dedicated 'Web Searches' results tab.
         self._add_row(lay3, "weather_manager", "Weather",         "get_system_info — current conditions")
         self._add_row(lay3, "news_manager",    "News",            "briefing — ABC Australia RSS feeds")
         self._add_row(lay3, "desktop_agent",   "Desktop Agent",   "control_desktop — VLM screenshot + mouse/keyboard control")

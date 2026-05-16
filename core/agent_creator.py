@@ -172,6 +172,9 @@ def parse_notify_multi(text: str) -> Optional[str]:
     channels: List[str] = []
     if "file" in t or "save" in t or "write to" in t:
         channels.append("file")
+    if "web search" in t or "web searches" in t or "search results" in t \
+            or "search tab" in t:
+        channels.append("web_searches")
     if "chat" in t or "message bubble" in t:
         channels.append("chat")
     if "speak" in t or "aloud" in t or "say it" in t or "tts" in t \

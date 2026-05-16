@@ -82,8 +82,66 @@ class _Runtime:
         for state in self.store.all():
             if self._get_instance(state.role_id) is None:
                 self._make_instance(state.role_id, state.display_name)
+        self._seed_builtins()
         self.scheduler.load_and_arm()
         self._started = True
+
+    def _seed_builtins(self) -> None:
+        """Create built-in agents we always ship with, if they're missing.
+
+        Currently just the Web Search agent — wraps the web_search tool so
+        users can invoke it directly from Agent List / Run-with-prompt and
+        see results in the Web Searches tab. Deletable; comes back next
+        start if the user removes it.
+        """
+        from core.agent_creator import write_role_yaml
+        from core.agent_state import AgentState, now_iso
+
+        if self.store.get("web_search") is not None:
+            return
+        try:
+            slug = "web_search"
+            display_name = "Web Search"
+            task = (
+                "Search the web for the query given in the task and return "
+                "relevant results. Each item must include a real title and url."
+            )
+            # Write the role YAML with a deterministic role_id (not a slugified
+            # task title) so future starts can find this agent by id.
+            role_path = write_role_yaml(
+                roles_dir=_ROLES_DIR,
+                slug=slug,
+                display_name=display_name,
+                task=task,
+                tools=["web_search"],
+            )
+            if role_path.stem != slug:
+                # write_role_yaml dedupes if the file already existed; in our
+                # case role wasn't there so this shouldn't happen, but bail
+                # cleanly if it does to avoid an orphaned YAML.
+                print(f"[agent_runtime] web_search seed got slug {role_path.stem}; aborting")
+                return
+            multi_agent_system.reload_roles()
+            instance = self._make_instance(slug, display_name)
+            state = AgentState(
+                role_id=slug,
+                instance_id=getattr(instance, "id", slug),
+                display_name=display_name,
+                icon="🔎",
+                executor="tool_loop",
+                trigger="on_demand",
+                persistence="persistent",
+                notify="web_searches",
+                status="active",
+                created_at=now_iso(),
+                script_path=None,
+                cadence=None,
+                quota=None,
+            )
+            self.store.upsert(state)
+            print("[agent_runtime] ✓ Seeded built-in Web Search agent")
+        except Exception as exc:
+            print(f"[agent_runtime] could not seed Web Search agent: {exc}")
 
     def commit_answers(self, answers: dict,
                        script_path: Optional[str] = None):

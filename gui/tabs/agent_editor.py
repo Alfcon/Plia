@@ -580,7 +580,7 @@ class LiveAgentEditorDialog(QDialog):
         current_channels = set(
             c.strip() for c in (self._state.notify or "").split(",") if c.strip())
         self._notify_checks = {}
-        for ch in ("tts", "chat", "comm_log", "file", "toast_card"):
+        for ch in ("tts", "chat", "comm_log", "file", "web_searches", "toast_card"):
             cb = QCheckBox(ch)
             cb.setChecked(ch in current_channels)
             notify_row.addWidget(cb)

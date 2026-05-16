@@ -494,12 +494,17 @@ class MainWindow(FluentWindow):
         self.agent_list_lazy = LazyTab(AgentListTab, "agentListInterface")
         self.model_browser_lazy = LazyTab(ModelBrowserTab, "modelBrowserInterface")
         self.reading_files_lazy = LazyTab(ReadingFilesTab, "readingFilesInterface")
+        # Web Searches tab — receives output from agents that notify on the
+        # "web_searches" channel. Persistent log under ~/.plia_ai/.
+        from gui.tabs.web_searches import WebSearchesTab
+        self.web_searches_lazy = LazyTab(WebSearchesTab, "webSearchesInterface")
 
         self.addSubInterface(self.chat_lazy, FIF.CHAT, "Chat")
         self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
         self.addSubInterface(self.briefing_view, FIF.DATE_TIME, "Briefing")
         self.addSubInterface(self.agents_lazy, FIF.ROBOT, "Active Agents")
         self.addSubInterface(self.agent_list_lazy, FIF.ROBOT, "Agent List")
+        self.addSubInterface(self.web_searches_lazy, FIF.SEARCH, "Web Searches")
         self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
         self.addSubInterface(self.reading_files_lazy, FIF.FOLDER, "Reading Files")
         
