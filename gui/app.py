@@ -533,6 +533,9 @@ class MainWindow(FluentWindow):
         # configured at ~/.plia/mcp.json.
         from gui.tabs.mcp_servers import MCPServersTab
         self.mcp_servers_lazy = LazyTab(MCPServersTab, "mcpServersInterface")
+        # Help / Docs tab — renders docs/help/*.md.
+        from gui.tabs.help import HelpTab
+        self.help_lazy = LazyTab(HelpTab, "helpInterface")
 
         self.addSubInterface(self.chat_lazy, FIF.CHAT, "Chat")
         self.addSubInterface(self.planner_lazy, FIF.CALENDAR, "Planner")
@@ -543,6 +546,7 @@ class MainWindow(FluentWindow):
         self.addSubInterface(self.mcp_servers_lazy, FIF.CONNECT, "MCP Servers")
         self.addSubInterface(self.model_browser_lazy, FIF.MARKET, "Model Browser")
         self.addSubInterface(self.reading_files_lazy, FIF.FOLDER, "Reading Files")
+        self.addSubInterface(self.help_lazy, FIF.HELP, "Help")
         
         # Settings at bottom
         self.settings_lazy = LazyTab(SettingsTab, "settingsInterface")
