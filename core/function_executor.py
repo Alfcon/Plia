@@ -37,6 +37,12 @@ class ActiveTimer:
         return f"{secs}s"
 
 
+# Thread-local recursion depth for run_agent — caps sub-agent call depth so
+# A → B → A → ... can't infinite-loop.
+_RUN_AGENT_DEPTH = threading.local()
+_RUN_AGENT_MAX_DEPTH = 3
+
+
 class FunctionExecutor:
     """Central executor for all Gemma-routed functions."""
     
@@ -135,6 +141,10 @@ class FunctionExecutor:
                 return self._list_plia_features(params)
             elif func_name == "github_readme":
                 return self._github_readme(params)
+            elif func_name == "list_agents":
+                return self._list_agents(params)
+            elif func_name == "run_agent":
+                return self._run_agent(params)
             else:
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
@@ -1239,6 +1249,127 @@ class FunctionExecutor:
                     "data": None}
         except Exception as e:
             return {"success": False, "message": f"github_readme failed: {e}", "data": None}
+
+    def _list_agents(self, params: Dict) -> Dict:
+        """List every live agent in the runtime so a manager agent can decide
+        which sub-agent(s) to invoke via run_agent."""
+        try:
+            from core.agent_runtime import get_runtime
+            from core.multi_agent import multi_agent_system
+            rt = get_runtime()
+            agents = []
+            for s in rt.store.all():
+                role = multi_agent_system.roles.get(s.role_id)
+                desc = ""
+                if role is not None:
+                    resp = getattr(role, "responsibilities", None) or []
+                    if resp:
+                        desc = resp[0]
+                agents.append({
+                    "role_id":      s.role_id,
+                    "name":         s.display_name,
+                    "executor":     s.executor,
+                    "trigger":      s.trigger,
+                    "status":       s.status,
+                    "description":  desc,
+                })
+            return {
+                "success": True,
+                "message": f"{len(agents)} live agent(s) available.",
+                "data": {"agents": agents},
+            }
+        except Exception as e:
+            return {"success": False, "message": f"list_agents failed: {e}", "data": None}
+
+    def _run_agent(self, params: Dict) -> Dict:
+        """Run another live agent synchronously and return its RunResult.
+
+        Lets one agent call another as a sub-tool (e.g. a Manager that calls
+        a Searcher and a Formatter and stitches the outputs together).
+
+        Params:
+          agent / role_id : the sub-agent to invoke (role_id, preferred)
+          name            : alternatively, match by display_name (case-insensitive)
+          task            : optional one-off task override for this call
+        """
+        # ── Recursion guard ───────────────────────────────────────────────
+        depth = getattr(_RUN_AGENT_DEPTH, "value", 0)
+        if depth >= _RUN_AGENT_MAX_DEPTH:
+            return {
+                "success": False,
+                "message": (
+                    f"run_agent recursion limit ({_RUN_AGENT_MAX_DEPTH}) exceeded. "
+                    "Refusing to call another agent from this depth."
+                ),
+                "data": None,
+            }
+
+        role_id = (params.get("agent") or params.get("role_id") or "").strip()
+        name    = (params.get("name") or "").strip()
+        task_override = (params.get("task") or "").strip()
+
+        try:
+            from core.agent_runtime import get_runtime
+            rt = get_runtime()
+        except Exception as e:
+            return {"success": False, "message": f"agent runtime unavailable: {e}", "data": None}
+
+        state = rt.store.get(role_id) if role_id else None
+        if state is None and name:
+            for s in rt.store.all():
+                if s.display_name.lower() == name.lower():
+                    state = s
+                    break
+        if state is None:
+            return {
+                "success": False,
+                "message": f"No live agent matched (agent={role_id!r}, name={name!r}).",
+                "data": None,
+            }
+        if state.status == "terminated":
+            return {
+                "success": False,
+                "message": f"Agent {state.display_name!r} is terminated; cannot invoke.",
+                "data": None,
+            }
+
+        instance = rt._get_instance(state.role_id)
+        if instance is None:
+            return {
+                "success": False,
+                "message": f"Agent instance for {state.role_id!r} is not registered.",
+                "data": None,
+            }
+
+        try:
+            runner = rt._build_runner(state)
+        except Exception as e:
+            return {"success": False, "message": f"could not build runner: {e}", "data": None}
+        final_task = task_override or state.display_name
+
+        # Bump depth, run, restore.
+        _RUN_AGENT_DEPTH.value = depth + 1
+        try:
+            result = runner(agent=instance, task=final_task, context="")
+        except Exception as e:
+            return {"success": False, "message": f"sub-agent crashed: {e}", "data": None}
+        finally:
+            _RUN_AGENT_DEPTH.value = depth
+
+        return {
+            "success": True,
+            "message": f"{state.display_name}: {result.summary}",
+            "data": {
+                "agent":       state.display_name,
+                "role_id":     state.role_id,
+                "success":     bool(result.success),
+                "summary":     result.summary,
+                "items_found": result.items_found,
+                "items":       result.items,
+                "error":       result.error,
+                "details":     result.details,
+            },
+        }
 
 
 # Global instance
