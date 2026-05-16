@@ -82,6 +82,47 @@ def test_web_searches_log_caps_size(tmp_path):
     assert all_entries[-1]["query"] == f"q{MAX_ENTRIES + 4}"
 
 
+def test_web_searches_log_remove_single_entry(tmp_path):
+    """remove(entry_id) drops just that entry and persists the result."""
+    from core.web_search_log import WebSearchLog
+
+    log = WebSearchLog(path=tmp_path / "ws.json")
+    e1 = log.add(role_id="a", agent_name="A", query="q1", items=[])
+    e2 = log.add(role_id="a", agent_name="A", query="q2", items=[])
+    e3 = log.add(role_id="a", agent_name="A", query="q3", items=[])
+    assert e1["id"] and e2["id"] and e3["id"]
+
+    removed_ids = []
+    log.entry_removed.connect(removed_ids.append)
+
+    assert log.remove(e2["id"]) is True
+    queries = [e["query"] for e in log.all()]
+    assert queries == ["q1", "q3"]
+    assert removed_ids == [e2["id"]]
+
+    # Removing a non-existent id is a no-op.
+    assert log.remove("not-a-real-id") is False
+
+    # Persistence: reloading reads back the trimmed list.
+    log2 = WebSearchLog(path=tmp_path / "ws.json")
+    assert [e["query"] for e in log2.all()] == ["q1", "q3"]
+
+
+def test_web_searches_log_backfills_ids_on_load(tmp_path):
+    """Old entries (written before the id field) get ids assigned on load."""
+    import json
+    path = tmp_path / "ws.json"
+    path.write_text(json.dumps([
+        {"ts": "2026-05-16T01:00:00", "role_id": "r", "agent_name": "A",
+         "query": "old", "items": []},
+    ]))
+    from core.web_search_log import WebSearchLog
+    log = WebSearchLog(path=path)
+    entries = log.all()
+    assert len(entries) == 1
+    assert entries[0].get("id")  # backfilled
+
+
 def test_web_searches_log_persists_across_instances(tmp_path):
     """Reloading a WebSearchLog from disk recovers all entries."""
     from core.web_search_log import WebSearchLog

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import threading
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -28,6 +29,7 @@ class WebSearchLog(QObject):
     """Thread-safe, signal-emitting log of web-search agent entries."""
 
     entry_added = Signal(dict)   # the newly-added entry payload
+    entry_removed = Signal(str)  # the removed entry's id
     cleared = Signal()
 
     def __init__(self, path: Optional[Path] = None, parent=None):
@@ -50,6 +52,10 @@ class WebSearchLog(QObject):
                 return
             if isinstance(raw, list):
                 self._entries = [e for e in raw if isinstance(e, dict)]
+            # Backfill ids for entries written before per-entry remove existed.
+            for e in self._entries:
+                if not e.get("id"):
+                    e["id"] = uuid.uuid4().hex
 
     def _save(self) -> None:
         try:
@@ -66,6 +72,7 @@ class WebSearchLog(QObject):
             items: List[Dict[str, Any]]) -> Dict[str, Any]:
         """Append a new entry. Caps at MAX_ENTRIES (oldest dropped first)."""
         entry = {
+            "id": uuid.uuid4().hex,
             "ts": datetime.now().isoformat(timespec="seconds"),
             "role_id": role_id,
             "agent_name": agent_name,
@@ -92,6 +99,20 @@ class WebSearchLog(QObject):
     def all(self) -> List[Dict[str, Any]]:
         with self._lock:
             return list(self._entries)
+
+    def remove(self, entry_id: str) -> bool:
+        """Drop a single entry by its id. Returns True if something was removed."""
+        if not entry_id:
+            return False
+        with self._lock:
+            before = len(self._entries)
+            self._entries = [e for e in self._entries if e.get("id") != entry_id]
+            removed = len(self._entries) != before
+            if removed:
+                self._save()
+        if removed:
+            self.entry_removed.emit(entry_id)
+        return removed
 
     def clear(self) -> None:
         with self._lock:

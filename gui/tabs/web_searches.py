@@ -52,10 +52,12 @@ class _ResultLink(QLabel):
 
 
 class _EntryCard(QFrame):
-    """One log entry: header (agent + timestamp + query) + result links."""
+    """One log entry: header (agent + timestamp + query) + result links +
+    a 🗑 button that removes just this entry."""
 
     def __init__(self, entry: Dict[str, Any], parent=None):
         super().__init__(parent)
+        self._entry_id = entry.get("id", "")
         self.setObjectName("webSearchCard")
         self.setStyleSheet(
             "QFrame#webSearchCard { border: 1px solid #1b2236;"
@@ -65,11 +67,19 @@ class _EntryCard(QFrame):
         outer = QVBoxLayout(self)
         outer.setSpacing(4)
 
+        # Header row: agent + timestamp on the left, 🗑 remove on the right.
+        head_row = QHBoxLayout()
         head = QLabel(
             f"<b>🔎 {entry.get('agent_name', 'Agent')}</b>"
             f"  <span style='color:#7d828c'>· {entry.get('ts', '')}</span>"
         )
-        outer.addWidget(head)
+        head_row.addWidget(head)
+        head_row.addStretch(1)
+        remove_btn = PushButton(FIF.DELETE, "Remove")
+        remove_btn.setToolTip("Remove this entry from the log")
+        remove_btn.clicked.connect(self._on_remove)
+        head_row.addWidget(remove_btn)
+        outer.addLayout(head_row)
 
         query = entry.get("query") or ""
         if query:
@@ -91,6 +101,10 @@ class _EntryCard(QFrame):
                     it.get("body", ""),
                 ))
 
+    def _on_remove(self):
+        if self._entry_id:
+            _ws_log.remove(self._entry_id)
+
 
 class WebSearchesTab(QWidget):
     """List of every web-search-style entry an agent has produced."""
@@ -101,9 +115,10 @@ class WebSearchesTab(QWidget):
         self._build()
         self.refresh()
 
-        # Live updates when an agent posts a new entry.
+        # Live updates when an agent posts / a user removes / the log is cleared.
         try:
             _ws_log.entry_added.connect(lambda _e: self.refresh())
+            _ws_log.entry_removed.connect(lambda _id: self.refresh())
             _ws_log.cleared.connect(self.refresh)
         except Exception as exc:
             print(f"[WebSearchesTab] could not connect log signals: {exc}")
