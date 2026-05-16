@@ -405,13 +405,28 @@ class AgentEditorWindow(QDialog):
 
         # Restore visual selection if a role was already picked.
         if self._selected_role_id and self._selected_role_id in self._role_buttons:
-            self._role_buttons[self._selected_role_id].setChecked(True)
+            btn = self._role_buttons[self._selected_role_id]
+            btn.setChecked(True)
+            btn.setStyleSheet(self._SELECTED_BTN_QSS)
+
+    # Stylesheet snippets for the role list's selected vs unselected state.
+    _SELECTED_BTN_QSS = (
+        "PushButton { background-color: #00b4d8; color: white; "
+        "border: 1px solid #00b4d8; }"
+        "PushButton:hover { background-color: #0094b3; }"
+    )
+    _UNSELECTED_BTN_QSS = ""  # fall back to the default theme
 
     def _select_role(self, role_id: str) -> None:
         self._selected_role_id = role_id
-        # Highlight the chosen role; un-check all others.
+        # Highlight the chosen role; un-check + un-style all others.
         for rid, btn in getattr(self, "_role_buttons", {}).items():
-            btn.setChecked(rid == role_id)
+            is_selected = (rid == role_id)
+            btn.setChecked(is_selected)
+            btn.setStyleSheet(
+                self._SELECTED_BTN_QSS if is_selected
+                else self._UNSELECTED_BTN_QSS
+            )
         path = _role_file(role_id)
         if path.exists():
             role = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
