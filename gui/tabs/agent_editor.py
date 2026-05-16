@@ -603,11 +603,20 @@ class LiveAgentEditorDialog(QDialog):
         role = multi_agent_system.roles.get(self._state.role_id)
         current_tools = set(role.tools) if role else set()
         self._tool_checks = {}
-        for tool in self.ALL_TOOLS:
+        # Built-in tools first, then user plugins (e.g. "my_plugin:do_thing").
+        try:
+            from core.plugins import registry as _plugins
+            plugin_tools = _plugins.names()
+        except Exception:
+            plugin_tools = []
+        all_tools = list(self.ALL_TOOLS) + plugin_tools
+        for tool in all_tools:
             cb = QCheckBox(tool)
             cb.setChecked(tool in current_tools)
             if tool in self.DESTRUCTIVE:
                 cb.setStyleSheet("color:#ef5350;")
+            elif ":" in tool:
+                cb.setStyleSheet("color:#80d8ff;")  # plugin tools = cyan
             tools_layout.addWidget(cb)
             self._tool_checks[tool] = cb
         scroll = QScrollArea()

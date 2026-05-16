@@ -146,6 +146,17 @@ class FunctionExecutor:
             elif func_name == "run_agent":
                 return self._run_agent(params)
             else:
+                # User plugin tools live under ``<plugin>:<name>``.
+                if ":" in func_name:
+                    try:
+                        from core.plugins import registry as _plugins
+                        plugin_out = _plugins.call(func_name, params or {})
+                        if plugin_out is not None:
+                            return plugin_out
+                    except Exception as exc:
+                        return {"success": False,
+                                "message": f"Plugin dispatch error: {exc}",
+                                "data": None}
                 return {"success": False, "message": f"Unknown function: {func_name}", "data": None}
         except Exception as e:
             return {"success": False, "message": f"Error: {str(e)}", "data": None}
@@ -1107,6 +1118,12 @@ class FunctionExecutor:
         tools = sorted(set(re.findall(r'func_name\s*==\s*"(\w+)"', dispatch_src)))
         # list_plia_features itself shouldn't appear as an "external" tool
         tools = [t for t in tools if t != "list_plia_features"]
+        # Append any user-installed plugin tools so agents can discover them.
+        try:
+            from core.plugins import registry as _plugins
+            tools.extend(_plugins.names())
+        except Exception:
+            pass
 
         capabilities = {
             "voice_pipeline": [
