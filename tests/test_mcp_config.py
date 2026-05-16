@@ -88,3 +88,25 @@ def test_load_with_corrupt_file_returns_empty(tmp_path):
     path = tmp_path / "mcp.json"
     path.write_text("{not valid json")
     assert mcp_config.load_servers(path) == []
+
+
+def test_mcp_events_module_exposes_reloaded_signal():
+    """The Qt signal hub MCPClient uses to notify the GUI is importable
+    and has a `reloaded(int)` signal."""
+    from core import mcp_events
+    assert hasattr(mcp_events, "events")
+    assert hasattr(mcp_events.events, "reloaded")
+
+
+def test_mcp_client_reload_returns_false_without_loop(monkeypatch):
+    """If the asyncio loop isn't running, reload() refuses cleanly instead
+    of raising — that's how the UI knows to fall back to plain refresh."""
+    from core import mcp_client as mod
+
+    # Build a bare MCPClient-like object with no live loop. We don't import
+    # the real class to avoid spawning the background thread; the call itself
+    # only depends on `_loop`.
+    class _Fake:
+        _loop = None
+        reload = mod.MCPClient.reload
+    assert _Fake().reload() is False

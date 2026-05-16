@@ -243,8 +243,16 @@ class MCPServersTab(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setObjectName("mcpServersView")
+        self._reloading = False
         self._build()
         self.refresh()
+
+        # Auto-refresh when a hot reload finishes.
+        try:
+            from core.mcp_events import events as _mcp_events
+            _mcp_events.reloaded.connect(self._on_reload_finished)
+        except Exception as exc:
+            print(f"[MCPServersTab] could not connect events: {exc}")
 
     def _build(self):
         root = QVBoxLayout(self)
@@ -271,7 +279,18 @@ class MCPServersTab(QWidget):
         add_btn.clicked.connect(self._open_add)
         header.addWidget(add_btn)
 
-        refresh_btn = PushButton(FIF.SYNC, "Refresh")
+        # Hot reload: restart MCP server sessions from the current file
+        # without restarting Plia. Disabled while a reload is in progress.
+        self._reload_btn = PushButton(FIF.SYNC, "Reload Now")
+        self._reload_btn.setToolTip(
+            "Re-read ~/.plia/mcp.json and (re)spawn all configured MCP server "
+            "sessions — no Plia restart needed."
+        )
+        self._reload_btn.clicked.connect(self._on_reload_clicked)
+        header.addWidget(self._reload_btn)
+
+        refresh_btn = PushButton(FIF.UPDATE, "Refresh view")
+        refresh_btn.setToolTip("Re-render this page from current state (no server restart).")
         refresh_btn.clicked.connect(self.refresh)
         header.addWidget(refresh_btn)
 
@@ -387,15 +406,68 @@ class MCPServersTab(QWidget):
         self.refresh()
 
     def _notify_restart_needed(self):
-        """Inform the user that an MCP config change needs a restart."""
+        """Inform the user that an MCP config change has been saved AND
+        kick off a hot reload so the change takes effect immediately."""
         try:
             from qfluentwidgets import InfoBar, InfoBarPosition
             InfoBar.success(
                 title="MCP config saved",
-                content="Restart Plia for changes to take effect.",
-                duration=4000,
+                content="Reloading servers…",
+                duration=3000,
                 position=InfoBarPosition.TOP_RIGHT,
                 parent=self,
             )
         except Exception:
             pass
+        self._trigger_reload()
+
+    # ── Hot reload ───────────────────────────────────────────────────────
+    def _on_reload_clicked(self):
+        self._trigger_reload()
+        try:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.info(
+                title="MCP reload",
+                content="Cancelling current sessions and re-spawning…",
+                duration=2500,
+                position=InfoBarPosition.TOP_RIGHT,
+                parent=self,
+            )
+        except Exception:
+            pass
+
+    def _trigger_reload(self):
+        """Ask MCPClient to hot-reload. Updates the UI state immediately and
+        waits for the `reloaded` signal to refresh the cards."""
+        try:
+            from core.mcp_client import mcp_client
+            if not mcp_client.reload():
+                # The loop isn't ready yet; fall back to plain refresh.
+                self.refresh()
+                return
+        except Exception as exc:
+            print(f"[MCPServersTab] reload failed: {exc}")
+            self.refresh()
+            return
+        self._reloading = True
+        self._reload_btn.setEnabled(False)
+        self._reload_btn.setText("Reloading…")
+        self._status_lbl.setText("Reloading MCP servers — this can take a few seconds…")
+
+    def _on_reload_finished(self, tool_count: int):
+        """Called via Qt signal when MCPClient finishes hot-reload."""
+        self._reloading = False
+        self._reload_btn.setEnabled(True)
+        self._reload_btn.setText("Reload Now")
+        try:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.success(
+                title="MCP reload complete",
+                content=f"{tool_count} tool(s) discovered.",
+                duration=3000,
+                position=InfoBarPosition.TOP_RIGHT,
+                parent=self,
+            )
+        except Exception:
+            pass
+        self.refresh()

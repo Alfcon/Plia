@@ -99,7 +99,16 @@ class MCPClient:
         self._server_configs: List[MCPServerConfig] = []
         self._tools_by_id: Dict[str, MCPToolInfo] = {}
         self._sessions_by_server_id: Dict[str, Any] = {}  # stored in event loop thread
+        self._server_tasks: Dict[str, "asyncio.Task"] = {}  # so reload() can cancel
         self._discovery_error: Optional[str] = None
+
+        # Optional Qt-level signal hub for the GUI ("reload finished" etc.)
+        self._events = None
+        try:
+            from core.mcp_events import events as _events
+            self._events = _events
+        except Exception:
+            pass
 
         self._start_background_loop()
 
@@ -352,7 +361,8 @@ class MCPClient:
 
         # Start server tasks concurrently (they keep sessions alive forever).
         for cfg in self._server_configs:
-            asyncio.create_task(self._async_serve_server(cfg))
+            task = asyncio.create_task(self._async_serve_server(cfg))
+            self._server_tasks[cfg.id] = task
 
         # Wait briefly for initial tool discovery so the router can prompt.
         # Do not block forever: servers may be slow or fail to start.
@@ -361,6 +371,70 @@ class MCPClient:
             if self._tools_by_id:
                 break
             await asyncio.sleep(0.2)
+
+    # ---------------------------
+    # Hot reload
+    # ---------------------------
+
+    def reload(self) -> bool:
+        """Re-read mcp.json, kill existing server sessions, spawn new ones.
+
+        Safe to call from any thread — schedules the work on the background
+        asyncio loop and returns immediately. Emits ``mcp_events.reloaded``
+        when the new servers have been (re)discovered.
+
+        Returns False if the loop isn't ready yet.
+        """
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            return False
+        try:
+            asyncio.run_coroutine_threadsafe(self._async_reload(), loop)
+            return True
+        except Exception as exc:
+            print(f"[MCPClient] reload failed to schedule: {exc}")
+            return False
+
+    async def _async_reload(self) -> None:
+        """Cancel current server tasks, re-parse config, spawn new tasks.
+
+        Emits a Qt signal on completion via ``core.mcp_events.events`` so
+        the GUI can refresh.
+        """
+        # Hold previous state in locals so callers can still introspect
+        # mid-reload (UI might be refreshing during this).
+        old_tasks = dict(self._server_tasks)
+        self._server_tasks = {}
+        self._tools_by_id = {}
+        self._sessions_by_server_id = {}
+        self._discovery_error = None
+        # Reset readiness so callers waiting for is_ready() get accurate state.
+        self._ready_event.clear()
+
+        # Cancel and await each old task so its `async with` cleanup runs.
+        for sid, task in old_tasks.items():
+            if task.done():
+                continue
+            task.cancel()
+            try:
+                await task
+            except (asyncio.CancelledError, Exception):
+                pass
+
+        # Re-discover from the (now fresh) config file.
+        try:
+            await self._async_load_and_discover()
+        except Exception as exc:
+            self._discovery_error = f"{type(exc).__name__}: {exc}"
+        finally:
+            self._ready_event.set()
+
+        # Notify the GUI.
+        try:
+            if self._events is not None:
+                self._events.reloaded.emit(len(self._tools_by_id))
+        except Exception:
+            pass
 
     def _parse_config(self) -> List[MCPServerConfig]:
         if not self._config_path.exists():
