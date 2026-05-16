@@ -196,7 +196,35 @@ class MainWindow(FluentWindow):
             if self.chat_tab is not None and hasattr(self.handlers, "refresh_sidebar"):
                 self.handlers.refresh_sidebar()
 
-            # Brief toast so the user knows where to look.
+            # Also mirror a one-line pointer into the Dashboard Communication
+            # Log — agent chat sessions are easy to miss in the sidebar, and
+            # the comm log is always on screen on the home view.
+            try:
+                title_short = (
+                    rt_state.display_name if rt_state is not None else "Agent"
+                )
+                # First line of the body for context; fall back to a generic msg.
+                first_line = next(
+                    (ln.strip() for ln in (body or "").splitlines() if ln.strip()),
+                    "",
+                )
+                # Skip the markdown-bold header line if that's what we got.
+                if first_line.startswith("**") and first_line.endswith("**"):
+                    first_line = next(
+                        (ln.strip() for ln in (body or "").splitlines()[1:]
+                         if ln.strip()),
+                        "",
+                    )
+                preview = (first_line or "Result posted.")[:120]
+                if getattr(self, "dashboard_view", None) is not None:
+                    self.dashboard_view.add_system_message(
+                        f"💬 {title_short} → chat session updated\n   {preview}",
+                        tag="system",
+                    )
+            except Exception as exc:
+                print(f"[App] comm-log mirror failed: {exc}")
+
+            # Brief toast so the user also gets an active-window cue.
             try:
                 from qfluentwidgets import InfoBar, InfoBarPosition
                 title_short = (
