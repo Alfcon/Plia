@@ -114,6 +114,38 @@ def test_plugin_wraps_non_dict_return(monkeypatch, tmp_path):
     assert out["data"] == "just a string"
 
 
+def test_plugin_reload_picks_up_new_file(monkeypatch, tmp_path):
+    """Adding a new plugin file and calling reload() makes its tool available."""
+    sandbox = _setup_plugin_dir(monkeypatch, tmp_path)
+    reg = plugins_mod._PluginRegistry()
+    assert reg.names() == []
+
+    # Drop in a new plugin file AFTER the registry was first initialised.
+    import textwrap
+    (sandbox / "new_plugin.py").write_text(textwrap.dedent("""
+        def tool_ping(params):
+            return {"success": True, "message": "pong", "data": None}
+    """))
+    reg.reload()
+    assert "new_plugin:ping" in reg.names()
+
+
+def test_plugin_reload_drops_removed_file(monkeypatch, tmp_path):
+    """Deleting a plugin file and reloading removes its tools from the registry."""
+    sandbox = _setup_plugin_dir(monkeypatch, tmp_path)
+    import textwrap
+    (sandbox / "soon_gone.py").write_text(textwrap.dedent("""
+        def tool_bye(params):
+            return {"success": True, "message": "", "data": None}
+    """))
+    reg = plugins_mod._PluginRegistry()
+    assert "soon_gone:bye" in reg.names()
+
+    (sandbox / "soon_gone.py").unlink()
+    reg.reload()
+    assert "soon_gone:bye" not in reg.names()
+
+
 def test_list_plia_features_includes_plugin_tools(monkeypatch, tmp_path):
     """The introspection tool surfaces plugin tools so agents can discover them."""
     sandbox = _setup_plugin_dir(monkeypatch, tmp_path)

@@ -203,6 +203,14 @@ class VoiceAssistant(QObject):
         try:
             text_lower = user_text.lower().strip()
 
+            # ── Plugin reload intent — re-scan ~/.plia_ai/plugins/ ──────
+            # Matches "reload plugins", "reload my plugins", "refresh plugins",
+            # "rescan plugins". Bypasses everything else when matched.
+            if _re.search(r"\b(?:reload|refresh|re-?scan)\s+(?:my\s+|the\s+)?plugins?\b",
+                          text_lower):
+                self._reload_plugins_via_voice()
+                return
+
             # ── Create-agent intent — start the creation wizard ──────────
             from core.agent_creator import parse_intent
             _agent_task = parse_intent(user_text)
@@ -510,6 +518,39 @@ class VoiceAssistant(QObject):
             self.error_occurred.emit(error_msg)
             self.processing_finished.emit()
     
+    def _reload_plugins_via_voice(self) -> None:
+        """Voice-triggered re-scan of ~/.plia_ai/plugins/. Announces results
+        through TTS so the user gets immediate feedback."""
+        try:
+            from core.plugins import registry as _plugins
+            before = set(_plugins.names())
+            _plugins.reload()
+            after = set(_plugins.names())
+            errors = _plugins.errors()
+        except Exception as exc:
+            tts.queue_sentence(f"Plugin reload failed. {exc}")
+            self.processing_finished.emit()
+            return
+
+        added = sorted(after - before)
+        removed = sorted(before - after)
+        msg_parts = [f"Reloaded {len(after)} plugin tools."]
+        if added:
+            msg_parts.append(f"Added: {', '.join(added)}.")
+        if removed:
+            msg_parts.append(f"Removed: {', '.join(removed)}.")
+        if errors:
+            msg_parts.append(
+                f"{len(errors)} plugin file failed to load: "
+                f"{', '.join(sorted(errors))}."
+            )
+        if not added and not removed and not errors:
+            msg_parts.append("No changes.")
+        tts.queue_sentence(" ".join(msg_parts))
+        # Surface a structured signal for any UI that wants to know.
+        self.refresh_agents_requested.emit()
+        self.processing_finished.emit()
+
     def _start_agent_wizard(self, task: str):
         """Begin a spoken agent-creation wizard for `task`.
 

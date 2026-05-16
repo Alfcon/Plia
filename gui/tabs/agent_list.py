@@ -614,6 +614,15 @@ class AgentListTab(QWidget):
         self._refresh_btn.clicked.connect(self.refresh)
         actions.addWidget(self._refresh_btn)
 
+        # Reload Python plugins from ~/.plia_ai/plugins/ without restarting Plia.
+        self._reload_plugins_btn = PushButton(FIF.UPDATE, "Reload Plugins")
+        self._reload_plugins_btn.setToolTip(
+            "Re-scan ~/.plia_ai/plugins/ for added/edited/removed .py files. "
+            "Newly registered tools appear in the editor's Tools list immediately."
+        )
+        self._reload_plugins_btn.clicked.connect(self._on_reload_plugins)
+        actions.addWidget(self._reload_plugins_btn)
+
         actions.addStretch(1)
         root.addLayout(actions)
 
@@ -704,6 +713,47 @@ class AgentListTab(QWidget):
                 )
             except Exception:
                 pass
+
+    def _on_reload_plugins(self):
+        """Re-scan ~/.plia_ai/plugins/ and report what changed."""
+        try:
+            from core.plugins import registry as _plugins
+            before = set(_plugins.names())
+            _plugins.reload()
+            after = set(_plugins.names())
+            errors = _plugins.errors()
+        except Exception as exc:
+            try:
+                from qfluentwidgets import InfoBar, InfoBarPosition
+                InfoBar.error(title="Plugin reload failed",
+                              content=str(exc), duration=4000,
+                              position=InfoBarPosition.TOP_RIGHT, parent=self)
+            except Exception:
+                pass
+            return
+
+        added = sorted(after - before)
+        removed = sorted(before - after)
+        bits = [f"{len(after)} tool(s) loaded"]
+        if added:
+            bits.append(f"+{len(added)} new")
+        if removed:
+            bits.append(f"-{len(removed)} removed")
+        if errors:
+            bits.append(f"{len(errors)} file(s) failed")
+        try:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            kind = InfoBar.warning if errors else InfoBar.success
+            kind(
+                title="Plugins reloaded",
+                content=" · ".join(bits)
+                + (f" — failures: {', '.join(sorted(errors))}" if errors else ""),
+                duration=4000,
+                position=InfoBarPosition.TOP_RIGHT,
+                parent=self,
+            )
+        except Exception:
+            pass
 
     def create_agent_from_chat(self, prefill: dict):
         dlg = CreateAgentDialog(prefill=prefill or {}, parent=self)
