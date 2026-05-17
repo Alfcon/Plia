@@ -2,7 +2,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np  # noqa: F401  # used in Task 6 tests
+import numpy as np
 import pytest
 
 from core import wake_detector
@@ -131,3 +131,88 @@ def test_combined_fail_with_three_singles_aligns_kept_id_and_model(tmp_path):
     # The Model instance must be the one created for alexa, not plia.
     expected_inst = instances_by_path[str(tmp_path / "bundled/alexa.onnx")]
     assert d._oww is expected_inst
+
+
+@pytest.fixture
+def detector_with_fake_models(tmp_path, settings_two_models):
+    with patch.object(wake_detector, "_oww_model_class") as mock_ctor:
+        oww = MagicMock()
+        oww.prediction_buffer = {"plia": [], "hey_jarvis": []}
+        oww.scores = {"plia": 0.0, "hey_jarvis": 0.0}
+        oww.predict = lambda chunk: dict(oww.scores)
+        mock_ctor.return_value = oww
+        d = wake_detector.WakeDetector(
+            wake_models=settings_two_models,
+            models_base=tmp_path,
+            recorder=None,
+        )
+        d._load_models()
+    return d, oww
+
+
+def test_predict_above_threshold_emits_signal(detector_with_fake_models):
+    d, oww = detector_with_fake_models
+    emitted = []
+    d.wake_word_detected.connect(emitted.append)
+
+    oww.scores = {"plia": 0.9, "hey_jarvis": 0.0}
+    chunk = np.zeros(wake_detector.CHUNK_SAMPLES, dtype=np.int16)
+    d._process_chunk(chunk)
+
+    assert emitted == ["plia"]
+
+
+def test_predict_below_threshold_does_not_emit(detector_with_fake_models):
+    d, oww = detector_with_fake_models
+    emitted = []
+    d.wake_word_detected.connect(emitted.append)
+
+    oww.scores = {"plia": 0.4, "hey_jarvis": 0.5}  # both below their thresholds
+    chunk = np.zeros(wake_detector.CHUNK_SAMPLES, dtype=np.int16)
+    d._process_chunk(chunk)
+
+    assert emitted == []
+
+
+def test_cooldown_suppresses_second_trigger(detector_with_fake_models):
+    d, oww = detector_with_fake_models
+    emitted = []
+    d.wake_word_detected.connect(emitted.append)
+
+    oww.scores = {"plia": 0.9}
+    chunk = np.zeros(wake_detector.CHUNK_SAMPLES, dtype=np.int16)
+    d._process_chunk(chunk)
+    d._process_chunk(chunk)
+    assert emitted == ["plia"]   # only the first
+
+
+def test_cooldown_expires(detector_with_fake_models, monkeypatch):
+    d, oww = detector_with_fake_models
+    fake_time = [1000.0]
+    monkeypatch.setattr(wake_detector.time, "monotonic", lambda: fake_time[0])
+    emitted = []
+    d.wake_word_detected.connect(emitted.append)
+
+    oww.scores = {"plia": 0.9}
+    chunk = np.zeros(wake_detector.CHUNK_SAMPLES, dtype=np.int16)
+    d._process_chunk(chunk)
+    fake_time[0] += wake_detector.COOLDOWN_SEC + 0.1
+    d._process_chunk(chunk)
+    assert emitted == ["plia", "plia"]
+
+
+def test_chunk_fed_to_recorder_when_listening(detector_with_fake_models):
+    d, oww = detector_with_fake_models
+    recorder = MagicMock()
+    recorder.is_listening = True
+    d._recorder = recorder
+
+    oww.scores = {"plia": 0.9}  # would otherwise fire
+    chunk = np.zeros(wake_detector.CHUNK_SAMPLES, dtype=np.int16)
+    d._process_chunk(chunk)
+
+    recorder.feed_audio.assert_called_once()
+    # predict() must NOT be consulted while listening — emit nothing
+    emitted = []
+    d.wake_word_detected.connect(emitted.append)
+    assert emitted == []

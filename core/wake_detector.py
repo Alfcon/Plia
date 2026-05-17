@@ -8,7 +8,7 @@ PyAudio chunks, runs openWakeWord prediction, and either:
 """
 from __future__ import annotations
 
-import time  # noqa: F401  # consumed in Task 6 audio loop
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -25,7 +25,6 @@ _oww_model_class = None  # set lazily; tests patch this directly
 
 SAMPLE_RATE = 16000
 CHUNK_SAMPLES = 1280  # 80ms @ 16kHz — openwakeword's expected frame size
-# Used by _process_chunk (Task 6).
 COOLDOWN_SEC = 1.5
 
 
@@ -49,7 +48,6 @@ class WakeDetector(QThread):
         self._running = False
         self._oww = None
         self.thresholds: dict[str, float] = {}
-        # Used by _process_chunk (Task 6).
         self._cooldown_until = 0.0
 
     # ── Public API ───────────────────────────────────────────────────────
@@ -133,12 +131,69 @@ class WakeDetector(QThread):
             self._oww = kept_inst
             self.thresholds = working
 
+    def _process_chunk(self, chunk) -> None:
+        """Handle one PyAudio chunk: feed recorder OR run wake detection.
+
+        Called both by the audio loop and directly by tests.
+        """
+        recorder = self._recorder
+        if recorder is not None and getattr(recorder, "is_listening", False):
+            # Transcription is in progress — pipe audio in, skip detection.
+            recorder.feed_audio(chunk)
+            return
+
+        if self._oww is None or not self.thresholds:
+            return
+
+        if time.monotonic() < self._cooldown_until:
+            return
+
+        scores = self._oww.predict(chunk)
+        for model_id, score in scores.items():
+            threshold = self.thresholds.get(model_id)
+            if threshold is None:
+                continue
+            if score >= threshold:
+                self._cooldown_until = time.monotonic() + COOLDOWN_SEC
+                self.wake_word_detected.emit(model_id)
+                return  # one trigger per chunk
+
     def run(self) -> None:
-        """Subclass hook — real implementation arrives in Task 6."""
-        # Placeholder so the QThread doesn't error if started before Task 6.
+        """Main audio loop. Opens PyAudio, reads chunks, calls _process_chunk."""
+        import pyaudio
+        import numpy as np
+
         self._running = True
-        while self._running:
-            self.msleep(50)
+        pa = pyaudio.PyAudio()
+        try:
+            stream = pa.open(
+                rate=SAMPLE_RATE,
+                channels=1,
+                format=pyaudio.paInt16,
+                input=True,
+                frames_per_buffer=CHUNK_SAMPLES,
+            )
+        except Exception as exc:
+            self.error.emit(f"Could not open microphone: {exc}")
+            pa.terminate()
+            return
+
+        try:
+            while self._running:
+                try:
+                    raw = stream.read(CHUNK_SAMPLES, exception_on_overflow=False)
+                except OSError as exc:
+                    self.error.emit(f"Mic read error: {exc}")
+                    break
+                chunk = np.frombuffer(raw, dtype=np.int16)
+                self._process_chunk(chunk)
+        finally:
+            try:
+                stream.stop_stream()
+                stream.close()
+            except Exception:
+                pass
+            pa.terminate()
 
     def stop(self) -> None:
         self._running = False
