@@ -88,6 +88,29 @@ def test_discover_collision_suffix(tmp_path):
     assert "plia_1" in ids
 
 
+def test_reconcile_disambiguates_when_bundled_appears_after_custom(tmp_path):
+    """Bundled file appearing after custom already in settings → no duplicate ids."""
+    base = _make_models_dir(tmp_path)
+    (base / "custom" / "plia.onnx").write_bytes(b"x")
+    existing = [
+        {"id": "plia", "display": "Plia", "path": "custom/plia.onnx",
+         "enabled": True, "sensitivity": 0.5, "builtin": False},
+    ]
+    # Now bundled appears.
+    (base / "bundled" / "plia.onnx").write_bytes(b"x")
+    reconciled = wake_models.reconcile_with_settings(existing, base)
+
+    ids = [m["id"] for m in reconciled]
+    assert len(ids) == len(set(ids)), f"duplicate ids: {ids}"
+    # The settings-anchored entry keeps its id.
+    saved = next(m for m in reconciled if m["path"] == "custom/plia.onnx")
+    assert saved["id"] == "plia"
+    # The newly-discovered bundled entry gets a unique id.
+    new_entry = next(m for m in reconciled if m["path"] == "bundled/plia.onnx")
+    assert new_entry["id"] != "plia"
+    assert new_entry["builtin"] is True
+
+
 def test_models_dir_resolves_under_project_root():
     p = wake_models.models_dir()
     assert p.name == "wake"

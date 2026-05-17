@@ -74,7 +74,6 @@ def reconcile_with_settings(existing: list[dict], base: Path) -> list[dict]:
     by_path = {m["path"]: m for m in out}
 
     discovered = discover_wake_models(base)
-    discovered_paths = {d["path"] for d in discovered}
 
     for m in out:
         full = base / m["path"]
@@ -84,8 +83,25 @@ def reconcile_with_settings(existing: list[dict], base: Path) -> list[dict]:
         else:
             m["broken"] = True
 
+    # Track which entries came from settings (anchored — never rename) vs newly
+    # discovered. We use object identity since multiple entries can share an id
+    # during the dedupe window.
+    anchored_ids = {m["id"] for m in out}
+    seen_ids: set[str] = set(anchored_ids)
+    new_entries: list[dict] = []
     for d in discovered:
         if d["path"] not in by_path:
-            out.append(d)
+            new_entries.append(d)
+
+    for entry in new_entries:
+        stem = Path(entry["path"]).stem
+        candidate = entry["id"]
+        n = 1
+        while candidate in seen_ids:
+            candidate = f"{stem}_{n}"
+            n += 1
+        entry["id"] = candidate
+        seen_ids.add(candidate)
+        out.append(entry)
 
     return out
