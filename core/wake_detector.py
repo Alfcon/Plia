@@ -86,15 +86,16 @@ class WakeDetector(QThread):
 
         working: dict[str, float] = {}
         single_models: list[str] = []
-        last_single_oww = None
+        last_single: tuple[str, Any] | None = None  # (model_id, Model instance)
         for m in enabled:
             path = str(self._models_base / m["path"])
             try:
-                last_single_oww = model_class(
+                inst = model_class(
                     wakeword_models=[path], inference_framework="onnx"
                 )
                 single_models.append(path)
                 working[m["id"]] = float(m["sensitivity"])
+                last_single = (m["id"], inst)
             except Exception as exc:
                 self.error.emit(
                     f"Could not load wake model '{m['id']}': {exc} — skipped."
@@ -104,7 +105,8 @@ class WakeDetector(QThread):
             self.thresholds = {}
             return
         if len(single_models) == 1:
-            self._oww = last_single_oww
+            _, inst = last_single  # type: ignore[misc]
+            self._oww = inst
             self.thresholds = working
             return
         # Multiple singles validated — try to combine them into one Model.
@@ -114,9 +116,11 @@ class WakeDetector(QThread):
             )
             self.thresholds = working
         except Exception as exc:
-            # Combined load still fails: keep the last validated single model
-            # rather than dropping all wake detection.
-            kept_id = next(iter(working))
+            # Combined load still fails: keep only the last validated single
+            # model rather than dropping all wake detection. The kept id and
+            # Model instance must be the SAME entry, else threshold lookup
+            # by model_id will miss every detection.
+            kept_id, kept_inst = last_single  # type: ignore[misc]
             dropped = [k for k in list(working) if k != kept_id]
             for d_id in dropped:
                 working.pop(d_id, None)
@@ -124,7 +128,7 @@ class WakeDetector(QThread):
                     f"Could not load wake model '{d_id}' in combined bundle: "
                     f"{exc} — skipped."
                 )
-            self._oww = last_single_oww
+            self._oww = kept_inst
             self.thresholds = working
 
     def run(self) -> None:
