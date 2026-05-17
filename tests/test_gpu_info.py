@@ -178,3 +178,21 @@ def test_detect_backend_picks_largest_vram_amd_card(
     assert gpu_info.detect_backend() == "rocm"
     # The chosen card index should be 1 (the dGPU)
     assert gpu_info._chosen_amd_card_path().name == "card1"
+
+
+def test_detect_backend_returns_cpu_when_nothing(
+    monkeypatch, reset_gpu_info, tmp_path
+):
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml(init_ok=False))
+    import subprocess
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr=""),
+    )
+
+    empty_root = tmp_path / "drm-empty"
+    empty_root.mkdir()
+    from core import gpu_info
+    monkeypatch.setattr(gpu_info, "_SYSFS_DRM_ROOT", empty_root)
+
+    assert gpu_info.detect_backend() == "cpu"
