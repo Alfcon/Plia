@@ -78,7 +78,8 @@ sounddevice>=0.5.0             # Audio playback interface (used by core/tts.py)
 numpy>=2.0.0                   # Numerical computing (audio processing)
 realtimestt>=0.3.0             # Real-time speech-to-text with wake word detection
 faster-whisper>=1.0.0          # RealtimeSTT transcription engine (optional but strongly recommended)
-pvporcupine>=1.9.0,<2          # Porcupine wake word detection (v1 for free offline keywords)
+openwakeword>=0.6.0             # Open-source wake-word engine (replaces Porcupine)
+onnxruntime>=1.16.0             # ONNX runtime backend for openwakeword
 PyAudio>=0.2.14                # Audio I/O for microphone access
                                # Linux: apt install portaudio19-dev  (build dep)
                                # If PyAudio fails to install on Windows, run:

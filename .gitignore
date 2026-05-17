@@ -109,3 +109,7 @@ htmlcov/
 *.AppImage
 *.msi
 *.exe
+
+# User-uploaded wake-word models (bundled ones are committed)
+models/wake/custom/*.onnx
+!models/wake/custom/.gitkeep
