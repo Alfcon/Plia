@@ -31,6 +31,8 @@ _SYSFS_DRM_ROOT = Path("/sys/class/drm")
 _AMD_PCI_VENDOR = "0x1002"
 
 # Cached after detect_backend so read_gpu() doesn't re-scan.
+# This is the `cardN` directory itself, NOT `cardN/device` — readers must
+# descend into "device" to access mem_info_vram_*, gpu_busy_percent, etc.
 _AMD_CARD_PATH: Path | None = None
 
 _BACKEND_CACHE: str | None = None
@@ -120,5 +122,5 @@ def _probe_amd_sysfs() -> str | None:
 
 
 def _chosen_amd_card_path() -> Path | None:
-    """Test helper. Returns the cached AMD card device path."""
+    """Test helper. Returns the cached AMD card path (cardN, not cardN/device)."""
     return _AMD_CARD_PATH
