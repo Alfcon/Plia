@@ -2,7 +2,7 @@
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-import numpy as np
+import numpy as np  # noqa: F401  # used in Task 6 tests
 import pytest
 
 from core import wake_detector

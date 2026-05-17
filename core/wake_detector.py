@@ -8,7 +8,7 @@ PyAudio chunks, runs openWakeWord prediction, and either:
 """
 from __future__ import annotations
 
-import time
+import time  # noqa: F401  # consumed in Task 6 audio loop
 from pathlib import Path
 from typing import Any, Optional
 
@@ -25,6 +25,7 @@ _oww_model_class = None  # set lazily; tests patch this directly
 
 SAMPLE_RATE = 16000
 CHUNK_SAMPLES = 1280  # 80ms @ 16kHz — openwakeword's expected frame size
+# Used by _process_chunk (Task 6).
 COOLDOWN_SEC = 1.5
 
 
@@ -48,6 +49,7 @@ class WakeDetector(QThread):
         self._running = False
         self._oww = None
         self.thresholds: dict[str, float] = {}
+        # Used by _process_chunk (Task 6).
         self._cooldown_until = 0.0
 
     # ── Public API ───────────────────────────────────────────────────────
