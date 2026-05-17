@@ -6,10 +6,12 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal
 
 from config import (
-    RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY, GRAY, RESET, CYAN, GREEN, WAKE_WORD
+    RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY, GRAY, RESET, CYAN, GREEN
 )
 from core.settings_store import settings as app_settings
 from core.stt import STTListener
+from core.wake_detector import WakeDetector
+from core.wake_models import models_dir, reconcile_with_settings
 from core.llm import route_query, should_bypass_router, http_session
 from core.model_persistence import ensure_qwen_loaded, mark_qwen_used, unload_qwen
 from core.tts import tts, SentenceBuffer
@@ -62,6 +64,7 @@ class VoiceAssistant(QObject):
     def __init__(self):
         super().__init__()
         self.stt_listener: Optional[STTListener] = None
+        self.wake_detector: Optional[WakeDetector] = None
         self.running = False
         self.messages = [
             {
@@ -89,7 +92,23 @@ class VoiceAssistant(QObject):
                 print(f"{GRAY}[VoiceAssistant] ✗ Failed to initialize STT.{RESET}")
                 return False
             print(f"{CYAN}[VoiceAssistant] ✓ STT initialized{RESET}")
-            
+
+            # ── Wake detector ────────────────────────────────────────────
+            print(f"{CYAN}[VoiceAssistant] Initializing wake detector…{RESET}")
+            wake_models_list = app_settings.get("voice.wake_models", [])
+            wake_models_list = reconcile_with_settings(wake_models_list, models_dir())
+            app_settings.set("voice.wake_models", wake_models_list)
+
+            self.wake_detector = WakeDetector(
+                wake_models=wake_models_list,
+                models_base=models_dir(),
+                recorder=self.stt_listener,  # uses .is_listening and .feed_audio
+            )
+            self.wake_detector._load_models()
+            self.wake_detector.wake_word_detected.connect(self._on_wake_model_fired)
+            self.wake_detector.error.connect(lambda msg: print(f"{GRAY}[Wake] {msg}{RESET}"))
+            print(f"{CYAN}[VoiceAssistant] ✓ Wake detector ready ({len(self.wake_detector.thresholds)} models loaded){RESET}")
+
             # Ensure TTS is initialized — but guard against calling initialize()
             # a second time if the model preloader already did so.
             # The old check `if not tts.piper_exe` was ALWAYS True in Python
@@ -123,9 +142,10 @@ class VoiceAssistant(QObject):
         
         self.running = True
         self.stt_listener.start()
-        from core.settings_store import settings as app_settings
-        wake = app_settings.get("voice.wake_word", WAKE_WORD)
-        print(f"{CYAN}[VoiceAssistant] Voice assistant started. Say '{GREEN}{wake}{RESET}{CYAN}' to activate.{RESET}")
+        if self.wake_detector:
+            self.wake_detector.start()
+        loaded = ", ".join(sorted(self.wake_detector.thresholds.keys())) if self.wake_detector else "(none)"
+        print(f"{CYAN}[VoiceAssistant] Voice assistant started. Listening for: {GREEN}{loaded}{RESET}")
 
     def stop(self):
         """Stop the voice assistant and reset so initialize() can be called again."""
@@ -133,6 +153,9 @@ class VoiceAssistant(QObject):
             return
 
         self.running = False
+        if self.wake_detector:
+            self.wake_detector.stop()
+            self.wake_detector = None
         if self.stt_listener:
             self.stt_listener.stop()
             self.stt_listener = None   # reset so initialize() creates a fresh listener
@@ -144,6 +167,12 @@ class VoiceAssistant(QObject):
         print(f"{GREEN}[VoiceAssistant] Emitting wake_word_detected signal...{RESET}")
         self.wake_word_detected.emit()
         print(f"{GREEN}[VoiceAssistant] ✓ Signal emitted. Listening for speech...{RESET}")
+
+    def _on_wake_model_fired(self, model_id: str):
+        """Called when the WakeDetector signals — pipes through to STT."""
+        print(f"{CYAN}[VoiceAssistant] Wake model '{model_id}' fired.{RESET}")
+        if self.stt_listener:
+            self.stt_listener.start_listening()
     
     def _on_speech(self, text: str):
         """Handle recognized speech after wake word."""
