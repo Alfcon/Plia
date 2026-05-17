@@ -13,6 +13,7 @@ works.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 
@@ -25,6 +26,12 @@ class GpuInfo:
     vram_free_gb: float
     util_pct: float       # 0-100, 0.0 if unavailable
 
+
+_SYSFS_DRM_ROOT = Path("/sys/class/drm")
+_AMD_PCI_VENDOR = "0x1002"
+
+# Cached after detect_backend so read_gpu() doesn't re-scan.
+_AMD_CARD_PATH: Path | None = None
 
 _BACKEND_CACHE: str | None = None
 
@@ -44,6 +51,7 @@ def detect_backend() -> str:
     backend = (
         _probe_nvidia_pynvml()
         or _probe_nvidia_smi()
+        or _probe_amd_sysfs()
         or "cpu"
     )
     _BACKEND_CACHE = backend
@@ -75,3 +83,42 @@ def _probe_nvidia_smi() -> str | None:
     except Exception:
         pass
     return None
+
+
+def _probe_amd_sysfs() -> str | None:
+    """Scan /sys/class/drm for AMD cards. Picks the largest-VRAM card.
+
+    Side effect: caches the chosen card path in _AMD_CARD_PATH so read_gpu()
+    can hit it directly.
+    """
+    global _AMD_CARD_PATH
+
+    if not _SYSFS_DRM_ROOT.exists():
+        return None
+
+    candidates: list[tuple[int, Path]] = []
+    for card in sorted(_SYSFS_DRM_ROOT.glob("card*")):
+        device = card / "device"
+        vendor_file = device / "vendor"
+        vram_file = device / "mem_info_vram_total"
+        try:
+            if vendor_file.read_text().strip() != _AMD_PCI_VENDOR:
+                continue
+            vram_total = int(vram_file.read_text().strip())
+        except (OSError, ValueError):
+            continue
+        if vram_total <= 0:
+            continue
+        candidates.append((vram_total, device))
+
+    if not candidates:
+        return None
+
+    candidates.sort(key=lambda t: t[0], reverse=True)
+    _AMD_CARD_PATH = candidates[0][1].parent
+    return "rocm"
+
+
+def _chosen_amd_card_path() -> Path | None:
+    """Test helper. Returns the cached AMD card device path."""
+    return _AMD_CARD_PATH
