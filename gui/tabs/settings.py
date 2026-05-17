@@ -6,9 +6,10 @@ from config import LOCAL_ROUTER_PATH, RESPONDER_MODEL
 
 import requests
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame, QSizePolicy
+    QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame, QSizePolicy,
+    QCheckBox, QSlider, QPushButton
 )
-from PySide6.QtCore import Qt, QThread, Signal, Slot
+from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
 
 from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushSettingCard, FluentIcon as FIF,
@@ -248,6 +249,70 @@ class SliderCard(SettingCard):
         self.value_label.setText(str(value))
         settings.set(self.key_path, value)
         self.value_changed.emit(value)
+
+
+class MultiWakeWordRow(QWidget):
+    """One row in MultiWakeWordCard: checkbox | label | slider | (optional ✕)."""
+
+    changed = Signal()                  # any user edit
+    delete_requested = Signal(str)      # custom-row delete; emits model_id
+
+    def __init__(self, entry: dict, parent=None):
+        super().__init__(parent)
+        self._entry = entry
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 4, 0, 4)
+        layout.setSpacing(12)
+
+        self.check = QCheckBox(self)
+        self.check.setChecked(bool(entry.get("enabled")))
+        self.check.toggled.connect(self._on_toggle)
+        layout.addWidget(self.check)
+
+        label_text = entry.get("display", entry.get("id", "?"))
+        if entry.get("broken"):
+            label_text = f"⚠ {label_text}  (file not found)"
+            self.check.setEnabled(False)
+        self.label = QLabel(label_text, self)
+        self.label.setMinimumWidth(140)
+        layout.addWidget(self.label)
+
+        self.slider = QSlider(Qt.Horizontal, self)
+        self.slider.setRange(0, 100)
+        self.slider.setValue(int(round(float(entry.get("sensitivity", 0.5)) * 100)))
+        self.slider.setEnabled(not entry.get("broken", False))
+        self.slider.valueChanged.connect(self._on_slider)
+        layout.addWidget(self.slider, 1)
+
+        self.value_lbl = QLabel(f"{entry.get('sensitivity', 0.5):.2f}", self)
+        self.value_lbl.setMinimumWidth(40)
+        layout.addWidget(self.value_lbl)
+
+        # 300ms debounce on slider writes.
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(300)
+        self._save_timer.timeout.connect(self._flush_slider)
+
+        if not entry.get("builtin", True) or entry.get("broken"):
+            delete_btn = QPushButton("✕", self)
+            delete_btn.setFixedWidth(28)
+            delete_btn.clicked.connect(
+                lambda: self.delete_requested.emit(entry["id"])
+            )
+            layout.addWidget(delete_btn)
+
+    def _on_toggle(self, checked: bool):
+        self._entry["enabled"] = bool(checked)
+        self.changed.emit()
+
+    def _on_slider(self, value: int):
+        self.value_lbl.setText(f"{value / 100:.2f}")
+        self._save_timer.start()
+
+    def _flush_slider(self):
+        self._entry["sensitivity"] = self.slider.value() / 100
+        self.changed.emit()
 
 
 class SwitchCard(SettingCard):
