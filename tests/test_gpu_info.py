@@ -101,3 +101,24 @@ def test_detect_backend_caches_result(monkeypatch, reset_gpu_info):
     second = detect_backend()
 
     assert first == second == "cuda"
+
+
+def test_detect_backend_falls_back_to_nvidia_smi(monkeypatch, reset_gpu_info):
+    # No pynvml available
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml(init_ok=False))
+
+    import subprocess
+
+    def fake_run(cmd, *args, **kwargs):
+        if "nvidia-smi" in cmd[0]:
+            return types.SimpleNamespace(
+                returncode=0,
+                stdout="20480, NVIDIA GeForce RTX 4090\n",
+                stderr="",
+            )
+        raise FileNotFoundError(cmd[0])
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    from core.gpu_info import detect_backend
+    assert detect_backend() == "cuda"

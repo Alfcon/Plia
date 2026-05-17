@@ -41,7 +41,11 @@ def detect_backend() -> str:
     if _BACKEND_CACHE is not None:
         return _BACKEND_CACHE
 
-    backend = _probe_nvidia_pynvml() or "cpu"
+    backend = (
+        _probe_nvidia_pynvml()
+        or _probe_nvidia_smi()
+        or "cpu"
+    )
     _BACKEND_CACHE = backend
     return backend
 
@@ -54,3 +58,20 @@ def _probe_nvidia_pynvml() -> str | None:
         return "cuda"
     except Exception:
         return None
+
+
+def _probe_nvidia_smi() -> str | None:
+    """Second-chance NVIDIA probe via the nvidia-smi binary."""
+    import subprocess
+    try:
+        result = subprocess.run(
+            ["nvidia-smi",
+             "--query-gpu=memory.free,name",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=4,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return "cuda"
+    except Exception:
+        pass
+    return None
