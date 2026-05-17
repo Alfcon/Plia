@@ -298,7 +298,7 @@ class MultiWakeWordRow(QWidget):
             delete_btn = QPushButton("✕", self)
             delete_btn.setFixedWidth(28)
             delete_btn.clicked.connect(
-                lambda: self.delete_requested.emit(entry["id"])
+                lambda: self.delete_requested.emit(self._entry["id"])
             )
             layout.addWidget(delete_btn)
 
