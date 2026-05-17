@@ -13,7 +13,7 @@ detection. Models live in two folders:
 | `hey_jarvis.onnx` | "Hey Jarvis" | openWakeWord pretrained |
 | `alexa.onnx` | "Alexa" | openWakeWord pretrained |
 | `hey_mycroft.onnx` | "Hey Mycroft" | openWakeWord pretrained |
-| `ok_nabu.onnx` | "OK Nabu" | openWakeWord pretrained |
+| `ok_nabu.onnx` | "OK Nabu" | [home-assistant-wakewords-collection](https://github.com/fwartner/home-assistant-wakewords-collection) |
 | `hey_rhasspy.onnx` | "Hey Rhasspy" | openWakeWord pretrained |
 | `plia.onnx` | "Plia" | Trained for this project — see below |
 
