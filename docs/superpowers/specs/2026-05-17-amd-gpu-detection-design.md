@@ -71,7 +71,7 @@ def read_gpu() -> GpuInfo:
 | `rocm`  | Read `mem_info_vram_total`, `mem_info_vram_used`, `gpu_busy_percent` from the chosen `/sys/class/drm/cardN/device/` directory; cache `name` at backend-detection time |
 | `cpu`   | Return `GpuInfo(backend="cpu", name="No GPU", 0.0, 0.0, 0.0, 0.0)` |
 
-**Name resolution for AMD**: try `product_name` sysfs file first (kernel 5.14+). If absent, fall back to looking up the device's PCI ID and running `lspci -d 1002:DEVID` once at detect time, parsing the human-readable name. If `lspci` is missing or fails, use `"AMD GPU"`.
+**Name resolution for AMD**: read the `product_name` sysfs file (exposed by the AMDGPU kernel driver since 5.14, which predates ROCm 6.x's supported kernels). Fall back to the literal string `"AMD GPU"` if the file is missing or unreadable. No subprocess is invoked — a per-tick `lspci` call was considered and rejected as over-engineering for a corner case affecting only legacy kernels we don't support.
 
 **Error handling**: every sysfs read is wrapped in try/except → returns zeros on `PermissionError`, `FileNotFoundError`, or parse error. No exceptions ever escape `read_gpu`. The pynvml path keeps its existing try/except behavior.
 
