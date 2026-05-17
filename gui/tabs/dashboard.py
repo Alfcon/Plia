@@ -2,30 +2,25 @@
 gui/tabs/dashboard.py
 
 P.L.I.A. Dashboard Tab — Iron Man HUD style.
-Replaces the original home-screen dashboard with the futuristic HUD display
-seen in plia2.py, ported from Tkinter → PySide6.
 
 Layout
 ------
   ┌─────────────────────────────────────────────────────┐
   │  ◆ P.L.I.A.   ● ONLINE            HH:MM:SS — Day   │  ← top bar
   ├───────────┬─────────────────────────────────────────┤
-  │  Arc      │  COMMUNICATION LOG               [...]  │
-  │  Reactor  │                                         │
-  │           │  [scrolling monospace log]              │
-  │  ───────  │                                         │
-  │  SYSTEM   │  ───────────────────────────────────── │
-  │  MONITOR  │  ~~~  waveform  ~~~                     │
-  │           │  ───────────────────────────────────── │
-  │  ───────  │  🎤  🔊  [__input__________]  [SEND]  │
-  │  Buttons  │                                         │
+  │  Plia     │  COMMUNICATION LOG                      │
+  │  Logo     │                                         │
+  │           │  [scrolling monospace log,              │
+  │  ───────  │   stretches to fill the panel]          │
+  │  SYSTEM   │                                         │
+  │  MONITOR  │                                         │
+  │           │                                         │
+  │           │  [__input__________]            [SEND]  │
   └───────────┴─────────────────────────────────────────┘
 """
 
 from __future__ import annotations
 
-import math
-import random
 import datetime
 import traceback
 
@@ -36,14 +31,13 @@ from PySide6.QtWidgets import (
     QPushButton, QTextEdit, QLineEdit, QSizePolicy, QScrollBar,
 )
 from PySide6.QtCore import (
-    Qt, QTimer, QThread, QObject, Signal, QRectF, QPointF,
+    Qt, QTimer, QThread, QObject, Signal, QRectF,
 )
 from PySide6.QtGui import (
     QPainter, QPen, QBrush, QColor, QFont, QTextCharFormat,
-    QTextCursor, QPainterPath,
+    QTextCursor,
 )
 
-from gui.components.voice_indicator import EmbeddedVoiceWidget
 
 # ── GPU monitoring ────────────────────────────────────────────
 try:
@@ -70,217 +64,6 @@ C_ARC_GLOW    = "#90e0ef"
 C_REACTOR     = "#00b4d8"
 C_GPU         = "#4fc3f7"
 
-
-# ══════════════════════════════════════════════════════════════
-#  ARC REACTOR  (animated via QTimer + paintEvent)
-# ══════════════════════════════════════════════════════════════
-class ArcReactorWidget(QWidget):
-    """
-    Animated power-core widget that mirrors plia2.py's ArcReactorCanvas.
-    Draws concentric rotating rings, triangular spokes, and a pulsing core
-    using QPainter — no external assets required.
-    """
-
-    def __init__(self, parent: QWidget | None = None, size: int = 190) -> None:
-        super().__init__(parent)
-        self.setFixedSize(size, size)
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, False)
-
-        self._size  = size
-        self._cx    = size / 2
-        self._cy    = size / 2
-        self._angle = 0.0
-        self._pulse = 0.0
-
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self._timer.start(33)          # ~30 FPS
-
-    def _tick(self) -> None:
-        self._angle = (self._angle + 1.2) % 360
-        self._pulse += 0.08
-        self.update()
-
-    def paintEvent(self, _event) -> None:          # noqa: N802
-        p   = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        cx, cy = self._cx, self._cy
-        ang    = self._angle
-        pls    = self._pulse
-
-        # Fill background
-        p.fillRect(self.rect(), QColor(C_BG))
-
-        # ── Faint outer glow rings ────────────────────────────
-        for i in range(5):
-            r     = 80 + i * 2.5
-            alpha = max(10, 40 - i * 8)
-            pen   = QPen(QColor(0, 20 + alpha, 180, alpha))
-            pen.setWidthF(1.0)
-            p.setPen(pen)
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            p.drawEllipse(QRectF(cx - r, cy - r, r * 2, r * 2))
-
-        # ── Outer ring ────────────────────────────────────────
-        pen = QPen(QColor(C_BORDER))
-        pen.setWidthF(2.0)
-        p.setPen(pen)
-        p.drawEllipse(QRectF(cx - 76, cy - 76, 152, 152))
-
-        # ── 8 rotating outer ticks ────────────────────────────
-        pen_acc = QPen(QColor(C_ACCENT))
-        pen_acc.setWidthF(2.0)
-        p.setPen(pen_acc)
-        for i in range(8):
-            a  = math.radians(ang + i * 45)
-            x1 = cx + 66 * math.cos(a)
-            y1 = cy + 66 * math.sin(a)
-            x2 = cx + 76 * math.cos(a)
-            y2 = cy + 76 * math.sin(a)
-            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-
-        # ── Middle ring ───────────────────────────────────────
-        pen_acc2 = QPen(QColor(C_ACCENT2))
-        pen_acc2.setWidthF(1.0)
-        p.setPen(pen_acc2)
-        p.drawEllipse(QRectF(cx - 56, cy - 56, 112, 112))
-
-        # ── 6 counter-rotating mid ticks ─────────────────────
-        pen_blue = QPen(QColor(C_ARC_BLUE))
-        pen_blue.setWidthF(2.0)
-        p.setPen(pen_blue)
-        for i in range(6):
-            a  = math.radians(-ang * 1.5 + i * 60)
-            x1 = cx + 48 * math.cos(a)
-            y1 = cy + 48 * math.sin(a)
-            x2 = cx + 56 * math.cos(a)
-            y2 = cy + 56 * math.sin(a)
-            p.drawLine(QPointF(x1, y1), QPointF(x2, y2))
-
-        # ── Inner ring ────────────────────────────────────────
-        pen_acc.setWidthF(1.0)
-        p.setPen(pen_acc)
-        p.drawEllipse(QRectF(cx - 35, cy - 35, 70, 70))
-
-        # ── 3 fast-rotating triangular spokes ────────────────
-        pen_glow = QPen(QColor(C_ARC_GLOW))
-        pen_glow.setWidthF(1.0)
-        p.setPen(pen_glow)
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        for i in range(3):
-            a    = math.radians(ang * 2 + i * 120)
-            x1   = cx + 28 * math.cos(a)
-            y1   = cy + 28 * math.sin(a)
-            x2   = cx + 35 * math.cos(a + 0.3)
-            y2   = cy + 35 * math.sin(a + 0.3)
-            x3   = cx + 35 * math.cos(a - 0.3)
-            y3   = cy + 35 * math.sin(a - 0.3)
-            path = QPainterPath()
-            path.moveTo(x1, y1)
-            path.lineTo(x2, y2)
-            path.lineTo(x3, y3)
-            path.closeSubpath()
-            p.drawPath(path)
-
-        # ── Pulsing core ─────────────────────────────────────
-        pr = 16 + 4 * math.sin(pls)
-        # Dark halo
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor(0, 26, 51)))
-        p.drawEllipse(QRectF(cx - pr - 7, cy - pr - 7,
-                             (pr + 7) * 2, (pr + 7) * 2))
-        # Glowing core fill
-        p.setBrush(QBrush(QColor(C_REACTOR)))
-        pen_glow2 = QPen(QColor(C_ARC_GLOW))
-        pen_glow2.setWidthF(2.0)
-        p.setPen(pen_glow2)
-        p.drawEllipse(QRectF(cx - pr, cy - pr, pr * 2, pr * 2))
-        # Inner highlight
-        ir = 5 + 2 * math.sin(pls * 1.5)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QBrush(QColor(C_ARC_GLOW)))
-        p.drawEllipse(QRectF(cx - ir, cy - ir, ir * 2, ir * 2))
-
-        p.end()
-
-
-# ══════════════════════════════════════════════════════════════
-#  WAVEFORM  (animated sine wave)
-# ══════════════════════════════════════════════════════════════
-class WaveformWidget(QWidget):
-    """
-    Audio waveform visualiser that mirrors plia2.py's WaveformCanvas.
-    Two layered sine waves rendered with QPainter, animated at ~30 FPS.
-    Call set_amplitude(value) to make the waveform spike.
-    """
-
-    def __init__(self, parent: QWidget | None = None, height: int = 50) -> None:
-        super().__init__(parent)
-        self.setFixedHeight(height)
-        self.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
-        )
-
-        self._phase     = 0.0
-        self._amplitude = 2.0
-
-        self._timer = QTimer(self)
-        self._timer.timeout.connect(self._tick)
-        self._timer.start(33)
-
-    def set_amplitude(self, amp: float) -> None:
-        self._amplitude = max(2.0, min(25.0, float(amp)))
-
-    def _tick(self) -> None:
-        self._phase += 0.15
-        if self._amplitude > 2.0:
-            self._amplitude *= 0.97
-        self.update()
-
-    def paintEvent(self, _event) -> None:          # noqa: N802
-        p = QPainter(self)
-        p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        p.fillRect(self.rect(), QColor(C_BG))
-
-        w   = self.width()
-        mid = self.height() / 2
-        ph  = self._phase
-        amp = self._amplitude
-
-        # Primary wave
-        pen1 = QPen(QColor(C_ACCENT))
-        pen1.setWidthF(1.5)
-        p.setPen(pen1)
-        pts: list[QPointF] = []
-        for x in range(0, w, 2):
-            y = (mid + amp * math.sin(ph + x * 0.04)
-                 * math.cos(ph * 0.7 + x * 0.02)
-                 + random.uniform(-amp * 0.3, amp * 0.3))
-            pts.append(QPointF(x, y))
-        if len(pts) >= 2:
-            path = QPainterPath()
-            path.moveTo(pts[0])
-            for pt in pts[1:]:
-                path.lineTo(pt)
-            p.drawPath(path)
-
-        # Secondary wave (slightly different frequency)
-        pen2 = QPen(QColor(C_ACCENT2))
-        pen2.setWidthF(1.0)
-        p.setPen(pen2)
-        pts2: list[QPointF] = []
-        for x in range(0, w, 2):
-            y = mid + amp * 0.6 * math.sin(ph * 1.3 + x * 0.05 + 1)
-            pts2.append(QPointF(x, y))
-        if len(pts2) >= 2:
-            path2 = QPainterPath()
-            path2.moveTo(pts2[0])
-            for pt in pts2[1:]:
-                path2.lineTo(pt)
-            p.drawPath(path2)
-
-        p.end()
 
 
 # ══════════════════════════════════════════════════════════════
@@ -675,11 +458,11 @@ class DashboardView(QWidget):
 
     def _build_top_bar(self) -> QFrame:
         bar = QFrame()
-        bar.setFixedHeight(170)
+        bar.setFixedHeight(40)
         bar.setStyleSheet("background: #060610; border: none;")
 
         lay = QHBoxLayout(bar)
-        lay.setContentsMargins(15, 6, 15, 6)
+        lay.setContentsMargins(15, 4, 15, 4)
         lay.setSpacing(20)
 
         title = QLabel("◆ P.L.I.A.")
@@ -691,9 +474,6 @@ class DashboardView(QWidget):
         self._status_lbl.setFont(QFont("Consolas", 10))
         self._status_lbl.setStyleSheet(f"color: {C_SUCCESS};")
         lay.addWidget(self._status_lbl)
-
-        self.voice_widget = EmbeddedVoiceWidget()
-        lay.addWidget(self.voice_widget)
 
         lay.addStretch()
 
@@ -713,8 +493,9 @@ class DashboardView(QWidget):
         lay.setContentsMargins(0, 5, 0, 5)
         lay.setSpacing(0)
 
-        # Arc reactor
-        self.reactor = ArcReactorWidget(size=190)
+        # Plia logo (lip-syncs with TTS speaking state)
+        from gui.components.plia_logo import PliaLogoWidget
+        self.reactor = PliaLogoWidget(size=190)
         lay.addWidget(self.reactor, 0, Qt.AlignmentFlag.AlignHCenter)
 
         lay.addWidget(self._hsep())
@@ -723,29 +504,6 @@ class DashboardView(QWidget):
         self.sys_monitor = SystemMonitorPanel()
         lay.addWidget(self.sys_monitor)
 
-        lay.addWidget(self._hsep())
-
-        # Quick-action buttons
-        btn_frame = QFrame()
-        btn_frame.setStyleSheet(f"background: {C_PANEL}; border: none;")
-        btn_lay = QVBoxLayout(btn_frame)
-        btn_lay.setContentsMargins(10, 5, 10, 5)
-        btn_lay.setSpacing(2)
-
-        actions = [
-            ("⚙  Status",   self._cmd_status),
-            ("📋  Notes",   self._cmd_notes),
-            ("⏰  Remind",  self._cmd_remind),
-            ("🔍  Help",    self._cmd_help),
-        ]
-        for label, callback in actions:
-            btn = QPushButton(label)
-            btn.setStyleSheet(_BTN_STYLE)
-            btn.setCursor(Qt.CursorShape.PointingHandCursor)
-            btn.clicked.connect(callback)
-            btn_lay.addWidget(btn)
-
-        lay.addWidget(btn_frame)
         lay.addStretch()
 
         return panel
@@ -782,13 +540,7 @@ class DashboardView(QWidget):
         # ── Communication log ────────────────────────────────
         self.log = CommunicationLog()
         self.log.setMinimumHeight(120)
-        self.log.setMaximumHeight(250)
-        lay.addWidget(self.log)   # no stretch — spacer below fills the gap
-        lay.addStretch(1)         # pushes waveform + input bar to the bottom
-
-        # ── Waveform ─────────────────────────────────────────
-        self.waveform = WaveformWidget(height=50)
-        lay.addWidget(self.waveform)
+        lay.addWidget(self.log, 1)   # stretch to fill all space above input bar
 
         # ── Input area ───────────────────────────────────────
         input_frame = QFrame()
@@ -797,34 +549,6 @@ class DashboardView(QWidget):
         inp_lay = QHBoxLayout(input_frame)
         inp_lay.setContentsMargins(8, 6, 8, 6)
         inp_lay.setSpacing(4)
-
-        mic_btn = QPushButton("🎤")
-        mic_btn.setFixedSize(36, 36)
-        mic_btn.setFont(QFont("Segoe UI Emoji", 14))
-        mic_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: #111122; color: {C_TEXT};
-                border: 1px solid {C_BORDER}; border-radius: 3px;
-            }}
-            QPushButton:hover {{ background: {C_ERROR}; }}
-        """)
-        mic_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        mic_btn.setToolTip("Voice input (handled by voice assistant)")
-        inp_lay.addWidget(mic_btn)
-
-        spk_btn = QPushButton("🔊")
-        spk_btn.setFixedSize(36, 36)
-        spk_btn.setFont(QFont("Segoe UI Emoji", 12))
-        spk_btn.setStyleSheet(f"""
-            QPushButton {{
-                background: #111122; color: {C_TEXT};
-                border: 1px solid {C_BORDER}; border-radius: 3px;
-            }}
-            QPushButton:hover {{ background: {C_WARN}; }}
-        """)
-        spk_btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        spk_btn.setToolTip("TTS toggle (handled by voice assistant)")
-        inp_lay.addWidget(spk_btn)
 
         self._input = QLineEdit()
         self._input.setPlaceholderText("Type a command…")
@@ -878,7 +602,8 @@ class DashboardView(QWidget):
             f"System Monitor: {ps_status}  |  GPU Monitor: {gpu_status}"
         )
         self.log.append_message(
-            "Type a command below or use the quick-action buttons on the left."
+            "Type any command, question, or task below — same capabilities "
+            "as voice. 'status' for an instant system readout."
         )
         self.log.append_message("System is ready.", "success")
 
@@ -905,117 +630,6 @@ class DashboardView(QWidget):
         except Exception as exc:
             self.log.append_message(f"Status error: {exc}", "error")
 
-    def _cmd_notes(self) -> None:
-        self.log.append_message("► Navigating to Planner (Notes/Tasks)…", "plia")
-        self.navigate_to.emit("plannerInterface")
-
-    def _cmd_remind(self) -> None:
-        self.log.append_message("► Navigating to Planner (Reminders/Alarms)…", "plia")
-        self.navigate_to.emit("plannerInterface")
-
-    def _cmd_help(self) -> None:
-        """Display comprehensive help across all program features in the communication log."""
-        sections = [
-            ("═══════════════════════════════════════════════", "system"),
-            ("  P.L.I.A. — HELP & COMMAND REFERENCE", "plia"),
-            ("═══════════════════════════════════════════════", "system"),
-            ("", "system"),
-            ("▶ VOICE ACTIVATION", "success"),
-            ("  Say 'Jarvis' to wake the assistant, then speak naturally.", "plia"),
-            ("  The wake word can be changed in the Settings tab.", "plia"),
-            ("", "system"),
-            ("▶ DASHBOARD", "success"),
-            ("  Status  — Show live CPU / RAM / Disk / GPU readings", "plia"),
-            ("  Notes   — Jump to Planner (tasks and notes)", "plia"),
-            ("  Remind  — Jump to Planner (alarms and timers)", "plia"),
-            ("  Help    — Show this help panel", "plia"),
-            ("  Type a command in the input box below and press SEND.", "plia"),
-            ("", "system"),
-            ("▶ CHAT TAB", "success"),
-            ("  Ask any question or give any task in plain English.", "plia"),
-            ("  Streaming responses powered by your local Ollama model.", "plia"),
-            ("  Thinking / reasoning steps collapse inline automatically.", "plia"),
-            ("  Voice: 'Jarvis, <any question or task>'", "plia"),
-            ("", "system"),
-            ("▶ WEB SEARCH  (DuckDuckGo)", "success"),
-            ("  Type : 'search for Python tutorials'", "plia"),
-            ("  Voice: 'Jarvis, internet search on <topic>'", "plia"),
-            ("  Voice: 'Jarvis, search the web for <topic>'", "plia"),
-            ("  A floating results panel opens with numbered links.", "plia"),
-            ("  Navigate : 'Jarvis, next search page'", "plia"),
-            ("  Open link: 'Jarvis, open search result 3'", "plia"),
-            ("  Close    : 'Jarvis, close search'", "plia"),
-            ("", "system"),
-            ("▶ WEATHER", "success"),
-            ("  Voice: 'Jarvis, what is the weather today?'", "plia"),
-            ("  Voice: 'Jarvis, will it rain?'", "plia"),
-            ("  A weather overlay appears; close with 'Jarvis, close weather'.", "plia"),
-            ("  Set your location in Settings (latitude / longitude).", "plia"),
-            ("", "system"),
-            ("▶ PLANNER  (Calendar, Tasks, Alarms, Timers)", "success"),
-            ("  Voice: 'Jarvis, add buy groceries to my to-do list'", "plia"),
-            ("  Voice: 'Jarvis, set a timer for 10 minutes'", "plia"),
-            ("  Voice: 'Jarvis, set an alarm for 7 AM'", "plia"),
-            ("  Voice: 'Jarvis, add meeting with team on Friday at 2 PM'", "plia"),
-            ("  Voice: 'Jarvis, what is on my schedule today?'", "plia"),
-            ("  GUI:   Use the Planner tab to manage events manually.", "plia"),
-            ("  Sync:  Connect Google or Outlook in the Settings tab.", "plia"),
-            ("", "system"),
-            ("▶ SMART HOME  (TP-Link Kasa)", "success"),
-            ("  Voice: 'Jarvis, turn on the office lights'", "plia"),
-            ("  Voice: 'Jarvis, dim the lounge to 40 percent'", "plia"),
-            ("  Voice: 'Jarvis, turn off all lights'", "plia"),
-            ("  GUI:   Home Automation tab — Refresh to discover devices.", "plia"),
-            ("  Setup: Devices must be on the same Wi-Fi network.", "plia"),
-            ("", "system"),
-            ("▶ ACTIVE AGENTS", "success"),
-            ("  Chat : 'Create an agent that monitors my email'", "plia"),
-            ("  Chat : 'Run the Python tutor agent'", "plia"),
-            ("  Voice: 'Jarvis, refresh active agents'", "plia"),
-            ("  Agents tab: Create / Run / Delete custom agents.", "plia"),
-            ("  Saved to: %USERPROFILE%\\.plia_ai\\agents\\", "plia"),
-            ("  Agents can use OpenAI (key in Settings) or local Ollama.", "plia"),
-            ("", "system"),
-            ("▶ DESKTOP AGENT  (Windows automation)", "success"),
-            ("  Voice: 'Jarvis, open Notepad'", "plia"),
-            ("  Voice: 'Jarvis, open Spotify'", "plia"),
-            ("  Voice: 'Jarvis, close Discord'", "plia"),
-            ("  Supports: launch, close, switch, minimise, maximise apps.", "plia"),
-            ("", "system"),
-            ("▶ DAILY BRIEFING", "success"),
-            ("  Open the Briefing tab for AI-curated news.", "plia"),
-            ("  Categories: Technology, Science, Top Stories.", "plia"),
-            ("  Fetched via DuckDuckGo — no API key required.", "plia"),
-            ("", "system"),
-            ("▶ MODEL BROWSER", "success"),
-            ("  Browse, download and switch Ollama models from the GUI.", "plia"),
-            ("  Set the active model in Settings or config.py.", "plia"),
-            ("", "system"),
-            ("▶ SETTINGS", "success"),
-            ("  Wake word / sensitivity  — change the trigger phrase", "plia"),
-            ("  TTS voice               — switch Piper voice model", "plia"),
-            ("  Weather location        — set latitude and longitude", "plia"),
-            ("  Auto-start voice        — enable or disable on launch", "plia"),
-            ("  OpenAI API key          — used by the Agent Builder", "plia"),
-            ("  Calendar sync           — connect Google or Outlook", "plia"),
-            ("", "system"),
-            ("▶ SYSTEM MONITOR", "success"),
-            ("  Title bar: live CPU / RAM / GPU VRAM percentages.", "plia"),
-            ("  Dashboard panel: detailed bar graphs (left side).", "plia"),
-            ("", "system"),
-            ("▶ GETTING MORE HELP", "success"),
-            ("  Voice       : 'Jarvis, help' or 'Jarvis, what can you do?'", "plia"),
-            ("  Dashboard   : type 'help' and press SEND", "plia"),
-            ("  README.md   : full documentation in the project folder.", "plia"),
-            ("═══════════════════════════════════════════════", "system"),
-        ]
-        for text, tag in sections:
-            self.log.append_message(text, tag)
-
-    def _cmd_settings(self) -> None:
-        self.log.append_message("► Navigating to Settings…", "plia")
-        self.navigate_to.emit("settingsInterface")
-
     # ── Input send handler ────────────────────────────────────
     def _on_send(self) -> None:
         text = self._input.text().strip()
@@ -1023,25 +637,24 @@ class DashboardView(QWidget):
             return
         self._input.clear()
         self.log.append_message(f"► {text}", "user")
-        self.waveform.set_amplitude(15)
 
+        # "status" stays a local fast-path — instant CPU/RAM/GPU readout
+        # without a round-trip through the LLM.
         cmd = text.lower()
         if cmd in ("status", "system status"):
             self._cmd_status()
-        elif cmd in ("help",):
-            self._cmd_help()
-        elif cmd.startswith("note") or cmd.startswith("task"):
-            self._cmd_notes()
-        elif cmd.startswith("remind") or cmd.startswith("alarm"):
-            self._cmd_remind()
-        elif cmd in ("settings", "setting"):
-            self._cmd_settings()
-        else:
-            self.log.append_message(
-                "◄ Command not recognised in dashboard mode. "
-                "Switch to the Chat tab to talk to P.L.I.A.",
-                "plia",
-            )
+            return
+
+        # Everything else goes through the full voice-assistant pipeline:
+        # plugin reload, agent creation wizard, web search, weather,
+        # planner intents, smart-home, file reading, desktop automation,
+        # and LLM chat as the final fallback — same set of capabilities
+        # the wake-word path exposes.
+        try:
+            from core.voice_assistant import voice_assistant
+            voice_assistant._on_speech(text)
+        except Exception as exc:
+            self.log.append_message(f"Dispatch error: {exc}", "error")
 
     # ── Public helpers (called by app.py voice signals) ───────
     def set_status_online(self) -> None:

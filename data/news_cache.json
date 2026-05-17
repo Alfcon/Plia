@@ -1,26 +1,356 @@
 {
   "Top Stories": [
     {
-      "title": "Breaking: Man critical after shark attack off Rottnest Island",
+      "title": "Labor claims victory in Stafford by-election",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:28",
+      "fetched_iso": "2026-05-17T01:28:53",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/labor-claims-victory-stafford-by-election-luke-richmond/106689404",
+      "image": "https://live-production.wcms.abc-cdn.net.au/cb15c4cd0dadb0302e3e7d781c150f0d?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=344&yPos=0&width=862&height=1149",
+      "body": "Labor candidate Luke Richmond claims victory over the LNP's Fiona Hammond in a tight race in the north Brisbane electorate of Stafford.",
+      "summary": "Queensland Labor candidate Luke Richmond has claimed victory in the Stafford by-election."
+    },
+    {
+      "title": "Treasurer defends impact of budget on young investors",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:09",
+      "fetched_iso": "2026-05-17T01:09:30",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/jim-chalmers-defends-impact-of-tax-changes-on-young-investors/106689268",
+      "image": "https://live-production.wcms.abc-cdn.net.au/96e669b1ef77e14cdae9f16ad85067b4?impolicy=wcms_crop_resize&cropH=3512&cropW=2634&xPos=1803&yPos=0&width=862&height=1149",
+      "body": "Jim Chalmers says it is better for young people to invest based on economic rather than tax outcomes, and argued they can still access negative gearing by buying up new homes.",
+      "summary": "Jim Chalmers argues it is better for young people to invest based on economic rather than tax outcomes."
+    },
+    {
+      "title": "From Euro-pop to Euro-slop, the key moments from Eurovision as Delta made Australia proud",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:43",
+      "fetched_iso": "2026-05-16T23:43:10",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/eurovision-key-takeaways/106686378",
+      "image": "https://live-production.wcms.abc-cdn.net.au/fd62865f72bb71e2aa2861e918340b20?impolicy=wcms_crop_resize&cropH=2287&cropW=1715&xPos=1283&yPos=0&width=862&height=1149",
+      "body": "Slept through Eurovision this year? Here's what you missed from Europe's favourite song contest, in Vienna.",
+      "summary": "Delta Goodrem's staging reflected her song, coming to a crescendo in the meeting of the Moon and the Sun."
+    },
+    {
+      "title": "Pro-Palestine march comes face-to-face with anti-immigration protest in London",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:29",
+      "fetched_iso": "2026-05-16T23:29:05",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/tens-of-thousands-march-in-london-pro-palestine-anti-immigration/106689212",
+      "image": "https://live-production.wcms.abc-cdn.net.au/522cf0672673d33a895f70b7f2cc5faf?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Tens of thousands of people have marched through central London in two separate protests: one against immigration and another in support of Palestinians.",
+      "summary": "Demonstrators carry Palestinian flags and placards at a march to mark Nakba Day, commemorating Palestinians' loss of land in 1948."
+    },
+    {
+      "title": "'No-one really questioned why' Olympic gymnast missed periods",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:32",
+      "fetched_iso": "2026-05-16T19:32:05",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/menstrual-irregularities-womens-health-education-abc-survey/106597534",
+      "image": "https://live-production.wcms.abc-cdn.net.au/a749a062ed5917a46fa20358327b04a3?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1114&yPos=0&width=862&height=1149",
+      "body": "Alexandra Kiroi-Bogatyreva trained up to 10 hours a day, six days a week, often without the proper nutrition. She wants others to know what that can do to the body.",
+      "summary": "Alexandra Kiroi-Bogatyreva got her first period at 19, and says no-one questioned why."
+    },
+    {
+      "title": "Why some Australian homebuyers are turning to Islamic financing",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:23",
+      "fetched_iso": "2026-05-16T19:23:23",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/islamic-financing-housing-and-interest-rates/106541806",
+      "image": "https://live-production.wcms.abc-cdn.net.au/f8fa637873b7d4457de75f958c4ef29b?impolicy=wcms_crop_resize&cropH=1199&cropW=899&xPos=358&yPos=0&width=862&height=1149",
+      "body": "When Wildan decided to buy a property he didn't even consider a conventional loan. Instead, he opted for a niche option that caters to a growing segment of Australia's population.",
+      "summary": "Wildan Al Hazmi says he chose Islamic financing for \"peace of mind\"."
+    },
+    {
+      "title": "Aspiration has changed since the Howard era. This budget is finally catching up",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:21",
+      "fetched_iso": "2026-05-16T19:21:41",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/budget-2026-27-chalmers-aspiration-housing-howard/106680828",
+      "image": "https://live-production.wcms.abc-cdn.net.au/d2e134636b431e9e954dc8c23e8d1b25?impolicy=wcms_crop_resize&cropH=570&cropW=427&xPos=206&yPos=0&width=862&height=1149",
+      "body": "At the turn of the century, \"aspiration\" described Australians who wanted to put their kids into private school and university, and to build their wealth by getting an investment property or two. Today, it means something humbler; millions of younger Australians simply aspire to own a home one day, to have some shelter.",
+      "summary": "Prime Minister John Howard and Treasurer Peter Costello hold a press conference on November 18, 2007, a week before they lost the 2007 election."
+    },
+    {
+      "title": "You could hear a pin drop when Rob revealed why he fought a fire tax",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:15",
+      "fetched_iso": "2026-05-16T19:15:40",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/-accidental-leader-of-cfa-levy-protest-rob-armstrong/106630850",
+      "image": "https://live-production.wcms.abc-cdn.net.au/18b6bc284a38b35ed391a74199455700?impolicy=wcms_crop_resize&cropH=2160&cropW=1620&xPos=1110&yPos=0&width=862&height=1149",
+      "body": "Every time farmer and volunteer firefighter Rob Armstrong gets a call to battle a bushfire, something inside says not to do it. But he goes anyway. He knows what it’s like to be trapped in the flames and rescued by volunteers.",
+      "summary": "Victorian farmer Rob Armstrong has been a volunteer firefighter for 40 years."
+    },
+    {
+      "title": "What life was like before the NDIS and why mistakes can't be repeated",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:13",
+      "fetched_iso": "2026-05-16T19:13:37",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/will-ndis-cuts-lead-to-the-mistakes-of-the-past/106665656",
+      "image": "https://live-production.wcms.abc-cdn.net.au/f62f9fac545f81a256022ffa3580f78e?impolicy=wcms_crop_resize&cropH=4672&cropW=3504&xPos=1056&yPos=0&width=862&height=1149",
+      "body": "The states are once again on the hook for disability services due to the Commonwealth's drastic NDIS cuts. Can the mistakes of the past be avoided?",
+      "summary": "Keith McVilly began working with people with disability in the 1980s, helping people move out of state-run institutions such as Hobart's Willow Court (pictured)."
+    },
+    {
+      "title": "AI psychosis is on the rise and experts are sounding the alarm",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:00",
+      "fetched_iso": "2026-05-16T19:00:00",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/ai-psychosis-is-rising-chatbot-delusion-alternate-reality-harm/106683436",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b33fc14e50a68cdfcc0b50c2e2d228cd?impolicy=wcms_crop_resize&cropH=2000&cropW=1500&xPos=750&yPos=0&width=862&height=1149",
+      "body": "Rodrigues thought an AI chatbot could help him escape poverty and build wealth. Instead, he became trapped in a spiral of delusion and dependence.",
+      "summary": "Rodrigues thought an AI chatbot could help him escape poverty and build wealth. Instead, he became trapped in a spiral of delusion and dependence."
+    },
+    {
+      "title": "Sydney lawyer ditches mortgage 'stress' for van life",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:28",
+      "fetched_iso": "2026-05-16T23:28:13",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/sydney-lawyer-lives-in-van-due-to-mortgage-stress/106629820",
+      "image": "https://live-production.wcms.abc-cdn.net.au/101859b08685d232d51efdfca1667167?impolicy=wcms_crop_resize&cropH=3024&cropW=2268&xPos=782&yPos=0&width=862&height=1149",
+      "body": "Phoebe Macdougall says she hated living with a mortgage, so she is trying van life instead.",
+      "summary": "Phoebe Macdougall enjoys life on the road, and visits a number of campsites every year."
+    },
+    {
+      "title": "First home buyers 'up and about' at auctions after negative gearing changes",
+      "source": "ABC News",
+      "date": "16 May 2026, 21:06",
+      "fetched_iso": "2026-05-16T21:06:57",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/saturday-auctions-after-budget-tax-reforms-first-home-buyer-bids/106688408",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5aa46c0c306b62b72630f67ac12279cb?impolicy=wcms_crop_resize&cropH=3334&cropW=2501&xPos=1271&yPos=0&width=862&height=1149",
+      "body": "The government says the changes are aimed at levelling the playing field for young buyers bidding against property investors, while the opposition is pledging to undo the reforms, citing their potential to raise rents.",
+      "summary": "One auctioneer says younger buyers are \"up and about\" in response to the government's tax reforms."
+    },
+    {
+      "title": "China quietly turns off supply of world's most used industrial chemical",
+      "source": "ABC News",
+      "date": "16 May 2026, 20:33",
+      "fetched_iso": "2026-05-16T20:33:06",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/rural/2026-05-17/china-turns-off-sulphuric-acid-supply/106682704",
+      "image": "https://live-production.wcms.abc-cdn.net.au/f51c147dbbd9f693f9b2f36c515295fa?impolicy=wcms_crop_resize&cropH=1849&cropW=1387&xPos=0&yPos=115&width=862&height=1149",
+      "body": "Amid disruption from the Iran war, China has banned exports of sulphuric acid, a crucial component used to treat drinking water, refine petroleum and make batteries, clothing and phosphate fertilisers.",
+      "summary": "LoomTex relies on multiple types of acid in its production process."
+    },
+    {
+      "title": "Trump is painting DC's reflecting pool. Here's why people are angry",
+      "source": "ABC News",
+      "date": "16 May 2026, 19:19",
+      "fetched_iso": "2026-05-16T19:19:49",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/controversies-sparked-by-trumps-reflecting-pool-paint-job/106687654",
+      "image": "https://live-production.wcms.abc-cdn.net.au/6601855ba92f1e284ddda508f1ebfa4f?impolicy=wcms_crop_resize&cropH=3334&cropW=2501&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Donald Trump has chosen a new colour for Washington DC's Lincoln Memorial Reflecting Pool. Here are three reasons it's proving to be controversial.",
+      "summary": "The Lincoln Memorial Reflecting Pool will soon be \"American flag blue\", Donald Trump says."
+    },
+    {
+      "title": "Live: Delta Goodrem takes fourth spot in Eurovision 2026 as Bulgaria wins",
+      "source": "ABC News",
+      "date": "16 May 2026, 18:33",
+      "fetched_iso": "2026-05-16T18:33:47",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/eurovision-2026-song-contest-grand-final-live-blog/106679928",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5472e6ef4fe848bc8d2f81b8ad449add?impolicy=wcms_crop_resize&cropH=2352&cropW=1764&xPos=882&yPos=0&width=862&height=1149",
+      "body": "Delta Goodrem’s vocals kept Australia among the favourites during the vote count, securing a fourth-place finish. Follow live.",
+      "summary": "DARA, representing Bulgaria, the winner of the 2026 Eurovision Song Contest, holds the trophy during the Grand Final in Vienna, Austria, May 17, 2026."
+    },
+    {
+      "title": "Taiwan remains committed to status quo after Trump's China trip",
+      "source": "ABC News",
+      "date": "16 May 2026, 21:30",
+      "fetched_iso": "2026-05-16T21:30:04",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-17/taiwan-asserts-its-independence-after-trump-visits-china/106689078",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5394a3c98a750896cf7f17cf49cc6cda?impolicy=wcms_crop_resize&cropH=1003&cropW=752&xPos=609&yPos=0&width=862&height=1149",
+      "body": "The Taiwanese government responds after US President Donald Trump's trip to China and his call for the two countries to \"cool down\".",
+      "summary": "Donald Trump says he wants both China and Taiwan to \"cool down\"."
+    },
+    {
+      "title": "Top Hamas military leader killed in Israeli air strikes, official confirms",
+      "source": "ABC News",
+      "date": "16 May 2026, 12:14",
+      "fetched_iso": "2026-05-16T12:14:03",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/hamas-military-leader-killed-israeli-air-strikes-gaza/106688480",
+      "image": "https://live-production.wcms.abc-cdn.net.au/3fd5c2af61cae3684356ab9d5de5b1b8?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Izz al-Din al-Haddad is the most senior Hamas official to be killed by Israel since a US-backed ceasefire agreement meant to halt fighting was implemented in October.",
+      "summary": "A vehicle targeted in one of two Israeli air strikes on Friday intended to kill Hamas's military commander."
+    },
+    {
+      "title": "Melbourne City claims ALW championship as Matildas stars shine against Phoenix",
+      "source": "ABC News",
+      "date": "16 May 2026, 09:27",
+      "fetched_iso": "2026-05-16T09:27:33",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/melbourne-city-win-alw-championship/106688420",
+      "image": "https://live-production.wcms.abc-cdn.net.au/91951b2c6d932eb2d55e020e8ad94969?impolicy=wcms_crop_resize&cropH=2050&cropW=1538&xPos=463&yPos=89&width=862&height=1149",
+      "body": "Sensational strikes from young stars Holly McNamara and Leticia McKenna have helped Melbourne City to a record-equalling fifth A-League Women championship.",
+      "summary": "City claimed a fifth championship on Saturday."
+    },
+    {
+      "title": "Taylor vows to amend Sex Discrimination Act following 'Tickle v Giggle' ruling",
+      "source": "ABC News",
+      "date": "16 May 2026, 07:06",
+      "fetched_iso": "2026-05-16T07:06:37",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/opposition-leader-angus-taylor-vows-amend-sex-discrimination-act/106688258",
+      "image": "https://live-production.wcms.abc-cdn.net.au/98dc8af337c6eeb4bdd3bc51feb5106a?impolicy=wcms_crop_resize&cropH=3294&cropW=2470&xPos=1691&yPos=0&width=862&height=1149",
+      "body": "Opposition Leader Angus Taylor has vowed to amend the Sex Discrimination Act after the Federal Court upheld a landmark ruling that the exclusion of a transgender woman from a female-only app was discriminatory.",
+      "summary": "Angus Taylor has vowed to amend Australia’s Sex Discrimination Act to include a definition of biological sex."
+    },
+    {
+      "title": "Porepunkah property owner makes new claims about Dezi Freeman incident",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:38",
+      "fetched_iso": "2026-05-16T04:38:02",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/porepunkah-property-owner-andrew-swift-dezi-freeman-video/106687896",
+      "image": "https://live-production.wcms.abc-cdn.net.au/090e438e92a6243b6775a41d7ba61b72?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=555&yPos=0&width=862&height=1149",
+      "body": "The owner of the Porepunkah property where Dezi Freeman shot two police officers says he rang and spoke to Freeman soon after the shooting.",
+      "summary": "Andrew Swift has made new claims in a video recollecting the day police entered his Porepunkah property to arrest Dezi Freeman."
+    },
+    {
+      "title": "Origin hopefuls stand up as Cowboys coach hails 'gritty' win",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:27",
+      "fetched_iso": "2026-05-16T04:27:38",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/nrl-live-updates-tigers-sea-eagles-roosters-cowboys-eels-storm/106683340",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b27718d6e4386d6436ff1b1799844af4?impolicy=wcms_crop_resize&cropH=2610&cropW=1958&xPos=1291&yPos=0&width=862&height=1149",
+      "body": "Todd Payten said his side's victory over the Roosters was \"as good a win as I've had\" with the club as Melbourne notched back-to-back wins after a messy 34-8 victory over Parramatta and the Sea Eagles thrash Wests Tigers in Magic Round at Lang Park.",
+      "summary": "North Queensland fought back from an early sin binning to stun the Roosters before half time."
+    },
+    {
+      "title": "Trump says the US and Nigeria have killed second-in-command ISIS leader",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:51",
+      "fetched_iso": "2026-05-16T03:51:49",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/trump-says-the-us-has-killed-second-in-command-isis-leader/106688110",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2dca8952d6ad440dcc0731411b8cf00e?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=998&yPos=0&width=862&height=1149",
+      "body": "US President Donald Trump says American and Nigerian forces have killed the second-in-command leader of ISIS.",
+      "summary": "President Donald Trump says a major ISIS leader has been killed."
+    },
+    {
+      "title": "How Narendra Modi is turning India into a one-party nation",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:19",
+      "fetched_iso": "2026-05-16T03:19:03",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/narendra-modi-india-bharatiya-janata-party-win-influence/106651922",
+      "image": "https://live-production.wcms.abc-cdn.net.au/d1af3498a54e4322beaecb6b990e87c7?impolicy=wcms_crop_resize&cropH=2646&cropW=1985&xPos=996&yPos=0&width=862&height=1149",
+      "body": "How Prime Minister Narendra Modi is turning India into a one-party nation.",
+      "summary": "Narendra Modi says the latest election shows India's democracy is vibrant."
+    },
+    {
+      "title": "Live: Blues claim spirited victory over Dogs to begin post-Voss life in style",
+      "source": "ABC News",
+      "date": "16 May 2026, 02:52",
+      "fetched_iso": "2026-05-16T02:52:27",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/afl-round-10-crows-roos-demons-hawks-blues-bulldogs-live-blog/106687692",
+      "image": "https://live-production.wcms.abc-cdn.net.au/e934355d8066efffda96f599874b9d22?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1238&yPos=0&width=862&height=1149",
+      "body": "Carlton beats the Western Bulldogs by 12 points in its first game since Michael Voss left the club, while Melbourne upsets Hawthorn in style. Follow live.",
+      "summary": "Debutant Jack Ison was a bright spark for Carlton, and kicked the game-sealing goal."
+    },
+    {
+      "title": "After her husband's death, Annie discovered he had placed 100 bets a day",
+      "source": "ABC News",
+      "date": "15 May 2026, 22:31",
+      "fetched_iso": "2026-05-15T22:31:01",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/gambling-addiction-suicide-stronger-regulation-campaign/106685538",
+      "image": "https://live-production.wcms.abc-cdn.net.au/c869ab141680d1ce3d9cc53815c768fb?impolicy=wcms_crop_resize&cropH=2811&cropW=2108&xPos=1706&yPos=0&width=862&height=1149",
+      "body": "Annie Ashton's husband took his own life after suffering from a gambling addiction. Since then, she's campaigned for stronger regulation of the gambling industry and greater awareness of gambling harm.",
+      "summary": "Ms Ashton has been campaigning for stronger gambling regulations since her husband's death."
+    },
+    {
+      "title": "Counting underway in Stafford by-election as early results show swing toward LNP",
+      "source": "ABC News",
+      "date": "15 May 2026, 21:06",
+      "fetched_iso": "2026-05-15T21:06:08",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/stafford-seat-brisbane-by-election-voting-polling-day/106683322",
+      "image": "https://live-production.wcms.abc-cdn.net.au/076aed725ae9abd0a7937bd5a779c06b?impolicy=wcms_crop_resize&cropH=840&cropW=630&xPos=385&yPos=0&width=862&height=1149",
+      "body": "The votes are being tallied in the Queensland state seat of Stafford, with Labor's Luke Richmond and the LNP's Fiona Hammond locked in a tight battle.",
+      "summary": "LNP's Fiona Hammond and Labor's Luke Richmond are vying to be elected as the member for Stafford at Saturday's by-election."
+    },
+    {
+      "title": "Friends witness 'horrific' shark attack that claimed life of spearfishing mate",
       "source": "ABC News",
       "date": "16 May 2026, 02:49",
       "fetched_iso": "2026-05-16T02:49:42",
       "category": "Top Stories",
       "url": "https://www.abc.net.au/news/2026-05-16/man-attacked-by-shark-rottnest-island/106688012",
-      "image": "https://live-production.wcms.abc-cdn.net.au/eef9973a26930f826d60cea3a91f059b?impolicy=wcms_crop_resize&cropH=544&cropW=408&xPos=276&yPos=0&width=862&height=1149",
-      "body": "A man in his thirties has been seriously injured by a shark off Rottnest Island, on Perth's coast.",
-      "summary": "A man has been attacked by a shark at Rottnest Island."
+      "image": "https://live-production.wcms.abc-cdn.net.au/928d095154f109cce22f2eb44a3009a6?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=555&yPos=0&width=862&height=1149",
+      "body": "A 38-year-old man had been spearfishing with friends when he was killed in a shark attack off Rottnest Island on Saturday morning.",
+      "summary": "The man was attacked at Geordie Bay on the north of the island."
     },
     {
-      "title": "'The sword is still hanging': Farmers in limbo as Inland Rail land sits idle",
+      "title": "Taylor vows to amend Sex Discrimination Act following ‘Tickle v Giggle’ ruling",
       "source": "ABC News",
-      "date": "16 May 2026, 01:57",
-      "fetched_iso": "2026-05-16T01:57:07",
+      "date": "16 May 2026, 07:06",
+      "fetched_iso": "2026-05-16T07:06:37",
       "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-16/farmers-left-in-limbo-as-100m-in-inland-rail-land-sits-idle/106682610",
-      "image": "https://live-production.wcms.abc-cdn.net.au/5890114c3fe21959271575fc31bd246a?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
-      "body": "For more than a decade, Australians in the path of the proposed Inland Rail corridor have wondered if the nation-building project will force them from their homes. Although the northern section has been scrapped, the legacy of its blueprints is still fuelling anxiety.",
-      "summary": "Tim Durre grows crops for hay at his farm in Charlton, Queensland."
+      "url": "https://www.abc.net.au/news/2026-05-16/opposition-leader-angus-taylor-vows-to-amend-sex-discrimination-/106688258",
+      "image": "https://live-production.wcms.abc-cdn.net.au/98dc8af337c6eeb4bdd3bc51feb5106a?impolicy=wcms_crop_resize&cropH=3294&cropW=2470&xPos=1691&yPos=0&width=862&height=1149",
+      "body": "Opposition leader Angus Taylor has vowed to amend the Sex Discrimination Act after the Federal Court upheld a landmark ruling that the exclusion of a transgender woman from a female-only app was discriminatory.",
+      "summary": "Angus Taylor has vowed to amend Australia’s Sex Discrimination Act to include a definition of biological sex."
+    },
+    {
+      "title": "Where to watch Delta Goodrem's Eurovision final performance",
+      "source": "ABC News",
+      "date": "16 May 2026, 02:02",
+      "fetched_iso": "2026-05-16T02:02:57",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/eurovision-2026-where-to-watch-how-to-vote-delta-goodrem/106682798",
+      "image": "https://live-production.wcms.abc-cdn.net.au/24505efa137fa429ca1b38729fd9d2c1?impolicy=wcms_crop_resize&cropH=853&cropW=640&xPos=320&yPos=0&width=862&height=1149",
+      "body": "The Eurovision Song Contest is on this Sunday, which will mean an early start for superfans of the pop culture phenomenon.",
+      "summary": "Delta Goodrem will be flying the flag for Australia this weekend."
+    },
+    {
+      "title": "The most difficult question faced by antisemitism royal commission",
+      "source": "ABC News",
+      "date": "15 May 2026, 18:52",
+      "fetched_iso": "2026-05-15T18:52:03",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/first-block-antisemitism-royal-commission-wrap/106675318",
+      "image": "https://live-production.wcms.abc-cdn.net.au/8b3deed11fe5c8ce64c72f48911e2dfb?impolicy=wcms_crop_resize&cropH=2180&cropW=1635&xPos=817&yPos=0&width=862&height=1149",
+      "body": "Jewish Australians told the royal commission that antisemitism has spread into everyday life. But whether the inquiry can handle what it has promised to confront remains to be seen.",
+      "summary": "Some of sessions in the next block of public hearings could be heard behind closed doors."
+    },
+    {
+      "title": "Is the US-China rivalry over?",
+      "source": "ABC News",
+      "date": "15 May 2026, 22:13",
+      "fetched_iso": "2026-05-15T22:13:22",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/us-donald-trump-china-xi-jinping-end-unipolar-age-beijing/106687004",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b9a1953687487dcead9ff494feb8af6c?impolicy=wcms_crop_resize&cropH=2675&cropW=2006&xPos=1162&yPos=0&width=862&height=1149",
+      "body": "This week in Beijing, Donald Trump and Xi Jinping quietly admitted something the world has been slow to grasp: neither can afford a collision between their two countries.",
+      "summary": "US President Donald Trump and Chinese President Xi Jinping have agreed to manage their rivalry rather than let it manage them."
+    },
+    {
+      "title": "Who was still watching Harvey Weinstein almost a decade on from #MeToo?",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:23",
+      "fetched_iso": "2026-05-16T04:23:32",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/harvey-weinstein-trial-and-me-too-legacy-on-trial/106638150",
+      "image": "https://live-production.wcms.abc-cdn.net.au/328096e94e6cb70be728c29bc65de8af?impolicy=wcms_crop_resize&cropH=1223&cropW=917&xPos=459&yPos=0&width=862&height=1149",
+      "body": "Almost a decade after the #MeToo movement began, disgraced producer Harvey Weinstein's latest trial took place in a new climate. But supporters says its significance remains.",
+      "summary": "This April, Harvey Weinstein entered a courtroom again, facing retrial for a 2013 rape charge."
     },
     {
       "title": "PM says fuel supply now above pre-war levels, no word on extending excise cut",
@@ -32,6 +362,61 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/7a77df92f1af986f53598304968d8ca3?impolicy=wcms_crop_resize&cropH=3512&cropW=2634&xPos=1803&yPos=0&width=862&height=1149",
       "body": "Australia's fuel supply is now greater than it was before the Iran war broke out in late February, the prime minister has said, while refusing to indicate whether the fuel excise cut will be extended.",
       "summary": "Anthony Albanese says the country's fuel supply is now greater than it was before the Iran war."
+    },
+    {
+      "title": "Wayne Swan slams 'view from Mar-a-Lago' as Labor faces another test",
+      "source": "ABC News",
+      "date": "15 May 2026, 19:00",
+      "fetched_iso": "2026-05-15T19:00:00",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/wayne-swan-speech-populism-one-nation-labor-party/106684910",
+      "image": "https://live-production.wcms.abc-cdn.net.au/de1c603f0f0465e3120475fac920d88c?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Labor and the Coalition are both acutely mindful of One Nation's rise and its determination to take a decisive role in a future conservative government.",
+      "summary": "Former treasurer and outgoing Labor national president Wayne Swan told Labor's true believers that the task ahead is about conviction."
+    },
+    {
+      "title": "Kalgoorlie's 'shovel ready' water project misses out in federal budget",
+      "source": "ABC News",
+      "date": "16 May 2026, 02:56",
+      "fetched_iso": "2026-05-16T02:56:22",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/water-bank-project-kalgoorlie-boulder-misses-out-federal-budget/106674432",
+      "image": "https://live-production.wcms.abc-cdn.net.au/1d77cf89668b0314946b5c31aeae36c5?impolicy=wcms_crop_resize&cropH=1483&cropW=1112&xPos=480&yPos=0&width=862&height=1149",
+      "body": "A project designed to drought-proof Australia's biggest outback city has missed out on funding in this week's federal budget, with the City of Kalgoorlie-Boulder set to review its ambitious plans for what has been dubbed Water Bank.",
+      "summary": "Kalgoorlie-Boulder is Australia's biggest outback city with a population of about 30,000 people."
+    },
+    {
+      "title": "Jane Caro reckons Australia is kidding itself about private schools",
+      "source": "ABC News",
+      "date": "15 May 2026, 19:00",
+      "fetched_iso": "2026-05-15T19:00:00",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/the-interview-jane-caro-public-private-school-education-debate/106675430",
+      "image": "https://live-production.wcms.abc-cdn.net.au/f07dd7b965882295cef7fd057ed23b53?impolicy=wcms_crop_resize&cropH=2560&cropW=1920&xPos=0&yPos=0&width=862&height=1149",
+      "body": "\"There are absolutely no statistics that say that because you sent your kid to a private school they're going to do better in life.\"",
+      "summary": "Jane Caro's new book walks through the decades of policy decisions that have created inequality in Australia's education system."
+    },
+    {
+      "title": "Scottish ref under police protection as Celtic penalty sparks threats",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:01",
+      "fetched_iso": "2026-05-16T03:01:04",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/scottish-fa-referee-police-protection-celtic-penalty-threats/106687974",
+      "image": "https://live-production.wcms.abc-cdn.net.au/122c9f259dd67b096cebd8ff67350d6e?impolicy=wcms_crop_resize&cropH=2592&cropW=1944&xPos=1254&yPos=0&width=862&height=1149",
+      "body": "Scottish FA condemns \"vigilantism\" after a referee's personal details are leaked online following a highly controversial penalty in the Scottish Premier League.",
+      "summary": "Referee John Beaton caused a storm of controversy by awarding a penalty in added time between Celtic and Motherwell in the Scottish Premier League."
+    },
+    {
+      "title": "'The sword is still hanging': Farmers in limbo as Inland Rail land sits idle",
+      "source": "ABC News",
+      "date": "16 May 2026, 01:57",
+      "fetched_iso": "2026-05-16T01:57:07",
+      "category": "Top Stories",
+      "url": "https://www.abc.net.au/news/2026-05-16/farmers-left-in-limbo-as-100m-in-inland-rail-land-sits-idle/106682610",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5890114c3fe21959271575fc31bd246a?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "For more than a decade, Australians in the path of the proposed Inland Rail corridor have wondered if the nation-building project will force them from their homes. Although the northern section has been scrapped, the legacy of its blueprints is still fuelling anxiety.",
+      "summary": "Tim Durre grows crops for hay at his farm in Charlton, Queensland."
     },
     {
       "title": "Israel targets Hamas leader, kills seven Palestinians",
@@ -54,61 +439,6 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/4aeca57d99e62c49a0fd571624635139?impolicy=wcms_crop_resize&cropH=2010&cropW=1508&xPos=0&yPos=0&width=862&height=1149",
       "body": "But the lawyer who led the class action in the COVID-19 era Ruby Princess case has warned the cruise company will likely argue Australian law had no jurisdiction over the matter.",
       "summary": "The passengers and the minibus driver were travelling to the quarantine facility on Friday."
-    },
-    {
-      "title": "After her husband's death, Annie discovered he had placed 100 bets a day",
-      "source": "ABC News",
-      "date": "15 May 2026, 22:31",
-      "fetched_iso": "2026-05-15T22:31:01",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-16/gambling-addiction-suicide-stronger-regulation-campaign/106685538",
-      "image": "https://live-production.wcms.abc-cdn.net.au/c869ab141680d1ce3d9cc53815c768fb?impolicy=wcms_crop_resize&cropH=2811&cropW=2108&xPos=1706&yPos=0&width=862&height=1149",
-      "body": "Annie Ashton's husband took his own life after suffering from a gambling addiction. Since then, she's campaigned for stronger regulation of the gambling industry and greater awareness of gambling harm.",
-      "summary": "Ms Ashton has been campaigning for stronger gambling regulations since her husband's death."
-    },
-    {
-      "title": "The United States and China just made a pact",
-      "source": "ABC News",
-      "date": "15 May 2026, 22:13",
-      "fetched_iso": "2026-05-15T22:13:22",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-16/us-donald-trump-china-xi-jinping-end-unipolar-age-beijing/106687004",
-      "image": "https://live-production.wcms.abc-cdn.net.au/b9a1953687487dcead9ff494feb8af6c?impolicy=wcms_crop_resize&cropH=2675&cropW=2006&xPos=1162&yPos=0&width=862&height=1149",
-      "body": "This week in Beijing, Donald Trump and Xi Jinping quietly admitted something the world has been slow to grasp: neither can afford a collision between their two countries.",
-      "summary": "US President Donald Trump and Chinese President Xi Jinping have agreed to manage their rivalry rather than let it manage them."
-    },
-    {
-      "title": "Wayne Swan slams 'view from Mar-a-Lago' as Labor faces another test",
-      "source": "ABC News",
-      "date": "15 May 2026, 19:00",
-      "fetched_iso": "2026-05-15T19:00:00",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-16/wayne-swan-speech-populism-one-nation-labor-party/106684910",
-      "image": "https://live-production.wcms.abc-cdn.net.au/de1c603f0f0465e3120475fac920d88c?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
-      "body": "Labor and the Coalition are both acutely mindful of One Nation's rise and its determination to take a decisive role in a future conservative government.",
-      "summary": "Former treasurer and outgoing Labor national president Wayne Swan told Labor's true believers that the task ahead is about conviction."
-    },
-    {
-      "title": "Jane Caro reckons Australia is kidding itself about private schools",
-      "source": "ABC News",
-      "date": "15 May 2026, 19:00",
-      "fetched_iso": "2026-05-15T19:00:00",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-16/the-interview-jane-caro-public-private-school-education-debate/106675430",
-      "image": "https://live-production.wcms.abc-cdn.net.au/f07dd7b965882295cef7fd057ed23b53?impolicy=wcms_crop_resize&cropH=2560&cropW=1920&xPos=0&yPos=0&width=862&height=1149",
-      "body": "\"There are absolutely no statistics that say that because you sent your kid to a private school they're going to do better in life.\"",
-      "summary": "Jane Caro's new book walks through the decades of policy decisions that have created inequality in Australia's education system."
-    },
-    {
-      "title": "The most difficult question faced by antisemitism royal commission",
-      "source": "ABC News",
-      "date": "15 May 2026, 18:52",
-      "fetched_iso": "2026-05-15T18:52:03",
-      "category": "Top Stories",
-      "url": "https://www.abc.net.au/news/2026-05-16/first-block-antisemitism-royal-commission-wrap/106675318",
-      "image": "https://live-production.wcms.abc-cdn.net.au/08531142c9b44b19146d6bc118415f0e?impolicy=wcms_crop_resize&cropH=2560&cropW=1920&xPos=1088&yPos=0&width=862&height=1149",
-      "body": "Jewish Australians told the royal commission that antisemitism has spread into everyday life. But whether the inquiry can handle what it has promised to confront remains to be seen.",
-      "summary": "The royal commission is examining the definition of antisemitism."
     },
     {
       "title": "Netanyahu's attempts to corral the UAE put Middle East politics on display",
@@ -1235,6 +1565,413 @@
   ],
   "Australia": [
     {
+      "title": "Love story: How a punk grandma and an Aussie rocker found harmony",
+      "source": "ABC News",
+      "date": "17 May 2026, 02:00",
+      "fetched_iso": "2026-05-17T02:00:00",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/love-story-how-an-aussie-rocker-punk-grandma-found-harmony/106562184",
+      "image": "https://live-production.wcms.abc-cdn.net.au/fe66e058e43dbcefcd657f724e7b3449?impolicy=wcms_crop_resize&cropH=1001&cropW=751&xPos=375&yPos=0&width=862&height=1149",
+      "body": "Singer/guitarist Mick Medew and self-proclaimed punk grandma Ursula Collie were in their mid-50s when they met and bonded over a mutual love of live music. A decade on, they're musical and life partners.",
+      "summary": "Mick Medew had accepted he was going to remain single before he met Ursula Collie."
+    },
+    {
+      "title": "Teenage pedestrian dies after being hit in Perth car park",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:39",
+      "fetched_iso": "2026-05-17T01:39:08",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/teenage-pedestrian-dies-after-being-hit-in-perth-car-park/106689480",
+      "image": "https://live-production.wcms.abc-cdn.net.au/e7f80da2b16c6d9563a3648cbfbb6001?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=377&yPos=0&width=862&height=1149",
+      "body": "A 19-year-old driver is being questioned by police after a teenager is struck by a car in a Perth shopping centre car park and dies in hospital.",
+      "summary": "Police remained at the car park in Bentley on Sunday, examining the scene."
+    },
+    {
+      "title": "Cakes and connection as migrant women get skills in kitchen and beyond",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:32",
+      "fetched_iso": "2026-05-17T01:32:01",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/beyond-the-kitchen-gives-migrant-women-cooking-skills-and-more/106684492",
+      "image": "https://live-production.wcms.abc-cdn.net.au/c70c39411bf0ff349917f1771ed139be?impolicy=wcms_crop_resize&cropH=1706&cropW=1280&xPos=640&yPos=0&width=862&height=1149",
+      "body": "Beyond the Kitchen, a course run by Multicultural Services Centre of WA, gives women from migrant, refugee and asylum seeker backgrounds a safe space to develop friendships and hospitality business skills.",
+      "summary": "The women refine their cooking skills, while getting the chance to share it with others through opportunities like catering."
+    },
+    {
+      "title": "Labor claims victory in Stafford by-election",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:28",
+      "fetched_iso": "2026-05-17T01:28:53",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/labor-claims-victory-stafford-by-election-luke-richmond/106689404",
+      "image": "https://live-production.wcms.abc-cdn.net.au/cb15c4cd0dadb0302e3e7d781c150f0d?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=344&yPos=0&width=862&height=1149",
+      "body": "Labor candidate Luke Richmond claims victory over the LNP's Fiona Hammond in a tight race in the north Brisbane electorate of Stafford.",
+      "summary": "Queensland Labor candidate Luke Richmond has claimed victory in the Stafford by-election."
+    },
+    {
+      "title": "Ebola kills 87 people as cases continue to rise in Congo",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:17",
+      "fetched_iso": "2026-05-17T01:17:49",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/congolese-report-constant-burials-as-deaths-in-ebola-outbreak/106689434",
+      "image": "https://live-production.wcms.abc-cdn.net.au/cc873be7b17b109fec3abcc91920ce0c?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1187&yPos=0&width=862&height=1149",
+      "body": "At least 87 deaths have been reported in Congo's new Ebola disease outbreak, as health authorities warn the strain \"has no vaccine, no specific treatment\".",
+      "summary": "Health officials are screening people in Kampala, Uganda, amid concerns the disease could rapidly spread."
+    },
+    {
+      "title": "Cameron Smith springs to life at golf major after rough week",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:16",
+      "fetched_iso": "2026-05-17T01:16:02",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/cameron-smith-min-woo-lee-in-pga-championship-contention/106689354",
+      "image": "https://live-production.wcms.abc-cdn.net.au/96277d3703d1227292430912c6efed4c?impolicy=wcms_crop_resize&cropH=3122&cropW=2342&xPos=2124&yPos=0&width=862&height=1149",
+      "body": "Cameron Smith makes his move in the third round of the PGA Championship as he tries to end his major drought in the same week he cut ties with long-time coach Grant Field.",
+      "summary": "Cameron Smith ended his drought after missing the cut at six straight majors."
+    },
+    {
+      "title": "Police reopen cold case into armed robbery at Melbourne shopping centre",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:15",
+      "fetched_iso": "2026-05-17T01:15:01",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/police-reopen-cold-case-into-armaguard-robbery-chadstone-cinema/106689162",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2cf5776138e501bd049bab7a5b9bb3c3?impolicy=wcms_crop_resize&cropH=1552&cropW=1164&xPos=151&yPos=0&width=862&height=1149",
+      "body": "Police are appealing for help to find the man believed to be behind a 1994 armed robbery at a Chadstone cinema that left three other men with gunshot wounds.",
+      "summary": "Police are appealing for help to find the man believed to be behind the 1994 armed robbery."
+    },
+    {
+      "title": "Treasurer defends impact of budget on young investors",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:09",
+      "fetched_iso": "2026-05-17T01:09:30",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/jim-chalmers-defends-impact-of-tax-changes-on-young-investors/106689268",
+      "image": "https://live-production.wcms.abc-cdn.net.au/96e669b1ef77e14cdae9f16ad85067b4?impolicy=wcms_crop_resize&cropH=3512&cropW=2634&xPos=1803&yPos=0&width=862&height=1149",
+      "body": "Jim Chalmers says it is better for young people to invest based on economic rather than tax outcomes, and argued they can still access negative gearing by buying up new homes.",
+      "summary": "Jim Chalmers argues it is better for young people to invest based on economic rather than tax outcomes."
+    },
+    {
+      "title": "Tourism operators priced out of own industry conference",
+      "source": "ABC News",
+      "date": "17 May 2026, 01:03",
+      "fetched_iso": "2026-05-17T01:03:59",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/carnarvon-tourist-operators-call-for-more-opportunities/106675912",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2c85a328c096c83ba897638281c789b1?impolicy=wcms_crop_resize&cropH=2667&cropW=2000&xPos=1000&yPos=0&width=862&height=1149",
+      "body": "Struggling businesses in Carnarvon, reliant on tourism, say they want more support to be involved with the 2026 WA Tourism Conference that the region is hosting.",
+      "summary": "Cyclone Narelle and high fuel costs have negatively impacted tourism in Carnarvon."
+    },
+    {
+      "title": "Reef restoration boosts Swan River's health",
+      "source": "ABC News",
+      "date": "17 May 2026, 00:30",
+      "fetched_iso": "2026-05-17T00:30:01",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/restoration-of-reefs-improves-swan-river-health/106681406",
+      "image": "https://live-production.wcms.abc-cdn.net.au/49c644ccf5e594d04a9569fa63d1e9df?impolicy=wcms_crop_resize&cropH=4180&cropW=3135&xPos=1565&yPos=0&width=862&height=1149",
+      "body": "Work is underway to restore Perth's Swan River and help its severely degraded riverbed, where 1 million tonnes of limestone was taken in the 1990s.",
+      "summary": "Brett Dal Pozzo says shellfish reefs are important for the river's health."
+    },
+    {
+      "title": "WA's first pair of fainting goats settle into new home",
+      "source": "ABC News",
+      "date": "17 May 2026, 00:00",
+      "fetched_iso": "2026-05-17T00:00:42",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/western-australia-first-fainting-goat-breeders/106678976",
+      "image": "https://live-production.wcms.abc-cdn.net.au/8530907023e95e140258ded7f1e7bfda?impolicy=wcms_crop_resize&cropH=2614&cropW=1961&xPos=650&yPos=662&width=862&height=1149",
+      "body": "The goats, which \"faint\" when stressed or excited, have travelled to a farm near Busselton, where they will be bred as pets.",
+      "summary": "The goats, which \"faint\" when stressed or excited, have travelled to a farm near Busselton, where they will be bred as pets."
+    },
+    {
+      "title": "Police charge Qld man with murder after alleged assault",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:59",
+      "fetched_iso": "2026-05-16T23:59:35",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/bundaberg-murder-charge-gooburrum/106689362",
+      "image": "https://live-production.wcms.abc-cdn.net.au/72fe3383bc0465f84a89a163ebfab843?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=579&yPos=0&width=862&height=1149",
+      "body": "The 33-year-old Bundaberg North man was refused police bail after being charged with murder.",
+      "summary": "Emergency services were called to the Gooburrum property about 8pm on Friday."
+    },
+    {
+      "title": "Ballads, boycotts and … Bangaranga? Here's what you missed from Eurovision",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:43",
+      "fetched_iso": "2026-05-16T23:43:10",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/eurovision-key-takeaways/106686378",
+      "image": "https://live-production.wcms.abc-cdn.net.au/fd62865f72bb71e2aa2861e918340b20?impolicy=wcms_crop_resize&cropH=2287&cropW=1715&xPos=1283&yPos=0&width=862&height=1149",
+      "body": "Slept through Eurovision this year? Here's what you missed from Europe's favourite song contest, in Vienna.",
+      "summary": "Delta Goodrem's staging reflected her song, coming to a crescendo in the meeting of the Moon and the Sun."
+    },
+    {
+      "title": "Pro-Palestine march comes face-to-face with anti-immigration protest in London",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:29",
+      "fetched_iso": "2026-05-16T23:29:05",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/tens-of-thousands-march-in-london-pro-palestine-anti-immigration/106689212",
+      "image": "https://live-production.wcms.abc-cdn.net.au/522cf0672673d33a895f70b7f2cc5faf?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Tens of thousands of people have marched through central London in two separate protests: one against immigration and another in support of Palestinians.",
+      "summary": "Demonstrators carry Palestinian flags and placards at a march to mark Nakba Day, commemorating Palestinians' loss of land in 1948."
+    },
+    {
+      "title": "Sydney lawyer ditches mortgage 'stress' for van life",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:28",
+      "fetched_iso": "2026-05-16T23:28:13",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/sydney-lawyer-lives-in-van-due-to-mortgage-stress/106629820",
+      "image": "https://live-production.wcms.abc-cdn.net.au/101859b08685d232d51efdfca1667167?impolicy=wcms_crop_resize&cropH=3024&cropW=2268&xPos=782&yPos=0&width=862&height=1149",
+      "body": "Phoebe Macdougall says she hated living with a mortgage, so she is trying van life instead.",
+      "summary": "Phoebe Macdougall enjoys life on the road, and visits a number of campsites every year."
+    },
+    {
+      "title": "'Not even one beer' for Man City after FA Cup triumph over Chelsea",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:17",
+      "fetched_iso": "2026-05-16T23:17:50",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/manchester-city-fa-cup-final-victory-over-chelsea/106689266",
+      "image": "https://live-production.wcms.abc-cdn.net.au/bfd57a73034f6415735ab1f54634a254?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1461&yPos=0&width=862&height=1149",
+      "body": "Manchester City's FA Cup celebrations after a 1-0 win over Chelsea will be low key, as the team refocuses on its tight Premier League title race with Arsenal.",
+      "summary": "Matheus Nunes may not have got Guardiola's memo."
+    },
+    {
+      "title": "Bushwalker takes photo of rare bug in the wild",
+      "source": "ABC News",
+      "date": "16 May 2026, 22:59",
+      "fetched_iso": "2026-05-16T22:59:46",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/bug-species-inaturalist-walking-bush-insect-discovery-photo/106679772",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2d4e4a86230363f8a324b53c61de4271?impolicy=wcms_crop_resize&cropH=2813&cropW=2110&xPos=925&yPos=0&width=862&height=1149",
+      "body": "There were no known photographs taken in the wild of the Myrmeleon houstoni until a regional Victorian woman snapped a photo of one while on a bushwalk.",
+      "summary": "Judy Allen has taken the first known image of the Myremeleon Houstoni in the wild."
+    },
+    {
+      "title": "Caldwell becomes second-fastest Aussie with Diamond League podium",
+      "source": "ABC News",
+      "date": "16 May 2026, 22:34",
+      "fetched_iso": "2026-05-16T22:34:43",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/abbey-caldwell-1500m-diamond-league-bronze/106689168",
+      "image": "https://live-production.wcms.abc-cdn.net.au/0982ce546751d13d7b3d4d1098618dd8?impolicy=wcms_crop_resize&cropH=2667&cropW=2000&xPos=962&yPos=0&width=862&height=1149",
+      "body": "Abbey Caldwell beats four other Australians to third place in the women's 1,500m final on the first night of Diamond League racing for the year.",
+      "summary": "Abbey Caldwell (second from left) is the second-fastest Australian woman over 1,500m."
+    },
+    {
+      "title": "Woman killed in bus crash asked to be organ donor just days earlier",
+      "source": "ABC News",
+      "date": "16 May 2026, 22:33",
+      "fetched_iso": "2026-05-16T22:33:40",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/womans-death-inspires-family-to-invest-in-youth-sports/106687784",
+      "image": "https://live-production.wcms.abc-cdn.net.au/351db1d9b8f0924055e15a15623bac52?impolicy=wcms_crop_resize&cropH=3072&cropW=2304&xPos=1220&yPos=0&width=862&height=1149",
+      "body": "Uqasha Imran was fatally injured when a bus driver struck her on her motorcycle in 2025. Now, her family are promoting the importance of organ donation while helping other young athletes like her.",
+      "summary": "Imran Amjad says hearing from one of the people his daughter saved has helped the family."
+    },
+    {
+      "title": "Gold Coast e-bike crackdown 'not effective', council report finds",
+      "source": "ABC News",
+      "date": "16 May 2026, 22:29",
+      "fetched_iso": "2026-05-16T22:29:40",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/gold-coast-e-bike-crackdown-not-effective-council-report/106687672",
+      "image": "https://live-production.wcms.abc-cdn.net.au/1fab154f358f650845ae3f2f8085a3f2?impolicy=wcms_crop_resize&cropH=720&cropW=540&xPos=270&yPos=0&width=862&height=1149",
+      "body": "A Gold Coast council report finds an e-bike crackdown has failed to significantly reduce anti-social behaviour, with many riders ignoring compliance officers.",
+      "summary": "The dangerous and illegal use of e-motorbikes has become more prevalent in recent years."
+    },
+    {
+      "title": "The darkness of a Tasmanian town's night sky could be protected",
+      "source": "ABC News",
+      "date": "16 May 2026, 22:24",
+      "fetched_iso": "2026-05-16T22:24:10",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/tasmania-ross-dark-sky-accreditation-tourism/106620330",
+      "image": "https://live-production.wcms.abc-cdn.net.au/e785fadb8c3c637206e2f9ae08a86625?impolicy=wcms_crop_resize&cropH=1249&cropW=937&xPos=673&yPos=0&width=862&height=1149",
+      "body": "The northern Tasmanian town of Ross is working to protect its night sky, a years-long process that would see it formally recognised for its darkness and clarity.",
+      "summary": "If successful, Ross will be the first town in Tasmanian to be accredited by Dark Sky International."
+    },
+    {
+      "title": "Welcome to campdraft school, where a new generation takes the reins",
+      "source": "ABC News",
+      "date": "16 May 2026, 21:58",
+      "fetched_iso": "2026-05-16T21:58:35",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/topar-campdrafting-clinic-riders-learn-sport/106583756",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b4df1f6f9ac541ddb4bd39f18cf91ba3?impolicy=wcms_crop_resize&cropH=3750&cropW=2813&xPos=1094&yPos=0&width=862&height=1149",
+      "body": "Amid the red dirt and flies of an outback stockyard, thrillseekers with a passion for horses learn about a quintessential Aussie sport.",
+      "summary": "Campdrafting involves a high level of horsemanship, speed and skill."
+    },
+    {
+      "title": "First Nations art collective calls for industry inquiry to protect artists",
+      "source": "ABC News",
+      "date": "16 May 2026, 21:33",
+      "fetched_iso": "2026-05-16T21:33:02",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-17/apy-art-collective-federal-inquiry-call/106647780",
+      "image": "https://live-production.wcms.abc-cdn.net.au/580cf04d4bcc5e5c9056e35c9a476665?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "APY Art Centre Collective members say a voluntary code of conduct isn't protecting artists from financial exploitation and misconduct in the industry.",
+      "summary": "The collective has art centres throughout regional South Australia and a studio gallery in Adelaide."
+    },
+    {
+      "title": "Top Hamas military leader killed in Israeli air strikes, official confirms",
+      "source": "ABC News",
+      "date": "16 May 2026, 12:14",
+      "fetched_iso": "2026-05-16T12:14:03",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/hamas-military-leader-killed-israeli-air-strikes-gaza/106688480",
+      "image": "https://live-production.wcms.abc-cdn.net.au/3fd5c2af61cae3684356ab9d5de5b1b8?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Izz al-Din al-Haddad is the most senior Hamas official to be killed by Israel since a US-backed ceasefire agreement meant to halt fighting was implemented in October.",
+      "summary": "A vehicle targeted in one of two Israeli air strikes on Friday intended to kill Hamas's military commander."
+    },
+    {
+      "title": "Melbourne City claims ALW championship as Matildas stars shine against Phoenix",
+      "source": "ABC News",
+      "date": "16 May 2026, 09:27",
+      "fetched_iso": "2026-05-16T09:27:33",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/melbourne-city-win-alw-championship/106688420",
+      "image": "https://live-production.wcms.abc-cdn.net.au/91951b2c6d932eb2d55e020e8ad94969?impolicy=wcms_crop_resize&cropH=2050&cropW=1538&xPos=463&yPos=89&width=862&height=1149",
+      "body": "Sensational strikes from young stars Holly McNamara and Leticia McKenna have helped Melbourne City to a record-equalling fifth A-League Women championship.",
+      "summary": "City claimed a fifth championship on Saturday."
+    },
+    {
+      "title": "Kohli to play 2027 World Cup only if he can add value",
+      "source": "ABC News",
+      "date": "16 May 2026, 07:28",
+      "fetched_iso": "2026-05-16T07:28:50",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/kohli-to-play-2027-world-cup-only-if-he-can-add-value/106688316",
+      "image": "https://live-production.wcms.abc-cdn.net.au/16cca2d8236b811113a2c14a6b7b7a2c?impolicy=wcms_crop_resize&cropH=3165&cropW=2374&xPos=577&yPos=0&width=862&height=1149",
+      "body": "Virat Kohli says if he plays in the 2027 ICC World Cup he will compete for \"every ball like it's the last ball\" - but vows if he can't add value to India's team he will not be there.",
+      "summary": "Virat Kohli is only playing in one-day cricket these days, and he says he will only play in next year's World Cup if he is convinced he can add value to India."
+    },
+    {
+      "title": "Taylor vows to amend Sex Discrimination Act following 'Tickle v Giggle' ruling",
+      "source": "ABC News",
+      "date": "16 May 2026, 07:06",
+      "fetched_iso": "2026-05-16T07:06:37",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/opposition-leader-angus-taylor-vows-amend-sex-discrimination-act/106688258",
+      "image": "https://live-production.wcms.abc-cdn.net.au/98dc8af337c6eeb4bdd3bc51feb5106a?impolicy=wcms_crop_resize&cropH=3294&cropW=2470&xPos=1691&yPos=0&width=862&height=1149",
+      "body": "Opposition Leader Angus Taylor has vowed to amend the Sex Discrimination Act after the Federal Court upheld a landmark ruling that the exclusion of a transgender woman from a female-only app was discriminatory.",
+      "summary": "Angus Taylor has vowed to amend Australia’s Sex Discrimination Act to include a definition of biological sex."
+    },
+    {
+      "title": "'Destroys trust in the system': Rally held for Isla Bell",
+      "source": "ABC News",
+      "date": "16 May 2026, 06:24",
+      "fetched_iso": "2026-05-16T06:24:20",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/isla-bell-vigil-melbourne-after-charges-dropped/106687772",
+      "image": "https://live-production.wcms.abc-cdn.net.au/073372b905e63915f4e06683e603a2c8?impolicy=wcms_crop_resize&cropH=3488&cropW=2616&xPos=946&yPos=0&width=862&height=1149",
+      "body": "A rally has been held for Isla Bell in Melbourne after friends and family were left devastated when murder and manslaughter charges were dropped against the man accused of killing the 19-year-old.",
+      "summary": "A vigil was held for 19-year-old Isla Bell, who was found dead in November last year."
+    },
+    {
+      "title": "Tasmania to close legal loophole to help child sex abuse survivors",
+      "source": "ABC News",
+      "date": "16 May 2026, 05:58",
+      "fetched_iso": "2026-05-16T05:58:31",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/tas-vicarious-liability-legislation-victim-survivor/106687870",
+      "image": "https://live-production.wcms.abc-cdn.net.au/72246301a2ffbc71f4f4b211c3abf23f?impolicy=wcms_crop_resize&cropH=4672&cropW=3504&xPos=2459&yPos=0&width=862&height=1149",
+      "body": "Tasmania will introduce laws to close a loophole which allows some organisations to avoid being liable for abuse perpetrated by individuals who aren't formal employees.",
+      "summary": "Advocate and victim survivor Steve Fisher, from Beyond Abuse, has welcomed Tasmania's newly proposed vicarious liability laws."
+    },
+    {
+      "title": "Boy dead, two injured in car crash in north-west Victoria",
+      "source": "ABC News",
+      "date": "16 May 2026, 05:04",
+      "fetched_iso": "2026-05-16T05:04:45",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/woosang-victoria-fatal-car-crash/106688114",
+      "image": "https://live-production.wcms.abc-cdn.net.au/89b78fe6801a0f7d1ae6156cdd98944e?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=555&yPos=0&width=862&height=1149",
+      "body": "Police say a car stolen from Mildura last night was travelling along the Calder Highway when it veered off the road and struck a tree.",
+      "summary": "The crash occurred on the Calder Highway north-west of Bendigo around 10am."
+    },
+    {
+      "title": "'Don't be a d**k, Dezi!': New claims about Freeman police shooting",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:38",
+      "fetched_iso": "2026-05-16T04:38:02",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/porepunkah-property-owner-andrew-swift-dezi-freeman-video/106687896",
+      "image": "https://live-production.wcms.abc-cdn.net.au/090e438e92a6243b6775a41d7ba61b72?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=555&yPos=0&width=862&height=1149",
+      "body": "The owner of the Porepunkah property where Dezi Freeman shot two police officers says he rang and spoke to Freeman soon after the shooting.",
+      "summary": "Andrew Swift has made new claims in a video recollecting the day police entered his Porepunkah property to arrest Dezi Freeman."
+    },
+    {
+      "title": "Origin hopefuls stand up as Cowboys coach hails 'gritty' win",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:27",
+      "fetched_iso": "2026-05-16T04:27:38",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/nrl-live-updates-tigers-sea-eagles-roosters-cowboys-eels-storm/106683340",
+      "image": "https://live-production.wcms.abc-cdn.net.au/b27718d6e4386d6436ff1b1799844af4?impolicy=wcms_crop_resize&cropH=2610&cropW=1958&xPos=1291&yPos=0&width=862&height=1149",
+      "body": "Todd Payten said his side's victory over the Roosters was \"as good a win as I've had\" with the club as Melbourne notched back-to-back wins after a messy 34-8 victory over Parramatta and the Sea Eagles thrash Wests Tigers in Magic Round at Lang Park.",
+      "summary": "North Queensland fought back from an early sin binning to stun the Roosters before half time."
+    },
+    {
+      "title": "Who was still watching Harvey Weinstein almost a decade on from #MeToo?",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:23",
+      "fetched_iso": "2026-05-16T04:23:32",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/harvey-weinstein-trial-and-me-too-legacy-on-trial/106638150",
+      "image": "https://live-production.wcms.abc-cdn.net.au/328096e94e6cb70be728c29bc65de8af?impolicy=wcms_crop_resize&cropH=1223&cropW=917&xPos=459&yPos=0&width=862&height=1149",
+      "body": "Almost a decade after the #MeToo movement began, disgraced producer Harvey Weinstein's latest trial took place in a new climate. But supporters says its significance remains.",
+      "summary": "This April, Harvey Weinstein entered a courtroom again, facing retrial for a 2013 rape charge."
+    },
+    {
+      "title": "Stolen car involved in alleged shooting spotted at SA prison staff car park days earlier",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:52",
+      "fetched_iso": "2026-05-16T03:52:54",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/car-linked-to-shooting-spotted-at-sa-prison/106687838",
+      "image": "https://live-production.wcms.abc-cdn.net.au/8cca14051ff9c793e6be40b27d599c29?impolicy=wcms_crop_resize&cropH=385&cropW=289&xPos=42&yPos=0&width=862&height=1149",
+      "body": "The Public Service Association is calling for urgent and immediate security upgrades after a stolen car allegedly involved in a shooting was seen at the Yatala Labour Prison in the days before the incident.",
+      "summary": "Police are asking anyone who knows the driver of the vehicle, saw the car, or has dashcam or CCTV footage from the area around the time of the shooting and fire to come forward."
+    },
+    {
+      "title": "Taylor vows to amend Sex Discrimination Act following ‘Tickle v Giggle’ ruling",
+      "source": "ABC News",
+      "date": "16 May 2026, 07:06",
+      "fetched_iso": "2026-05-16T07:06:37",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/opposition-leader-angus-taylor-vows-to-amend-sex-discrimination-/106688258",
+      "image": "https://live-production.wcms.abc-cdn.net.au/98dc8af337c6eeb4bdd3bc51feb5106a?impolicy=wcms_crop_resize&cropH=3294&cropW=2470&xPos=1691&yPos=0&width=862&height=1149",
+      "body": "Opposition leader Angus Taylor has vowed to amend the Sex Discrimination Act after the Federal Court upheld a landmark ruling that the exclusion of a transgender woman from a female-only app was discriminatory.",
+      "summary": "Angus Taylor has vowed to amend Australia’s Sex Discrimination Act to include a definition of biological sex."
+    },
+    {
+      "title": "Trump says the US has killed second-in-command ISIS leader",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:51",
+      "fetched_iso": "2026-05-16T03:51:49",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/trump-says-the-us-has-killed-second-in-command-isis-leader/106688110",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2dca8952d6ad440dcc0731411b8cf00e?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=998&yPos=0&width=862&height=1149",
+      "body": "US President Donald Trump says American and Nigerian forces have killed the second-in-command leader of ISIS.",
+      "summary": "President Donald Trump says a major ISIS leader has been killed."
+    },
+    {
+      "title": "Modi, BJP influence grow in leaps and bounds across India",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:19",
+      "fetched_iso": "2026-05-16T03:19:03",
+      "category": "Australia",
+      "url": "https://www.abc.net.au/news/2026-05-16/narendra-modi-india-bharatiya-janata-party-win-influence/106651922",
+      "image": "https://live-production.wcms.abc-cdn.net.au/d1af3498a54e4322beaecb6b990e87c7?impolicy=wcms_crop_resize&cropH=2646&cropW=1985&xPos=996&yPos=0&width=862&height=1149",
+      "body": "How Prime Minister Narendra Modi is turning India into a one-party nation.",
+      "summary": "Narendra Modi says the latest election shows India's democracy is vibrant."
+    },
+    {
       "title": "Police make arrest over alleged stabbing of man sleeping at home in NT town",
       "source": "ABC News",
       "date": "16 May 2026, 03:01",
@@ -1268,26 +2005,26 @@
       "summary": "Kalgoorlie-Boulder is Australia's biggest outback city with a population of about 30,000 people."
     },
     {
-      "title": "Live: Crows chasing third straight win against out-of-form Roos",
+      "title": "Live: Crows produce 10-goal quarter against hapless Kangaroos",
       "source": "ABC News",
       "date": "16 May 2026, 02:52",
       "fetched_iso": "2026-05-16T02:52:27",
       "category": "Australia",
       "url": "https://www.abc.net.au/news/2026-05-16/afl-round-10-crows-roos-demons-hawks-blues-bulldogs-live-blog/106687692",
-      "image": "https://live-production.wcms.abc-cdn.net.au/f2f9f336636e33bdd6d06a88b782cb93?impolicy=wcms_crop_resize&cropH=2121&cropW=1591&xPos=796&yPos=0&width=862&height=1149",
+      "image": "https://live-production.wcms.abc-cdn.net.au/e688fdaa704bd4d4ec6886383a13110c?impolicy=wcms_crop_resize&cropH=2207&cropW=1655&xPos=368&yPos=0&width=862&height=1149",
       "body": "The eighth-placed Crows are in a confident mood as they host the Kangaroos, who are desperately looking to avoid a fourth consecutive defeat. Follow live.",
-      "summary": "The Crows face the Kangaroos at home."
+      "summary": "Darcy Fogarty (centre) kicked one of 10 unanswered goals for the Crows against North Melbourne in the second quarter."
     },
     {
-      "title": "Breaking: Man critical after shark attack off Rottnest Island",
+      "title": "Man critical after shark attack at Rottnest Island",
       "source": "ABC News",
       "date": "16 May 2026, 02:49",
       "fetched_iso": "2026-05-16T02:49:42",
       "category": "Australia",
       "url": "https://www.abc.net.au/news/2026-05-16/man-attacked-by-shark-rottnest-island/106688012",
-      "image": "https://live-production.wcms.abc-cdn.net.au/eef9973a26930f826d60cea3a91f059b?impolicy=wcms_crop_resize&cropH=544&cropW=408&xPos=276&yPos=0&width=862&height=1149",
+      "image": "https://live-production.wcms.abc-cdn.net.au/928d095154f109cce22f2eb44a3009a6?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=555&yPos=0&width=862&height=1149",
       "body": "A man in his thirties has been seriously injured by a shark off Rottnest Island, on Perth's coast.",
-      "summary": "A man has been attacked by a shark at Rottnest Island."
+      "summary": "The man was attacked at Jordy Bay on the north of the island."
     },
     {
       "title": "Where to watch Delta Goodrem's Eurovision final performance",
@@ -2942,6 +3679,72 @@
   ],
   "World": [
     {
+      "title": "Who was still watching Harvey Weinstein almost a decade on from #MeToo?",
+      "source": "ABC News",
+      "date": "16 May 2026, 04:23",
+      "fetched_iso": "2026-05-16T04:23:32",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/harvey-weinstein-trial-and-me-too-legacy-on-trial/106638150",
+      "image": "https://live-production.wcms.abc-cdn.net.au/328096e94e6cb70be728c29bc65de8af?impolicy=wcms_crop_resize&cropH=1223&cropW=917&xPos=459&yPos=0&width=862&height=1149",
+      "body": "Almost a decade after the #MeToo movement began, disgraced producer Harvey Weinstein's latest trial took place in a new climate. But supporters says its significance remains.",
+      "summary": "This April, Harvey Weinstein entered a courtroom again, facing retrial for a 2013 rape charge."
+    },
+    {
+      "title": "Trump says the US and Nigeria have killed second-in-command ISIS leader",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:51",
+      "fetched_iso": "2026-05-16T03:51:49",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/trump-says-the-us-has-killed-second-in-command-isis-leader/106688110",
+      "image": "https://live-production.wcms.abc-cdn.net.au/2dca8952d6ad440dcc0731411b8cf00e?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=998&yPos=0&width=862&height=1149",
+      "body": "US President Donald Trump says American and Nigerian forces have killed the second-in-command leader of ISIS.",
+      "summary": "President Donald Trump says a major ISIS leader has been killed."
+    },
+    {
+      "title": "Modi, BJP influence grow in leaps and bounds across India",
+      "source": "ABC News",
+      "date": "16 May 2026, 03:19",
+      "fetched_iso": "2026-05-16T03:19:03",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/narendra-modi-india-bharatiya-janata-party-win-influence/106651922",
+      "image": "https://live-production.wcms.abc-cdn.net.au/d1af3498a54e4322beaecb6b990e87c7?impolicy=wcms_crop_resize&cropH=2646&cropW=1985&xPos=996&yPos=0&width=862&height=1149",
+      "body": "How Prime Minister Narendra Modi is turning India into a one-party nation.",
+      "summary": "Narendra Modi says the latest election shows India's democracy is vibrant."
+    },
+    {
+      "title": "Chinese undersea device found near Bali may be part of something bigger",
+      "source": "ABC News",
+      "date": "15 May 2026, 19:38",
+      "fetched_iso": "2026-05-15T19:38:41",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/undersea-monitoring-device-indonesia-china-maritime-strategy/106670896",
+      "image": "https://live-production.wcms.abc-cdn.net.au/dda73826c82050f54b11e177047baa3d?impolicy=wcms_crop_resize&cropH=1080&cropW=810&xPos=555&yPos=0&width=862&height=1149",
+      "body": "The discovery of a Chinese undersea monitoring device in a strategic waterway \"shows the extent of both China's reach and its undersea ambitions\" and has implications for Australia's defence strategy, say experts.",
+      "summary": "China's Transparent Ocean Program calls for a layered seafloor-to-space network of monitoring devices."
+    },
+    {
+      "title": "Israel targets Hamas leader, kills seven Palestinians",
+      "source": "ABC News",
+      "date": "16 May 2026, 00:25",
+      "fetched_iso": "2026-05-16T00:25:13",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/israel-targets-hamas-leader-kills-seven-palestinians/106687730",
+      "image": "https://live-production.wcms.abc-cdn.net.au/50ab9c29dded78b95bd756dd4755047f?impolicy=wcms_crop_resize&cropH=2933&cropW=2200&xPos=861&yPos=0&width=862&height=1149",
+      "body": "Seven Palestinians, including a child, have died in Friday's air strikes, which Israel said targeted Hamas militant leader Izz al-Din al-Haddad.",
+      "summary": "Israel has not confirmed whether Hamas militant leader Izz al-Din al-Haddad has been killed or wounded."
+    },
+    {
+      "title": "Judge declares another mistrial in Harvey Weinstein rape case",
+      "source": "ABC News",
+      "date": "15 May 2026, 21:32",
+      "fetched_iso": "2026-05-15T21:32:16",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/harvey-weinstein-third-new-york-rape-trial-ends-in-mistrial/106687584",
+      "image": "https://live-production.wcms.abc-cdn.net.au/6f454ea757a88d125425729cb7b89681?impolicy=wcms_crop_resize&cropH=2397&cropW=1798&xPos=732&yPos=0&width=862&height=1149",
+      "body": "Harvey Weinstein's third trial in New York on a charge that he raped aspiring actress Jessica Mann has ended in a mistrial, after a jury failed to reach a unanimous verdict.",
+      "summary": "Jurors have deadlocked in Harvey Weinstein's rape retrial, forcing another mistrial in a #MeToo-era case."
+    },
+    {
       "title": "No major Iran war breakthroughs as Trump leaves Beijing",
       "source": "ABC News",
       "date": "15 May 2026, 21:15",
@@ -2953,15 +3756,26 @@
       "summary": "US President Donald Trump (left) and Chinese President Xi Jinping meet at the Great Hall of the People in Beijing, on Thursday."
     },
     {
-      "title": "Netanyahu's attempts to corral the UAE put Middle East politics on display",
+      "title": "Israel, Lebanon agree to extend ceasefire despite new strikes",
       "source": "ABC News",
-      "date": "15 May 2026, 19:00",
-      "fetched_iso": "2026-05-15T19:00:00",
+      "date": "15 May 2026, 20:26",
+      "fetched_iso": "2026-05-15T20:26:38",
       "category": "World",
-      "url": "https://www.abc.net.au/news/2026-05-16/gulf-states-israel-uae-benjamin-netanyahu-interview-donald-trump/106684904",
-      "image": "https://live-production.wcms.abc-cdn.net.au/14662660835888689a48f15d8c343df6?impolicy=wcms_crop_resize&cropH=2309&cropW=1732&xPos=870&yPos=0&width=862&height=1149",
-      "body": "The question for the Gulf states is whether they are happy for Israel to be the dominant player in the Middle East.",
-      "summary": "Israeli Prime Minister Benjamin Netanyahu gave a rare interview at a crucial time for the Middle East."
+      "url": "https://www.abc.net.au/news/2026-05-16/lebanon-israel-agree-to-extend-ceasefire-by-45-days/106687558",
+      "image": "https://live-production.wcms.abc-cdn.net.au/5f0b1fee1c092e109a35db381b0ce5ba?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Israel and Lebanon have agreed to extend a ceasefire and hold new talks on a political settlement, even as Israel carried out new strikes it insists are not subject to the truce.",
+      "summary": "Smoke billows from southern Lebanon following an Israeli strike, as seen from Marjeyoun, Lebanon, on Friday."
+    },
+    {
+      "title": "Pro-Palestine march comes face-to-face with anti-immigration protest in London",
+      "source": "ABC News",
+      "date": "16 May 2026, 23:29",
+      "fetched_iso": "2026-05-16T23:29:05",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-17/tens-of-thousands-march-in-london-pro-palestine-anti-immigration/106689212",
+      "image": "https://live-production.wcms.abc-cdn.net.au/522cf0672673d33a895f70b7f2cc5faf?impolicy=wcms_crop_resize&cropH=3333&cropW=2500&xPos=1250&yPos=0&width=862&height=1149",
+      "body": "Tens of thousands of people have marched through central London in two separate protests: one against immigration and another in support of Palestinians.",
+      "summary": "Demonstrators carry Palestinian flags and placards at a march to mark Nakba Day, commemorating Palestinians' loss of land in 1948."
     },
     {
       "title": "New Hollywood film excites as Philippine culture hits the big screen",
@@ -2984,6 +3798,17 @@
       "image": "https://live-production.wcms.abc-cdn.net.au/d9ea2f2c6f520d0644909dbb5db5c267?impolicy=wcms_crop_resize&cropH=600&cropW=450&xPos=119&yPos=0&width=862&height=1149",
       "body": "The group was exploring a series of underwater caves at a depth of about 50 metres in Vaavu Atoll in the Maldives.",
       "summary": "Monica Montefalcone (left) and daughter Giorgia Sommacal were among the five divers."
+    },
+    {
+      "title": "Netanyahu's attempts to corral the UAE put Middle East politics on display",
+      "source": "ABC News",
+      "date": "15 May 2026, 19:00",
+      "fetched_iso": "2026-05-15T19:00:00",
+      "category": "World",
+      "url": "https://www.abc.net.au/news/2026-05-16/gulf-states-israel-uae-benjamin-netanyahu-interview-donald-trump/106684904",
+      "image": "https://live-production.wcms.abc-cdn.net.au/14662660835888689a48f15d8c343df6?impolicy=wcms_crop_resize&cropH=2309&cropW=1732&xPos=870&yPos=0&width=862&height=1149",
+      "body": "The question for the Gulf states is whether they are happy for Israel to be the dominant player in the Middle East.",
+      "summary": "Israeli Prime Minister Benjamin Netanyahu gave a rare interview at a crucial time for the Middle East."
     },
     {
       "title": "Xi made a historical reference to give Trump a warning. What did it mean?",
@@ -3351,6 +4176,61 @@
   ],
   "Science & Tech": [
     {
+      "title": "First-ever direct image of the cosmic web reveals the Universe’s hidden highways",
+      "source": "Science Daily",
+      "date": "16 May 2026, 13:15",
+      "fetched_iso": "2026-05-16T13:15:10",
+      "category": "Science & Tech",
+      "url": "https://www.sciencedaily.com/releases/2026/05/260516034136.htm",
+      "image": null,
+      "body": "Astronomers have revealed the sharpest image ever captured of a filament in the cosmic web — the enormous hidden structure connecting galaxies across the Universe. The glowing strand stretches 3 million light-years and links two galaxies from nearly 12 billion years ago. By observing this faint intergalactic gas directly for the first time in such detail, scientists gained new insight into how galaxies are fueled and formed.",
+      "summary": "Astronomers have revealed the sharpest image ever captured of a filament in the cosmic web — the enormous hidden structure connecting galaxies across the Universe. The glowing strand stretches 3 million light-years and…"
+    },
+    {
+      "title": "Scientists find hidden brain nutrient deficit that may fuel anxiety",
+      "source": "Science Daily",
+      "date": "16 May 2026, 12:41",
+      "fetched_iso": "2026-05-16T12:41:30",
+      "category": "Science & Tech",
+      "url": "https://www.sciencedaily.com/releases/2026/05/260515234759.htm",
+      "image": null,
+      "body": "A major analysis of brain scans found that people with anxiety disorders have noticeably lower levels of choline, a nutrient crucial for healthy brain function. The strongest evidence appeared in the prefrontal cortex, the region tied to emotional control and decision-making. Researchers say the discovery is the first clear chemical brain pattern linked to anxiety and could eventually lead to new nutrition-based treatments.",
+      "summary": "A major analysis of brain scans found that people with anxiety disorders have noticeably lower levels of choline, a nutrient crucial for healthy brain function. The strongest evidence appeared in the prefrontal cortex,…"
+    },
+    {
+      "title": "Stunning fossil discovery in Ethiopia rewrites human origins",
+      "source": "Science Daily",
+      "date": "16 May 2026, 11:20",
+      "fetched_iso": "2026-05-16T11:20:39",
+      "category": "Science & Tech",
+      "url": "https://www.sciencedaily.com/releases/2026/05/260515234644.htm",
+      "image": null,
+      "body": "A stunning fossil discovery in Ethiopia shows that early Homo and a previously unknown Australopithecus species lived together around 2.6 to 2.8 million years ago. The find overturns the classic “ape-to-human” progression and paints human evolution as a crowded, branching tree with multiple species coexisting. Scientists dated the fossils using volcanic ash deposits and are now investigating what these ancient relatives ate and whether they competed for resources.",
+      "summary": "A stunning fossil discovery in Ethiopia shows that early Homo and a previously unknown Australopithecus species lived together around 2.6 to 2.8 million years ago. The find overturns the classic “ape-to-human”…"
+    },
+    {
+      "title": "The US is betting on AI to catch insider trading in prediction markets",
+      "source": "Ars Technica",
+      "date": "16 May 2026, 11:00",
+      "fetched_iso": "2026-05-16T11:00:01",
+      "category": "Science & Tech",
+      "url": "https://arstechnica.com/tech-policy/2026/05/the-us-is-betting-on-ai-to-catch-insider-trading-in-prediction-markets/",
+      "image": "https://cdn.arstechnica.net/wp-content/uploads/2018/05/roulette-500x500.jpg",
+      "body": "The Commodity Futures Trading Commission wants us to know it's taking this very seriously.",
+      "summary": "For most of the past year, it looked like prediction markets had kicked off a new golden age of fraud. On Polymarket , traders raked in fortunes from suspiciously timed bets on geopolitical events like the raid on…"
+    },
+    {
+      "title": "Scientists discover hidden “brakes” that stop massive earthquakes",
+      "source": "Science Daily",
+      "date": "16 May 2026, 06:12",
+      "fetched_iso": "2026-05-16T06:12:11",
+      "category": "Science & Tech",
+      "url": "https://www.sciencedaily.com/releases/2026/05/260515233325.htm",
+      "image": null,
+      "body": "A mysterious underwater fault near Ecuador has been producing nearly identical magnitude 6 earthquakes every five to six years, baffling scientists for decades. Researchers now believe the fault contains hidden “brake zones” where seawater and unusual rock structures work together to stop quakes from becoming even larger. The discovery came from ultra-detailed seafloor recordings that captured how the fault behaves before and after major earthquakes.",
+      "summary": "A mysterious underwater fault near Ecuador has been producing nearly identical magnitude 6 earthquakes every five to six years, baffling scientists for decades. Researchers now believe the fault contains hidden “brake…"
+    },
+    {
       "title": "Russia pressures university students to become wartime drone pilots",
       "source": "Ars Technica",
       "date": "15 May 2026, 22:19",
@@ -3384,7 +4264,7 @@
       "summary": "In a press briefing Friday, officials for the World Health Organization announced that the case count of the hantavirus outbreak on the cruise ship MV Hondius in the South Atlantic has shrunk from 11 cases to 10 after a…"
     },
     {
-      "title": "Review: Good Omens finale sticks the landing",
+      "title": "Review: Good Omens finale (mostly) sticks the landing",
       "source": "Ars Technica",
       "date": "15 May 2026, 21:17",
       "fetched_iso": "2026-05-15T21:17:19",
@@ -3450,17 +4330,6 @@
       "summary": "AI-generated slop has shown up everywhere, including in the peer-reviewed literature. Fake citations, unedited prompt responses, and nonsensical diagrams have all slipped past editors and peer reviewers, and it's not…"
     },
     {
-      "title": "OpenAI feels “burned” by Apple’s crappy ChatGPT integration, insiders say",
-      "source": "Ars Technica",
-      "date": "15 May 2026, 18:13",
-      "fetched_iso": "2026-05-15T18:13:33",
-      "category": "Science & Tech",
-      "url": "https://arstechnica.com/tech-policy/2026/05/openai-feels-burned-by-apples-crappy-chatgpt-integration-insiders-say/",
-      "image": "https://cdn.arstechnica.net/wp-content/uploads/2026/05/GettyImages-2156972504-500x500.jpg",
-      "body": "Judge orders Apple to give Musk internal messages discussing secretive ChatGPT deal.",
-      "summary": "OpenAI is reportedly exploring legal options after Apple's ChatGPT integration into its products didn't live up to the AI firm's expectations. When the deal was announced, Apple likened features linking Siri to ChatGPT…"
-    },
-    {
       "title": "Scientists discover giant “last titan” dinosaur, Southeast Asia’s largest ever",
       "source": "Science Daily",
       "date": "15 May 2026, 12:36",
@@ -3516,17 +4385,6 @@
       "summary": "A casual conversation between graduate students helped spark a breakthrough in aging research at Mayo Clinic. Researchers discovered that tiny synthetic DNA molecules called aptamers can selectively attach to senescent…"
     },
     {
-      "title": "Scientists “bottle the sun” with a liquid battery that stores solar energy",
-      "source": "Science Daily",
-      "date": "15 May 2026, 01:29",
-      "fetched_iso": "2026-05-15T01:29:03",
-      "category": "Science & Tech",
-      "url": "https://www.sciencedaily.com/releases/2026/05/260513221821.htm",
-      "image": null,
-      "body": "Scientists at UC Santa Barbara have created a remarkable new material that works like a “rechargeable solar battery,” storing sunlight inside tiny molecules and releasing it later as heat — even long after the sun goes down. Inspired by reversible changes found in DNA and photochromic sunglasses, the system captures solar energy without relying on bulky batteries or the electrical grid. The molecule can hold energy for years and packs more energy per kilogram than lithium-ion batteries.",
-      "summary": "Scientists at UC Santa Barbara have created a remarkable new material that works like a “rechargeable solar battery,” storing sunlight inside tiny molecules and releasing it later as heat — even long after the sun goes…"
-    },
-    {
       "title": "Paleontology rocked by discovery of organic molecules in 66-million-year-old dinosaur bones",
       "source": "Science Daily",
       "date": "14 May 2026, 13:02",
@@ -3536,6 +4394,28 @@
       "image": null,
       "body": "Scientists have uncovered compelling evidence that dinosaur fossils may still contain traces of their original proteins, overturning a long-standing belief that fossilization destroys all organic material. In a remarkably well-preserved Edmontosaurus fossil from South Dakota, researchers detected remnants of collagen — the main protein found in bone — using advanced techniques including mass spectrometry and protein sequencing.",
       "summary": "Scientists have uncovered compelling evidence that dinosaur fossils may still contain traces of their original proteins, overturning a long-standing belief that fossilization destroys all organic material. In a…"
+    },
+    {
+      "title": "OpenAI feels “burned” by Apple’s crappy ChatGPT integration, insiders say",
+      "source": "Ars Technica",
+      "date": "15 May 2026, 18:13",
+      "fetched_iso": "2026-05-15T18:13:33",
+      "category": "Science & Tech",
+      "url": "https://arstechnica.com/tech-policy/2026/05/openai-feels-burned-by-apples-crappy-chatgpt-integration-insiders-say/",
+      "image": "https://cdn.arstechnica.net/wp-content/uploads/2026/05/GettyImages-2156972504-500x500.jpg",
+      "body": "Judge orders Apple to give Musk internal messages discussing secretive ChatGPT deal.",
+      "summary": "OpenAI is reportedly exploring legal options after Apple's ChatGPT integration into its products didn't live up to the AI firm's expectations. When the deal was announced, Apple likened features linking Siri to ChatGPT…"
+    },
+    {
+      "title": "Scientists “bottle the sun” with a liquid battery that stores solar energy",
+      "source": "Science Daily",
+      "date": "15 May 2026, 01:29",
+      "fetched_iso": "2026-05-15T01:29:03",
+      "category": "Science & Tech",
+      "url": "https://www.sciencedaily.com/releases/2026/05/260513221821.htm",
+      "image": null,
+      "body": "Scientists at UC Santa Barbara have created a remarkable new material that works like a “rechargeable solar battery,” storing sunlight inside tiny molecules and releasing it later as heat — even long after the sun goes down. Inspired by reversible changes found in DNA and photochromic sunglasses, the system captures solar energy without relying on bulky batteries or the electrical grid. The molecule can hold energy for years and packs more energy per kilogram than lithium-ion batteries.",
+      "summary": "Scientists at UC Santa Barbara have created a remarkable new material that works like a “rechargeable solar battery,” storing sunlight inside tiny molecules and releasing it later as heat — even long after the sun goes…"
     },
     {
       "title": "Deadly “red sky” solar storm from 800 years ago discovered in ancient trees",
@@ -4826,6 +5706,17 @@
     }
   ],
   "Space": [
+    {
+      "title": "What If the Universe Had No Beginning? Part 1: A Wave Function for the Universe",
+      "source": "Universe Today",
+      "date": "16 May 2026, 14:08",
+      "fetched_iso": "2026-05-16T14:08:00",
+      "category": "Space",
+      "url": "https://www.universetoday.com/articles/what-if-the-universe-had-no-beginning-part-1-a-wave-function-for-the-universe",
+      "image": null,
+      "body": "<p><img alt=\"John Wheeler (right) with Carl Friedrich von Weizsäcker, Bengt Strömgren, and Stefan Rozental in 1963. Wheeler co-developed the equation that treats the entire universe as a quantum object. (Public domain, Niels Bohr Library &amp; Archives)\" height=\"720\" src=\"https://www.universetoday.com/article_images/wheeler_1963_20260515_104147.jpg\" width=\"1280\" /></p><p>The equations of general relativity give up at the singularity. Decades before Stephen Hawking dared to guess what came before, John Wheeler and Bryce DeWitt built the strange mathematical machinery that would make the question askable in the first place.</p>",
+      "summary": "The equations of general relativity give up at the singularity. Decades before Stephen Hawking dared to guess what came before, John Wheeler and Bryce DeWitt built the strange mathematical machinery that would make the…"
+    },
     {
       "title": "A New Theory of Dark Matter Could Solve Three Cosmic Mysteries",
       "source": "Universe Today",

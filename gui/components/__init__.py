@@ -14,7 +14,6 @@ from gui.components.thinking_expander import ThinkingExpander, RotatingSpinner
 from gui.components.timer import TimerComponent
 from gui.components.toast import ToastNotification
 from gui.components.toggle_switch import ToggleSwitch
-from gui.components.voice_indicator import VoiceIndicator, EmbeddedVoiceWidget
 from gui.components.weather_window import WeatherWindow
 
 __all__ = [
@@ -28,6 +27,5 @@ __all__ = [
     "TimerComponent",
     "ToastNotification",
     "ToggleSwitch",
-    "VoiceIndicator", "EmbeddedVoiceWidget",
     "WeatherWindow",
 ]

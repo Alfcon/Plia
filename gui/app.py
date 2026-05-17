@@ -781,53 +781,16 @@ class MainWindow(FluentWindow):
         layout.insertStretch(min_btn_index + 2, 1)
 
     def _replace_title_with_logo(self):
-        """
-        Hide the Plia title text and show the logo image in the title bar.
-        Uses flexible sizing so the logo auto-adjusts when the window is resized
-        instead of being clipped.
-        """
-        from PySide6.QtWidgets import QLabel, QSizePolicy as _QSP
-        from PySide6.QtGui import QPixmap
-        from PySide6.QtCore import Qt as _Qt
-        import os
+        """Hide the default Plia title text and icon in the title bar.
 
-        # Hide the default text title label
+        Previously this also inserted a Plia logo into the title bar; that
+        logo was removed because the dashboard already has a much larger
+        animated logo above the System Monitor. Title text + default icon
+        stay hidden for a clean look."""
         if hasattr(self.titleBar, "titleLabel"):
             self.titleBar.titleLabel.hide()
-
-        # Hide the small default icon label (logo replaces both)
         if hasattr(self.titleBar, "iconLabel"):
             self.titleBar.iconLabel.hide()
-
-        # Locate logo — prefer logo_64 for sharpness at small size
-        assets_dir = os.path.join(os.path.dirname(__file__), "assets")
-        for name in ("logo_64.png", "logo.png", "logo_128.png"):
-            logo_path = os.path.join(assets_dir, name)
-            if os.path.exists(logo_path):
-                break
-        else:
-            return  # No logo file found
-
-        # Pre-scale the pixmap to the desired height once
-        pixmap = QPixmap(logo_path)
-        scaled_pixmap = pixmap.scaledToHeight(28, _Qt.TransformationMode.SmoothTransformation)
-
-        # Create logo label — flexible width so it auto-adjusts, fixed height
-        logo_label = QLabel()
-        logo_label.setPixmap(scaled_pixmap)
-        logo_label.setMaximumHeight(28)
-        logo_label.setMinimumWidth(20)
-        logo_label.setSizePolicy(
-            _QSP.Policy.Preferred,
-            _QSP.Policy.Fixed
-        )
-        logo_label.setStyleSheet("background: transparent; margin-left: 6px;")
-        logo_label.setScaledContents(True)
-
-        # Insert at position 0 (far left of title bar)
-        self.titleBar.hBoxLayout.insertWidget(
-            0, logo_label, 0, _Qt.AlignmentFlag.AlignVCenter
-        )
     
     def _on_tab_changed(self, index):
         """Handle lazy loading when switching tabs."""
