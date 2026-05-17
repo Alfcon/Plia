@@ -217,26 +217,42 @@ class SettingsStore(QObject):
         the old default 'jarvis' to ['hey_jarvis', 'plia'] enabled; any other
         Porcupine keyword (which has no openWakeWord equivalent) gets the
         same default plus a flag so the UI can show a one-time toast.
+
+        Defensive: on any failure (e.g. a malformed `voice` value), resets the
+        voice section to defaults so the app can start.
         """
-        voice = self._settings.get("voice", {})
-        if "wake_word" not in voice:
-            return  # Already migrated or never seen the old schema.
+        try:
+            voice = self._settings.get("voice")
+            if not isinstance(voice, dict):
+                # Malformed config — reset to defaults.
+                self._settings["voice"] = {
+                    k: (v.copy() if isinstance(v, (dict, list)) else v)
+                    for k, v in DEFAULT_SETTINGS["voice"].items()
+                }
+                return
 
-        old_word = voice.pop("wake_word", None)
-        voice.pop("sensitivity", None)
-        voice.pop("sensitivity_pct", None)
+            if "wake_word" not in voice:
+                return  # Already migrated or never seen the old schema.
 
-        # voice.wake_models comes pre-seeded from DEFAULT_SETTINGS via _deep_merge,
-        # but a user with an old config may not have it — ensure it's present.
-        if "wake_models" not in voice or not voice["wake_models"]:
-            voice["wake_models"] = [
-                m.copy() for m in DEFAULT_SETTINGS["voice"]["wake_models"]
-            ]
+            old_word = voice.pop("wake_word", None)
+            voice.pop("sensitivity", None)
+            voice.pop("sensitivity_pct", None)
 
-        if old_word and old_word != "jarvis":
-            voice["_migration_toast_pending"] = True
+            if "wake_models" not in voice or not voice["wake_models"]:
+                voice["wake_models"] = [
+                    m.copy() for m in DEFAULT_SETTINGS["voice"]["wake_models"]
+                ]
 
-        self._settings["voice"] = voice
+            if old_word and old_word != "jarvis":
+                voice["_migration_toast_pending"] = True
+
+            self._settings["voice"] = voice
+        except Exception as exc:
+            print(f"[Settings] Wake-word migration failed: {exc}. Resetting voice section to defaults.")
+            self._settings["voice"] = {
+                k: (v.copy() if isinstance(v, (dict, list)) else v)
+                for k, v in DEFAULT_SETTINGS["voice"].items()
+            }
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -246,7 +262,7 @@ class SettingsStore(QObject):
         Examples:
             get("models.chat")          → "qwen3:1.7b"
             get("tts.volume")           → 0.9
-            get("voice.wake_word")      → "jarvis"
+            get("voice.wake_models")    → [{"id": "plia", ...}, ...]
             get("ui.accent_color")      → "#00b4d8"
         """
         with self._lock:
