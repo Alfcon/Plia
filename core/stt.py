@@ -1,27 +1,12 @@
 """
 Speech-to-Text for Plia Voice Assistant.
 
-Two engines are provided:
+STTListener — transcription engine used by the main PySide6 app.
 
-1. STTListener  — full-featured engine used by the main PySide6 app.
-   Uses RealTimeSTT + Porcupine wake word detection (pvporcupine).
-   Wake words: see SUPPORTED_WAKE_WORDS below (no API key needed).
-
-2. SpeechEngine — lightweight fallback from plia2.py standalone mode.
-   Uses AudioToTextRecorder with the Whisper tiny.en model.
-   No wake-word backend needed; uses a software prefix scan instead.
-   Suitable for the standalone Tkinter launcher (plia2.py).
-
-Wake word notes (Porcupine backend):
-  Porcupine has a fixed list of built-in words that work offline with
-  no API key:
-    alexa, americano, blueberry, bumblebee, computer, grapefruits,
-    grasshopper, hey google, hey siri, jarvis, ok google, picovoice,
-    porcupine, terminator
-
-  These are the ONLY valid choices for the STTListener wake word
-  setting. The WAKE_WORDS list below is used by SpeechEngine (plia2)
-  and can include any prefix strings.
+The recorder runs with use_microphone=False; wake-word detection and
+mic ownership now live in core.wake_detector.WakeDetector. Once a wake
+word fires, WakeDetector calls STTListener.start_listening() and
+forwards PCM chunks via feed_audio().
 
 Torchaudio note:
   Silero VAD (used internally by RealtimeSTT) imports torchaudio at
@@ -71,10 +56,8 @@ from typing import Callable
 
 from config import (
     REALTIMESTT_MODEL,
-    PORCUPINE_ACCESS_KEY,
     GRAY, RESET, CYAN, YELLOW, GREEN,
 )
-from core.settings_store import settings as app_settings
 
 # ── Log directory setup ────────────────────────────────────────────────────
 # Redirect the RealTimeSTT logger to Plia/log/realtimesst.log BEFORE
@@ -129,40 +112,6 @@ def _setup_stt_logging() -> None:
 
 
 _setup_stt_logging()   # Run immediately at module import
-
-
-# ── Wake words ────────────────────────────────────────────────────────────
-
-# Porcupine-supported words (STTListener / full app)
-SUPPORTED_WAKE_WORDS: list[str] = [
-    "jarvis",
-    "computer",
-    "alexa",
-    "hey google",
-    "ok google",
-    "hey siri",
-    "terminator",
-    "bumblebee",
-    "grasshopper",
-    "porcupine",
-    "americano",
-    "blueberry",
-    "grapefruits",
-    "picovoice",
-]
-
-DEFAULT_WAKE_WORD = "jarvis"
-
-# Prefix-scan wake words (SpeechEngine / plia2 standalone mode)
-# These can be any free-form strings — checked via startswith().
-WAKE_WORDS: list[str] = [
-    "plia",
-    "hey plia",
-    "ok plia",
-    "friday",
-    "jarvis",
-    "hey jarvis",
-]
 
 
 # ── Torchaudio pre-flight patch ────────────────────────────────────────────
@@ -397,41 +346,17 @@ def _inject_torchaudio_stub() -> None:
             setattr(parent, parts[-1], sub)
 
 
-# ── Settings helpers ───────────────────────────────────────────────────────
-
-def _get_wake_word() -> str:
-    """Read wake word from settings, validate it is Porcupine-supported."""
-    word = app_settings.get("voice.wake_word", DEFAULT_WAKE_WORD)
-    word = (word or DEFAULT_WAKE_WORD).strip().lower()
-    if word not in SUPPORTED_WAKE_WORDS:
-        print(
-            f"[STT] ⚠ '{word}' is not a Porcupine wake word — "
-            f"falling back to '{DEFAULT_WAKE_WORD}'"
-        )
-        return DEFAULT_WAKE_WORD
-    return word
-
-
-def _get_sensitivity() -> float:
-    """Read sensitivity from settings (0-100 int or 0.0-1.0 float → 0.0-1.0)."""
-    try:
-        val = float(app_settings.get("voice.sensitivity", 0.5))
-        if val > 1.0:
-            val /= 100.0
-        return max(0.0, min(1.0, val))
-    except (TypeError, ValueError):
-        return 0.5
-
-
 # ══════════════════════════════════════════════════════════════════════════
 #  STTListener  — full-featured engine (main PySide6 app)
 # ══════════════════════════════════════════════════════════════════════════
 class STTListener:
     """
-    Real-time STT listener using Porcupine wake word detection.
-    No API key needed; works offline with SUPPORTED_WAKE_WORDS.
-    Wake word is re-read from settings on each initialize() call so
-    Settings → Apply & Refresh All picks up changes immediately.
+    Real-time STT listener — transcription only.
+
+    Wake-word detection has been moved out of this class (see
+    core.wake_detector.WakeDetector). The recorder runs with
+    use_microphone=False; WakeDetector owns the mic and forwards PCM
+    chunks via feed_audio() once it has fired.
 
     Startup sequence
     ----------------
@@ -442,8 +367,9 @@ class STTListener:
        • If KeyError('torch')      → stub injected, WebRTC VAD only.
        • Any other Exception       → stub injected, WebRTC VAD only.
        All paths produce a working recorder.
-    2. AudioToTextRecorder is created with Porcupine as the wake-word
-       backend.  Silero VAD is bypassed when the stub is active.
+    2. AudioToTextRecorder is created with no wake-word backend and
+       use_microphone=False. Silero VAD is bypassed when the stub is
+       active.
     """
 
     def __init__(self, wake_word_callback: Callable, speech_callback: Callable):
@@ -453,37 +379,19 @@ class STTListener:
         self.listening_thread   = None
         self.recorder           = None
         self.initialized        = False
-        self._wake_word         = _get_wake_word()
-        self._sensitivity       = _get_sensitivity()
 
-        print(f"{CYAN}[STT] Initializing RealTimeSTT listener…{RESET}")
-        print(f"{CYAN}[STT] Wake word: '{self._wake_word}'{RESET}")
+        print(f"{CYAN}[STT] Initializing RealTimeSTT listener (transcription-only)…{RESET}")
 
     @staticmethod
     def _check_dependencies() -> tuple[bool, str]:
         """Check optional RealtimeSTT deps before creating the recorder."""
-        for pkg, name in [("faster_whisper", "faster-whisper"),
-                          ("pvporcupine", "pvporcupine")]:
-            try:
-                __import__(pkg)
-            except ImportError:
-                return False, (
-                    f"Missing optional RealtimeSTT dependency: {name}.\n"
-                    f'  pip install "{pkg}"'
-                )
-        # pvporcupine >= 2.0 requires an access_key which RealtimeSTT
-        # does not provide.  Pin to v1.x for free built-in keywords.
-        import importlib.metadata
         try:
-            ver = importlib.metadata.version("pvporcupine")
-            if int(ver.split(".")[0]) >= 2:
-                return False, (
-                    f"pvporcupine {ver} requires access_key. "
-                    f"Downgrade to v1.x for free offline keywords:\n"
-                    f'  pip install "pvporcupine<2"'
-                )
-        except Exception:
-            pass
+            __import__("faster_whisper")
+        except ImportError:
+            return False, (
+                "Missing optional RealtimeSTT dependency: faster-whisper.\n"
+                '  pip install "faster_whisper"'
+            )
         return True, ""
 
     @staticmethod
@@ -544,32 +452,24 @@ class STTListener:
             )
 
     def initialize(self) -> bool:
-        """Initialize RealTimeSTT. Re-reads wake word from settings each call."""
-        self._wake_word   = _get_wake_word()
-        self._sensitivity = _get_sensitivity()
-
-        print(f"{CYAN}[STT] Wake word: '{self._wake_word}'  Sensitivity: {self._sensitivity}{RESET}")
-
+        """Initialize RealTimeSTT in transcription-only mode."""
         # ── Step 1: dependency pre-flight ────────────────────────
         deps_ok, deps_msg = self._check_dependencies()
         if not deps_ok:
             print(f"{GRAY}[STT] ✗ {deps_msg}{RESET}")
             return False
 
-        # ── Step 2: audio device pre-flight ──────────────────────
-        audio_ok, audio_msg = self._check_audio_input()
-        if not audio_ok:
-            print(f"{GRAY}[STT] ✗ {audio_msg}{RESET}")
-            return False
+        # Note: audio device pre-flight is no longer needed here —
+        # WakeDetector owns the mic and validates the input device.
 
         try:
-            # ── Step 3: torchaudio pre-flight ─────────────────────────
+            # ── Step 2: torchaudio pre-flight ─────────────────────────
             # Must run BEFORE `from RealtimeSTT import AudioToTextRecorder`
             # because RealtimeSTT imports torch.hub which triggers the Silero
             # import chain (which imports torchaudio) during recorder init.
             torchaudio_ok = _patch_torchaudio_if_broken()
 
-            # ── Step 4: import RealtimeSTT & torch ────────────────────
+            # ── Step 3: import RealtimeSTT & torch ────────────────────
             from RealtimeSTT import AudioToTextRecorder
             import torch
 
@@ -580,14 +480,12 @@ class STTListener:
             else:
                 print(f"{YELLOW}[STT] ⚠ CUDA not available — using CPU{RESET}")
 
-            print(f"{CYAN}[STT] Wake word backend: Porcupine (built-in, no API key){RESET}")
-
             device = "cuda" if cuda_available else "cpu"
             print(f"{CYAN}[STT] Initializing AudioToTextRecorder on {device}…{RESET}")
 
-            # ── Step 5: choose VAD mode ────────────────────────────────
+            # ── Step 4: choose VAD mode ────────────────────────────────
             if torchaudio_ok:
-                silero_sens   = self._sensitivity * 0.6
+                silero_sens   = 0.3
                 silero_deact  = False
                 print(f"{CYAN}[STT] VAD mode: Silero + WebRTC (torchaudio healthy){RESET}")
             else:
@@ -595,24 +493,18 @@ class STTListener:
                 silero_deact  = False
                 print(f"{YELLOW}[STT] VAD mode: WebRTC only (Silero bypassed — see fix above){RESET}")
 
-            # ── Step 6: create the recorder ────────────────────────────
+            # ── Step 5: create the recorder ────────────────────────────
             try:
                 self.recorder = AudioToTextRecorder(
                     model=REALTIMESTT_MODEL,
                     language="en",
                     device=device,
                     spinner=False,
-                    wakeword_backend="pvporcupine",
-                    wake_words=self._wake_word,
-                    wake_words_sensitivity=self._sensitivity,
-                    on_wakeword_detected=self._on_wakeword_detected,
+                    use_microphone=False,         # WakeDetector owns the mic.
                     silero_sensitivity=silero_sens,
                     silero_deactivity_detection=silero_deact,
                     webrtc_sensitivity=3,
-                    no_log_file=True,       # Prevents library writing realtimesst.log to
-                                            # the project root; Plia's _setup_stt_logging()
-                                            # already owns the 'realtimestt' FileHandler
-                                            # pointing to log/realtimesst.log.
+                    no_log_file=True,
                 )
             finally:
                 # RealtimeSTT unconditionally adds a StreamHandler to the
@@ -625,8 +517,7 @@ class STTListener:
                         _rtstt.removeHandler(h)
 
             self.initialized = True
-            vad_note = "" if torchaudio_ok else " (WebRTC VAD only)"
-            print(f"{CYAN}[STT] ✓ Ready{vad_note} — say '{self._wake_word}' to activate{RESET}")
+            print(f"{CYAN}[STT] ✓ Recorder ready (transcription-only, mic owned by WakeDetector){RESET}")
             return True
 
         except ImportError as exc:
@@ -638,8 +529,21 @@ class STTListener:
             traceback.print_exc()
             return False
 
-    def _on_wakeword_detected(self):
-        print(f"\n{CYAN}[STT] 👂 '{self._wake_word}' detected! Listening…{RESET}")
+    def feed_audio(self, chunk) -> None:
+        """Forward a PCM int16 numpy chunk into RealtimeSTT."""
+        if self.recorder is not None:
+            self.recorder.feed_audio(chunk.tobytes() if hasattr(chunk, "tobytes") else chunk)
+
+    @property
+    def is_listening(self) -> bool:
+        """True while RealtimeSTT is actively transcribing post-wake."""
+        return bool(self.recorder and getattr(self.recorder, "is_recording", False))
+
+    def start_listening(self) -> None:
+        """Begin transcription. Called by WakeDetector after a wake fires."""
+        print(f"\n{CYAN}[STT] 👂 Wake word detected — listening…{RESET}")
+        if self.recorder:
+            self.recorder.start()
         if self.wake_word_callback:
             self.wake_word_callback()
 
@@ -683,9 +587,14 @@ class STTListener:
             return False
 
     def _run_listener(self):
-        """Main transcription loop — blocks on recorder.text()."""
+        """Main transcription loop — blocks on recorder.text().
+
+        Wake-word stripping is no longer done here: WakeDetector fires
+        start_listening() *after* the wake word, so transcription begins
+        on the post-wake utterance only.
+        """
         try:
-            print(f"{GRAY}[STT] Waiting for wake word '{self._wake_word}'…{RESET}")
+            print(f"{GRAY}[STT] Transcription loop running (mic owned by WakeDetector)…{RESET}")
             while self.running:
                 if not self.recorder:
                     break
@@ -705,14 +614,9 @@ class STTListener:
                     continue
 
                 if text and text.strip():
-                    wake  = self._wake_word
-                    clean = text.replace(wake, "").replace(wake.capitalize(), "")
-                    clean = clean.replace(wake.upper(), "").strip()
+                    clean = text.strip()
                     print(f"{CYAN}[STT] Heard: '{clean}'{RESET}")
-                    if clean:
-                        self.speech_callback(clean)
-                    else:
-                        print(f"{GRAY}[STT] Empty after wake word removal — skipping{RESET}")
+                    self.speech_callback(clean)
 
         except Exception as exc:
             print(f"{GRAY}[STT] Listener error: {exc}{RESET}")
@@ -734,111 +638,3 @@ class STTListener:
         print(f"{CYAN}[STT] Listener stopped{RESET}")
 
 
-# ══════════════════════════════════════════════════════════════════════════
-#  SpeechEngine  — lightweight engine (plia2.py standalone Tkinter mode)
-#
-#  Uses AudioToTextRecorder with Whisper tiny.en (no Porcupine).
-#  Wake word detection is done by prefix-scanning transcribed text
-#  against the WAKE_WORDS list.  Suitable for the plia2.py launcher.
-# ══════════════════════════════════════════════════════════════════════════
-class SpeechEngine:
-    """
-    Simplified STT for standalone (Tkinter) mode.
-
-    Install: pip install realtimestt>=0.3.0 PyAudio>=0.2.14
-    First-run model download: ~75 MB (Whisper tiny.en, automatic).
-    """
-
-    def __init__(self, settings: dict | None = None):
-        s = settings or {}
-        self._listening = False
-        self.recorder   = None
-
-        # Apply torchaudio patch before attempting RealtimeSTT import
-        _patch_torchaudio_if_broken()
-
-        try:
-            from RealtimeSTT import AudioToTextRecorder
-            energy = int(s.get("stt_energy_threshold", 300))
-            webrtc_sens = max(1, min(3, round(energy / 333)))
-            self.recorder = AudioToTextRecorder(
-                model="tiny.en",
-                language="en",
-                compute_type="int8",
-                spinner=False,
-                silero_sensitivity=0.4,
-                webrtc_sensitivity=webrtc_sens,
-                post_speech_silence_duration=0.5,
-                min_length_of_recording=0.3,
-                min_gap_between_recordings=0.2,
-                no_log_file=True,       # Prevents library writing realtimesst.log to
-                                        # the project root; Plia's _setup_stt_logging()
-                                        # already owns the 'realtimestt' FileHandler
-                                        # pointing to log/realtimesst.log.
-            )
-            self.enabled = True
-        except Exception as exc:
-            print(f"  [RealtimeSTT] Initialization error: {exc}")
-            self.enabled = False
-
-    def listen_once(self, timeout: int = 8) -> str | None:
-        """
-        Block until one phrase is transcribed (or timeout expires).
-        Returns the text string, "" for silence, or None on error/timeout.
-        """
-        if not self.enabled or not self.recorder:
-            return None
-        result = [None]
-        done   = threading.Event()
-
-        def _transcribe():
-            try:
-                text      = self.recorder.text()
-                result[0] = text.strip() if text else ""
-            except Exception:
-                pass
-            finally:
-                done.set()
-
-        threading.Thread(target=_transcribe, daemon=True).start()
-        done.wait(timeout=timeout)
-        return result[0]
-
-    def listen_for_wake_word(
-        self,
-        callback_found: Callable | None = None,
-        callback_not: Callable | None   = None,
-    ):
-        """
-        Continuously transcribe audio. When a WAKE_WORDS prefix is
-        detected, the command remainder is passed to callback_found;
-        otherwise callback_not receives the raw text.
-        """
-        if not self.enabled:
-            if callback_not:
-                callback_not("Speech recognition not available")
-            return
-        self._listening = True
-
-        def _loop():
-            while self._listening:
-                text = self.listen_once(timeout=5)
-                if not text or not text.strip():
-                    continue
-                low     = text.lower().strip()
-                matched = False
-                for ww in WAKE_WORDS:
-                    if low.startswith(ww):
-                        cmd = low[len(ww):].strip()
-                        if callback_found:
-                            callback_found(cmd if cmd else None)
-                        matched = True
-                        break
-                if not matched and callback_not:
-                    callback_not(text)
-
-        threading.Thread(target=_loop, daemon=True).start()
-
-    def stop_listening(self):
-        """Signal the listen loop to exit on its next iteration."""
-        self._listening = False
