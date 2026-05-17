@@ -50,12 +50,31 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     },
     # ── Voice/STT settings ───────────────────────────────────────────────
     "voice": {
-        "wake_word":              "jarvis",   # must be in SUPPORTED_WAKE_WORDS
-        "sensitivity":            0.4,        # 0.0 – 1.0
+        # Multi-select wake-word models. Each entry:
+        #   id:          stable identifier (filename stem of the .onnx)
+        #   display:     human label shown in Settings
+        #   path:        relative to models/wake/  (e.g. "bundled/plia.onnx")
+        #   enabled:     bool — whether this model is loaded by WakeDetector
+        #   sensitivity: 0.0–1.0 — openwakeword score threshold
+        #   builtin:     True for ships-with-Plia models; False for user uploads
+        "wake_models": [
+            {"id": "hey_jarvis",  "display": "Hey Jarvis",  "path": "bundled/hey_jarvis.onnx",
+             "enabled": True,  "sensitivity": 0.5, "builtin": True},
+            {"id": "plia",        "display": "Plia",        "path": "bundled/plia.onnx",
+             "enabled": True,  "sensitivity": 0.5, "builtin": True},
+            {"id": "alexa",       "display": "Alexa",       "path": "bundled/alexa.onnx",
+             "enabled": False, "sensitivity": 0.5, "builtin": True},
+            {"id": "hey_mycroft", "display": "Hey Mycroft", "path": "bundled/hey_mycroft.onnx",
+             "enabled": False, "sensitivity": 0.5, "builtin": True},
+            {"id": "ok_nabu",     "display": "OK Nabu",     "path": "bundled/ok_nabu.onnx",
+             "enabled": False, "sensitivity": 0.5, "builtin": True},
+            {"id": "hey_rhasspy", "display": "Hey Rhasspy", "path": "bundled/hey_rhasspy.onnx",
+             "enabled": False, "sensitivity": 0.5, "builtin": True},
+        ],
         "enabled":                True,
-        "auto_start":             True,       # activate voice listening on app startup
-        "startup_greeting":       True,       # speak a greeting when voice goes active
-        "stt_energy_threshold":   300,        # for SpeechEngine fallback (50-1000)
+        "auto_start":             True,
+        "startup_greeting":       True,
+        "stt_energy_threshold":   300,
     },
     # ── General ──────────────────────────────────────────────────────────
     "general": {
@@ -157,6 +176,7 @@ class SettingsStore(QObject):
                     with open(self._settings_file, "r", encoding="utf-8") as f:
                         loaded = json.load(f)
                     self._settings = self._deep_merge(DEFAULT_SETTINGS.copy(), loaded)
+                    self._migrate_voice_wake_word()
                     self._save()
                 except (json.JSONDecodeError, IOError) as exc:
                     print(f"[Settings] Error loading settings: {exc}. Using defaults.")
@@ -189,6 +209,34 @@ class SettingsStore(QObject):
             else:
                 result[key] = value
         return result
+
+    def _migrate_voice_wake_word(self):
+        """One-time migration: voice.wake_word (str) → voice.wake_models (list).
+
+        Runs when the loaded config still has the old single-string key. Maps
+        the old default 'jarvis' to ['hey_jarvis', 'plia'] enabled; any other
+        Porcupine keyword (which has no openWakeWord equivalent) gets the
+        same default plus a flag so the UI can show a one-time toast.
+        """
+        voice = self._settings.get("voice", {})
+        if "wake_word" not in voice:
+            return  # Already migrated or never seen the old schema.
+
+        old_word = voice.pop("wake_word", None)
+        voice.pop("sensitivity", None)
+        voice.pop("sensitivity_pct", None)
+
+        # voice.wake_models comes pre-seeded from DEFAULT_SETTINGS via _deep_merge,
+        # but a user with an old config may not have it — ensure it's present.
+        if "wake_models" not in voice or not voice["wake_models"]:
+            voice["wake_models"] = [
+                m.copy() for m in DEFAULT_SETTINGS["voice"]["wake_models"]
+            ]
+
+        if old_word and old_word != "jarvis":
+            voice["_migration_toast_pending"] = True
+
+        self._settings["voice"] = voice
 
     # ── Public API ────────────────────────────────────────────────────────
 
