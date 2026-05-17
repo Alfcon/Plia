@@ -20,6 +20,13 @@
 #   remove the torch/torchvision/torchaudio lines and the index URL —
 #   a CPU-only build will be pulled in automatically by transformers.
 #
+# AMD GPU users (Linux, ROCm): replace the CUDA index line below with
+#   the ROCm wheel index (see "PyTorch Index" section). PyTorch's ROCm
+#   build still exposes torch.cuda.is_available()==True, so the router
+#   and STT device-selection code light up the GPU automatically.
+#   Windows AMD users have no ROCm wheel — use the CPU-only path or
+#   install torch-directml manually (not auto-detected by Plia).
+#
 # IMPORTANT: The OpenAI package (see Web & API section below) is
 #   installed by default, but Plia core (chat, voice, weather,
 #   web search, briefing, planner, agents, reading files, etc.)
@@ -32,12 +39,21 @@
 # =====================================================
 
 # -----------------------------------------------------
-# PyTorch Index — CUDA 12.4 Builds
+# PyTorch Index — pick ONE of: CUDA / ROCm / CPU
 # -----------------------------------------------------
-# Tells pip to also look at the PyTorch CUDA wheel server when
-# resolving torch, torchvision, and torchaudio below.
-# Remove this line if you are on a CPU-only machine.
+# Tells pip to also look at the PyTorch wheel server when resolving
+# torch / torchvision / torchaudio below.
+#
+#   NVIDIA GPU (default): keep the cu124 line below.
+#   AMD GPU on Linux:     comment out cu124 and uncomment the rocm line.
+#   CPU-only:             comment out both lines (pip will resolve
+#                         CPU wheels from PyPI automatically).
+#
+# NVIDIA CUDA 12.4
 --extra-index-url https://download.pytorch.org/whl/cu124
+# AMD ROCm 6.2 (Linux only — see https://pytorch.org/get-started/locally/
+# for the current ROCm version. Windows AMD has no upstream ROCm wheel.)
+# --extra-index-url https://download.pytorch.org/whl/rocm6.2
 
 # -----------------------------------------------------
 # Core GUI Framework
@@ -61,7 +77,9 @@ pygments>=2.15.0               # Syntax highlighting for code blocks
 # This prevents the circular import (torch.hub → tqdm) that caused a
 # fatal startup crash in earlier versions. Do not move these imports
 # back to module level.
-torch>=2.6.0                   # PyTorch deep learning framework (CUDA 12.4 build)
+torch>=2.6.0                   # PyTorch deep learning framework
+                               # (CUDA 12.4 by default; ROCm 6.2 on Linux/AMD
+                               # if the rocm extra-index-url above is enabled)
 # torchvision>=0.21.0            # Not directly used — kept for compatibility
 torchaudio>=2.6.0              # Audio processing (STT Silero VAD, auto-stubbed if missing)
 transformers>=4.57.0           # Hugging Face transformers for router model

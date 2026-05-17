@@ -53,8 +53,20 @@
 | Tier | Specs | Experience |
 |------|-------|------------|
 | **Minimum** | 8 GB RAM, modern CPU | Functional, CPU inference |
-| **Recommended** | 16 GB RAM, NVIDIA GPU 6 GB+ VRAM | Fast responses, GPU inference |
+| **Recommended (NVIDIA)** | 16 GB RAM, NVIDIA GPU 6 GB+ VRAM, CUDA 12.4 drivers | Fast responses, GPU inference |
+| **Recommended (AMD, Linux)** | 16 GB RAM, AMD GPU 6 GB+ VRAM, ROCm 6.2 | Fast responses via ROCm PyTorch (Linux only) |
 | **Storage** | ~5 GB free | Models + voice data |
+
+**GPU support details:**
+
+| GPU | OS | Status | Notes |
+|-----|----|--------|-------|
+| **NVIDIA** (GTX 900+ / RTX, CC 5.0+, 4 GB+ VRAM) | Windows, Linux | ✅ Supported (default) | CUDA 12.4 wheel installed automatically |
+| **AMD** (RX 6000/7000, Radeon Pro W6800+, Instinct MI) | Linux only | ✅ Supported | Requires ROCm 6.2 — see [Step 5](#step-5--gpu-setup-optional-but-recommended). Check the [ROCm support matrix](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html) |
+| **AMD** | Windows | ❌ Not supported | No upstream ROCm wheel for Windows; falls back to CPU. DirectML works manually but is not auto-detected |
+| **Apple Silicon (M-series)** | macOS | ⚠️ Untested | PyTorch MPS may work; not exercised by the project |
+| **Intel Arc / iGPU** | any | ❌ Not supported | No SYCL/XPU path wired up |
+| **No GPU** | any | ✅ Supported | Everything runs on CPU; inference is slower but functional |
 
 > 💡 Plia works on CPU-only machines. A GPU simply makes inference faster.
 
@@ -131,19 +143,48 @@ pip install -r requirements.txt
 
 ### Step 5 — GPU Setup (Optional but Recommended)
 
-If you have an NVIDIA GPU, install PyTorch with CUDA for significantly faster inference:
+Plia ships with the CUDA wheel index enabled in `requirements.txt`. Pick the path
+that matches your hardware:
+
+**🔹 NVIDIA GPU (default)** — already wired up. To (re)install explicitly:
 
 ```bash
 # CUDA 12.4 (RTX 30/40/50 series, GTX 16 series with updated drivers)
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu124
 ```
 
-Verify it worked:
+**🔹 AMD GPU on Linux (ROCm)** — supported. Edit `requirements.txt`: comment
+out the `cu124` `--extra-index-url` line and uncomment the `rocm6.2` line, then
+reinstall. Or run directly:
+
 ```bash
-python -c "import torch; print('CUDA:', torch.cuda.is_available())"
+# ROCm 6.2 — Linux only (RX 6000/7000 series, Radeon Pro W6800+, MI series).
+# Check https://pytorch.org/get-started/locally/ for the current ROCm version
+# and your GPU's ROCm support matrix at https://rocm.docs.amd.com/
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
 ```
 
-> 💡 **CPU-only users**: Skip this step. `requirements.txt` currently installs PyTorch using the CUDA wheel index by default (`--extra-index-url .../cu124`). For a true CPU-only install, comment out/remove the CUDA index line (and optionally the `torch` / `torchaudio` lines) before running `pip install -r requirements.txt`, so pip can resolve CPU wheels instead.
+> ⚠️ **Windows + AMD**: There is no upstream ROCm wheel for Windows. Options:
+> (a) run CPU-only, or (b) manually install `torch-directml` — Plia's
+> device-selection code only checks `torch.cuda.is_available()`, so DirectML
+> requires a code change to use; it is not auto-detected.
+
+Verify it worked:
+```bash
+python -c "import torch; print('GPU available:', torch.cuda.is_available())"
+```
+
+> 💡 Under PyTorch's ROCm build, `torch.cuda.is_available()` returns `True` and
+> `torch.cuda.get_device_name()` shows your AMD GPU — Plia's router and STT
+> device selection light up the GPU automatically. The model browser hardware
+> tab, however, only probes NVIDIA tools (`pynvml` / `nvidia-smi`) and will
+> still display "No GPU" for AMD cards — this is cosmetic and does not affect
+> inference.
+
+> 💡 **CPU-only users**: Comment out **both** `--extra-index-url` lines in
+> `requirements.txt` (and optionally the `torch` / `torchaudio` lines) before
+> running `pip install -r requirements.txt`, so pip resolves CPU wheels from
+> PyPI instead.
 
 ### Step 6 — Install Playwright Browser Binaries (Optional)
 
@@ -655,6 +696,36 @@ msal>=1.28.0                         # Microsoft Outlook
 </details>
 
 <details>
+<summary><strong>❌ AMD GPU not used (Linux / ROCm)</strong></summary>
+
+**Problem**: You have an AMD GPU on Linux but `torch.cuda.is_available()` returns `False`, or PyTorch reports a CUDA build instead of ROCm.
+
+**Solutions**:
+1. Reinstall PyTorch from the ROCm wheel index:
+   ```bash
+   pip uninstall -y torch torchvision torchaudio
+   pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/rocm6.2
+   ```
+2. Confirm ROCm is installed system-wide: `rocminfo` should list your GPU.
+3. Make sure your user is in the `render` and `video` groups:
+   ```bash
+   sudo usermod -a -G render,video $USER
+   # log out and back in
+   ```
+4. Verify the wheel is the ROCm build:
+   ```bash
+   python -c "import torch; print(torch.__version__, torch.cuda.is_available(), torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no gpu')"
+   ```
+   The version string should include `+rocm` (e.g. `2.6.0+rocm6.2`).
+5. Check your GPU is in the [ROCm support matrix](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html). Older / consumer cards may need `HSA_OVERRIDE_GFX_VERSION` set.
+
+> ℹ️ The Model Browser hardware tab probes only NVIDIA tooling, so it will still
+> show "No GPU" with an AMD card. This is cosmetic — the router and STT use
+> `torch.cuda.is_available()` and will run on the AMD GPU regardless.
+
+</details>
+
+<details>
 <summary><strong>❌ Responder model returns status 404</strong></summary>
 
 **Problem**: `[System] Responder model load returned status 404` in the console.
@@ -828,7 +899,9 @@ The `log/` directory is created automatically on first run. Any stray `realtimes
 | **Whisper STT** | Near real-time | Slight delay |
 | **Piper TTS** | CPU-only (no GPU needed) | Same |
 
-**CUDA Requirements**: NVIDIA GPU with Compute Capability 5.0+ (GTX 900 series or newer), VRAM 4 GB minimum.
+**NVIDIA**: GPU with CUDA Compute Capability 5.0+ (GTX 900 series or newer), 4 GB VRAM minimum.
+
+**AMD (Linux)**: ROCm 6.2-compatible GPU (RX 6000/7000 series, Radeon Pro W6800+, Instinct MI series), 4 GB VRAM minimum. Check your card against the [ROCm GPU support matrix](https://rocm.docs.amd.com/projects/install-on-linux/en/latest/reference/system-requirements.html).
 
 ---
 
