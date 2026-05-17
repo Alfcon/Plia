@@ -121,6 +121,54 @@ def _probe_amd_sysfs() -> str | None:
     return "rocm"
 
 
+_EMPTY_INFO = GpuInfo(
+    backend="cpu", name="No GPU",
+    vram_total_gb=0.0, vram_used_gb=0.0, vram_free_gb=0.0, util_pct=0.0,
+)
+
+
+def read_gpu() -> GpuInfo:
+    """Cheap per-tick read. Returns empty info on any error."""
+    backend = detect_backend()
+    if backend == "cuda":
+        return _read_cuda()
+    if backend == "rocm":
+        return _read_rocm()
+    return _EMPTY_INFO
+
+
+def _read_cuda() -> GpuInfo:
+    try:
+        import pynvml
+        h = pynvml.nvmlDeviceGetHandleByIndex(0)
+        mi = pynvml.nvmlDeviceGetMemoryInfo(h)
+        util = pynvml.nvmlDeviceGetUtilizationRates(h)
+        raw_name = pynvml.nvmlDeviceGetName(h)
+        name = raw_name.decode("utf-8") if isinstance(raw_name, bytes) else raw_name
+        gb = 1024 ** 3
+        return GpuInfo(
+            backend="cuda",
+            name=name,
+            vram_total_gb=round(mi.total / gb, 2),
+            vram_used_gb=round(mi.used / gb, 2),
+            vram_free_gb=round(mi.free / gb, 2),
+            util_pct=float(util.gpu),
+        )
+    except Exception:
+        return GpuInfo(
+            backend="cuda", name="NVIDIA GPU",
+            vram_total_gb=0.0, vram_used_gb=0.0, vram_free_gb=0.0, util_pct=0.0,
+        )
+
+
+def _read_rocm() -> GpuInfo:
+    # Stub for now — implemented in Task 7
+    return GpuInfo(
+        backend="rocm", name="AMD GPU",
+        vram_total_gb=0.0, vram_used_gb=0.0, vram_free_gb=0.0, util_pct=0.0,
+    )
+
+
 def _chosen_amd_card_path() -> Path | None:
     """Test helper. Returns the cached AMD card path (cardN, not cardN/device)."""
     return _AMD_CARD_PATH

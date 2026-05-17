@@ -196,3 +196,16 @@ def test_detect_backend_returns_cpu_when_nothing(
     monkeypatch.setattr(gpu_info, "_SYSFS_DRM_ROOT", empty_root)
 
     assert gpu_info.detect_backend() == "cpu"
+
+
+def test_read_gpu_cuda(monkeypatch, reset_gpu_info):
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml())
+
+    from core.gpu_info import read_gpu
+    info = read_gpu()
+    assert info.backend == "cuda"
+    assert info.name == "NVIDIA GeForce RTX 4090"
+    assert info.vram_total_gb == pytest.approx(24.0, abs=0.1)
+    assert info.vram_used_gb == pytest.approx(4.0, abs=0.1)
+    assert info.vram_free_gb == pytest.approx(20.0, abs=0.1)
+    assert info.util_pct == 42.0
