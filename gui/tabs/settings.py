@@ -1468,9 +1468,13 @@ class SettingsTab(ScrollArea):
             layout.addStretch(1)
 
             self.tab_stack.addWidget(panel)
+            # PivotItem.itemClicked emits a bool, which we must accept and
+            # discard — otherwise it overwrites the captured idx default and
+            # every click routes to tab index 1.
             self.pivot.addItem(
                 routeKey=key, text=label,
-                onClick=lambda i=idx, k=key: self._on_pivot_changed(i, k),
+                onClick=lambda _checked, i=idx, k=key:
+                    self._on_pivot_changed(i, k),
             )
 
         self.expandLayout.addWidget(self.pivot)

@@ -66,3 +66,18 @@ def test_tab_stack_sits_below_pivot(qapp):
         f"tab_stack is {gap}px below pivot — expected 0–30px. "
         f"pivot.y={tab.pivot.y()}, h={tab.pivot.height()}; stack.y={stack_y}"
     )
+
+
+def test_clicking_each_pivot_item_switches_to_that_tab(qapp):
+    """Clicking each PivotItem must land on its corresponding stack index."""
+    host, tab = _build_tab(qapp)
+    keys = ["core", "voice", "features", "about"]
+    for expected_idx, key in enumerate(keys):
+        item = tab.pivot.widget(key)
+        assert item is not None, f"no pivot item for routeKey={key!r}"
+        item.click()
+        qapp.processEvents()
+        assert tab.tab_stack.currentIndex() == expected_idx, (
+            f"clicking {key!r} should switch to index {expected_idx}, "
+            f"got {tab.tab_stack.currentIndex()}"
+        )
