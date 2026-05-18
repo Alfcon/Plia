@@ -19,10 +19,12 @@ for the design rationale.
 
 from __future__ import annotations
 
+import random
 import re
 import shutil
 import time
 import urllib.request
+import wave
 from pathlib import Path
 from typing import Callable
 
@@ -156,7 +158,16 @@ def ensure_negative_features(on_progress: ProgressFn = lambda pct, msg: None) ->
     )
 
 
-# ── Public stubs (filled in by later tasks) ───────────────────────────────
+# ── Piper TTS helpers ─────────────────────────────────────────────────────
+_PIPER_LENGTH_SCALES = (0.85, 1.0, 1.15, 1.3)
+
+
+def _load_piper_voice(name: str):
+    """Indirection so tests can monkey-patch without importing piper."""
+    from piper.voice import PiperVoice
+    return PiperVoice.load(name)
+
+
 def synthesize_positives(
     word: str,
     voices: list[str],
@@ -165,7 +176,56 @@ def synthesize_positives(
     on_progress: ProgressFn = lambda pct, msg: None,
     should_cancel: CancelFn = lambda: False,
 ) -> Path:
-    raise NotImplementedError("synthesize_positives — see Task 5")
+    """Render `variants` WAV files of `word` to `out_dir` using Piper.
+
+    For each WAV: pick a random voice and length_scale, synthesize to a
+    16 kHz mono PCM_S16LE WAV. Per-voice loading is cached; if a voice
+    fails to load, it's skipped and the remaining voices keep going. If
+    *all* voices fail, raises WakeTrainerError. Cancellation checked
+    between WAVs."""
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    cache: dict[str, object] = {}
+    usable: list[str] = []
+    for v in voices:
+        try:
+            cache[v] = _load_piper_voice(v)
+            usable.append(v)
+        except Exception as exc:
+            on_progress(10.0, f"piper: skipping {v}: {exc}")
+
+    if not usable:
+        raise WakeTrainerError("no usable Piper voice (all loads failed)")
+
+    failures = 0
+    for i in range(variants):
+        if should_cancel():
+            raise TrainCancelled("synth cancelled")
+        voice_name = random.choice(usable)
+        length_scale = random.choice(_PIPER_LENGTH_SCALES)
+        wav_path = out_dir / f"{i:05d}.wav"
+        try:
+            with wave.open(str(wav_path), "wb") as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(16000)
+                cache[voice_name].synthesize(word, wf, length_scale=length_scale)
+        except Exception as exc:
+            failures += 1
+            wav_path.unlink(missing_ok=True)
+            if failures > variants // 10:
+                raise WakeTrainerError(
+                    f"synth: >10% of WAVs failed (last error: {exc})"
+                )
+            continue
+
+        # Progress 10 → 30 across the synthesis stage.
+        pct = 10.0 + 20.0 * ((i + 1) / variants)
+        if i % 100 == 0:
+            on_progress(pct, f"synth: {i + 1}/{variants}")
+
+    on_progress(30.0, f"synth: {variants - failures}/{variants} WAVs written")
+    return out_dir
 
 
 def _slugify(word: str) -> str:

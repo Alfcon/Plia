@@ -141,3 +141,64 @@ def test_ensure_negative_features_gives_up_after_retries(monkeypatch, tmp_path):
 
     with pytest.raises(wake_trainer.WakeTrainerError, match="download"):
         wake_trainer.ensure_negative_features()
+
+
+def test_synthesize_positives_writes_wav_files(monkeypatch, tmp_path):
+    """Replaces PiperVoice.load with a fake so the test doesn't need a real
+    voice model on disk."""
+    from core import wake_trainer
+
+    rendered: list[tuple[str, str]] = []
+
+    class FakeVoice:
+        def __init__(self, name: str):
+            self.name = name
+
+        def synthesize(self, text: str, wf, length_scale: float = 1.0):
+            # WAV header + 0.2s of silence at 16 kHz mono.
+            wf.writeframes(b"\x00\x00" * 3200)
+            rendered.append((self.name, text))
+
+    fake_loader = {"calls": 0}
+    def fake_piper_load(name: str):
+        fake_loader["calls"] += 1
+        return FakeVoice(name)
+    monkeypatch.setattr(wake_trainer, "_load_piper_voice", fake_piper_load)
+
+    out_dir = tmp_path / "positives"
+    wake_trainer.synthesize_positives(
+        word="plia",
+        voices=["en_US-lessac-medium", "en_US-amy-medium"],
+        variants=12,
+        out_dir=out_dir,
+    )
+    wavs = sorted(out_dir.glob("*.wav"))
+    assert len(wavs) == 12, f"expected 12 wavs, got {len(wavs)}"
+    # Both voices used at least once.
+    voices_used = {name for name, _ in rendered}
+    assert voices_used == {"en_US-lessac-medium", "en_US-amy-medium"}
+
+
+def test_synthesize_positives_respects_cancellation(monkeypatch, tmp_path):
+    """should_cancel() returning True between WAVs aborts cleanly."""
+    from core import wake_trainer
+
+    class FakeVoice:
+        def synthesize(self, text, wf, length_scale=1.0):
+            wf.writeframes(b"\x00\x00" * 3200)
+
+    monkeypatch.setattr(wake_trainer, "_load_piper_voice", lambda n: FakeVoice())
+
+    cancel_after = {"n": 3}
+    def should_cancel():
+        cancel_after["n"] -= 1
+        return cancel_after["n"] <= 0
+
+    with pytest.raises(wake_trainer.TrainCancelled):
+        wake_trainer.synthesize_positives(
+            word="plia",
+            voices=["en_US-lessac-medium"],
+            variants=100,
+            out_dir=tmp_path / "p",
+            should_cancel=should_cancel,
+        )
