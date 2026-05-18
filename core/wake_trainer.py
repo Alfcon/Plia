@@ -19,6 +19,7 @@ for the design rationale.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Callable
 
@@ -35,6 +36,8 @@ DEFAULT_VOICES = [
     "en_GB-northern_english_male-medium",
 ]
 
+_WORD_RE = re.compile(r"^[A-Za-z0-9 ]{1,32}$")
+
 
 # ── Callback types ────────────────────────────────────────────────────────
 ProgressFn = Callable[[float, str], None]   # (pct 0-100, message)
@@ -48,6 +51,26 @@ class TrainCancelled(Exception):
 
 class WakeTrainerError(Exception):
     """Anything else that prevented training from completing."""
+
+
+# ── Input validation ──────────────────────────────────────────────────────
+def _validate_inputs(word: str, variants: int, voices: list[str]) -> None:
+    """Raise WakeTrainerError if inputs are unusable. Voices may be empty,
+    in which case the caller falls back to DEFAULT_VOICES."""
+    if not isinstance(word, str) or not _WORD_RE.match(word.strip()):
+        raise WakeTrainerError(
+            f"word must be 1-32 chars, ASCII letters/digits/space; got {word!r}"
+        )
+    if not (500 <= variants <= 20000):
+        raise WakeTrainerError(
+            f"variants must be in [500, 20000]; got {variants}"
+        )
+    for v in voices:
+        if v not in DEFAULT_VOICES:
+            raise WakeTrainerError(
+                f"voice {v!r} is not in DEFAULT_VOICES; pass one of "
+                f"{DEFAULT_VOICES}"
+            )
 
 
 # ── Public stubs (filled in by later tasks) ───────────────────────────────
@@ -77,4 +100,5 @@ def train_wake_word(
     epochs: int = 100,
 ) -> Path:
     """End-to-end wake-word training. Fully implemented by Task 8."""
+    _validate_inputs(word, variants, voices or [])
     raise NotImplementedError("train_wake_word — see Task 8")
