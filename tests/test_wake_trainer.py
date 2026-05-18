@@ -75,3 +75,69 @@ def test_train_wake_word_strips_surrounding_whitespace():
     # Wrapped word strips to "plia", passes validation, then hits NotImplementedError.
     with pytest.raises(NotImplementedError):
         train_wake_word("  plia  ")
+
+
+def test_ensure_negative_features_is_idempotent(monkeypatch, tmp_path):
+    """Second call must not re-download once the .ready marker is set."""
+    from core import wake_trainer
+
+    fake_root = tmp_path / "neg_features"
+    monkeypatch.setattr(wake_trainer, "NEG_FEATURES_DIR", fake_root)
+
+    download_calls = {"n": 0}
+    def fake_download_and_unpack(dest: "Path") -> None:
+        download_calls["n"] += 1
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / ".ready").write_text("ok\n")
+
+    monkeypatch.setattr(
+        wake_trainer, "_download_neg_features", fake_download_and_unpack
+    )
+
+    progress = []
+    p1 = wake_trainer.ensure_negative_features(
+        on_progress=lambda pct, msg: progress.append((pct, msg))
+    )
+    p2 = wake_trainer.ensure_negative_features(
+        on_progress=lambda pct, msg: progress.append((pct, msg))
+    )
+    assert p1 == p2 == fake_root
+    assert download_calls["n"] == 1, "second call must hit the cache"
+
+
+def test_ensure_negative_features_retries_on_network_error(monkeypatch, tmp_path):
+    """Three transient failures + one success → final call wins."""
+    from core import wake_trainer
+
+    fake_root = tmp_path / "neg_features"
+    monkeypatch.setattr(wake_trainer, "NEG_FEATURES_DIR", fake_root)
+
+    calls = {"n": 0}
+    def flaky(dest: "Path") -> None:
+        calls["n"] += 1
+        if calls["n"] < 4:
+            raise IOError("simulated network failure")
+        dest.mkdir(parents=True, exist_ok=True)
+        (dest / ".ready").write_text("ok\n")
+    monkeypatch.setattr(wake_trainer, "_download_neg_features", flaky)
+
+    # _RETRY_DELAYS is shrunk for tests so this doesn't sleep for real.
+    monkeypatch.setattr(wake_trainer, "_RETRY_DELAYS", [0.0, 0.0, 0.0])
+
+    wake_trainer.ensure_negative_features()
+    assert calls["n"] == 4
+
+
+def test_ensure_negative_features_gives_up_after_retries(monkeypatch, tmp_path):
+    from core import wake_trainer
+
+    fake_root = tmp_path / "neg_features"
+    monkeypatch.setattr(wake_trainer, "NEG_FEATURES_DIR", fake_root)
+    monkeypatch.setattr(wake_trainer, "_RETRY_DELAYS", [0.0, 0.0, 0.0])
+    monkeypatch.setattr(
+        wake_trainer, "_download_neg_features",
+        lambda dest: (_ for _ in ()).throw(IOError("nope"))
+    )
+
+    with pytest.raises(wake_trainer.WakeTrainerError, match="download"):
+        wake_trainer.ensure_negative_features()

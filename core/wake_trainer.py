@@ -20,6 +20,8 @@ for the design rationale.
 from __future__ import annotations
 
 import re
+import time
+import urllib.request
 from pathlib import Path
 from typing import Callable
 
@@ -37,6 +39,16 @@ DEFAULT_VOICES = [
 ]
 
 _WORD_RE = re.compile(r"^[A-Za-z0-9 ]{1,32}$")
+
+# Pinned during implementation. The executor verifies that the URL still
+# resolves on PR day; if not, update both URL and SHA-256.
+_NEG_FEATURES_URL = (
+    "https://github.com/dscripka/openWakeWord/releases/download/"
+    "v0.5.1/openwakeword_features_2022_09_05.tar.gz"
+)
+_NEG_FEATURES_SHA256 = "PIN_DURING_IMPLEMENTATION"
+
+_RETRY_DELAYS = [1.0, 4.0, 16.0]   # exponential-ish, total ~21s wall
 
 
 # ── Callback types ────────────────────────────────────────────────────────
@@ -73,11 +85,76 @@ def _validate_inputs(word: str, variants: int, voices: list[str]) -> None:
             )
 
 
-# ── Public stubs (filled in by later tasks) ───────────────────────────────
+# ── Negative-feature download helpers ────────────────────────────────────
+def _download_neg_features(dest: Path) -> None:
+    """Download + verify + extract the neg-feature archive under dest.
+
+    Marks success with a `.ready` file. Caller is responsible for clearing
+    a half-written dest on exception.
+    """
+    import hashlib
+    import tarfile
+    import tempfile
+
+    dest.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".tar.gz") as tmp:
+        archive_path = Path(tmp.name)
+
+    try:
+        urllib.request.urlretrieve(_NEG_FEATURES_URL, archive_path)
+
+        # Verify checksum.
+        sha = hashlib.sha256()
+        with archive_path.open("rb") as f:
+            for chunk in iter(lambda: f.read(1 << 16), b""):
+                sha.update(chunk)
+        if _NEG_FEATURES_SHA256 != "PIN_DURING_IMPLEMENTATION":
+            if sha.hexdigest() != _NEG_FEATURES_SHA256:
+                raise WakeTrainerError(
+                    f"neg-features checksum mismatch: got {sha.hexdigest()}, "
+                    f"expected {_NEG_FEATURES_SHA256}"
+                )
+
+        # Extract.
+        with tarfile.open(archive_path, "r:gz") as tar:
+            tar.extractall(dest)
+        (dest / ".ready").write_text("ok\n")
+    finally:
+        archive_path.unlink(missing_ok=True)
+
+
 def ensure_negative_features(on_progress: ProgressFn = lambda pct, msg: None) -> Path:
-    raise NotImplementedError("ensure_negative_features — see Task 4")
+    """Download + extract openWakeWord's negative-feature pack once.
+
+    Cached at NEG_FEATURES_DIR/.ready. Subsequent calls return immediately.
+    Raises WakeTrainerError after exhausting retries.
+    """
+    if (NEG_FEATURES_DIR / ".ready").exists():
+        on_progress(10.0, "neg features: cached")
+        return NEG_FEATURES_DIR
+
+    on_progress(0.0, "neg features: downloading…")
+    last_err: Exception | None = None
+    for attempt, delay in enumerate([0.0] + _RETRY_DELAYS):
+        if delay:
+            time.sleep(delay)
+        try:
+            _download_neg_features(NEG_FEATURES_DIR)
+            on_progress(10.0, "neg features: ready")
+            return NEG_FEATURES_DIR
+        except Exception as exc:
+            last_err = exc
+            # Half-written dir gets wiped so the next attempt is clean.
+            import shutil
+            if NEG_FEATURES_DIR.exists():
+                shutil.rmtree(NEG_FEATURES_DIR, ignore_errors=True)
+
+    raise WakeTrainerError(
+        f"neg features: download failed after {len(_RETRY_DELAYS) + 1} attempts: {last_err}"
+    )
 
 
+# ── Public stubs (filled in by later tasks) ───────────────────────────────
 def synthesize_positives(
     word: str,
     voices: list[str],
