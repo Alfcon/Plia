@@ -297,7 +297,7 @@ def _train_loop(
 
     import numpy as np
     import torch
-    from torch import nn, optim
+    from torch import optim
     from openwakeword.utils import AudioFeatures
     from openwakeword.train import Model as OWWModel
 
@@ -335,7 +335,7 @@ def _train_loop(
     if not neg_npy.exists():
         raise WakeTrainerError(
             f"neg_features.npy not found in {neg_features_dir}. "
-            "Ensure ensure_negative_features() was called first."
+            "Call ensure_negative_features() first."
         )
     neg_features = np.load(str(neg_npy))  # (N, n_frames, 96)
 
