@@ -4,10 +4,12 @@ Comprehensive Settings Tab with model selection, connection settings, and prefer
 
 from config import LOCAL_ROUTER_PATH, RESPONDER_MODEL
 
+from pathlib import Path
+
 import requests
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame, QSizePolicy,
-    QCheckBox, QSlider, QPushButton
+    QCheckBox, QSlider, QPushButton, QFileDialog
 )
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
 
@@ -313,6 +315,109 @@ class MultiWakeWordRow(QWidget):
     def _flush_slider(self):
         self._entry["sensitivity"] = self.slider.value() / 100
         self.changed.emit()
+
+
+class MultiWakeWordCard(SettingCard):
+    """Multi-select card listing all known wake-word models.
+
+    The wrapped settings key is `voice.wake_models` (a list of dicts).
+    Edits write back the whole list; emit `models_changed` after.
+    """
+
+    models_changed = Signal()
+
+    def __init__(self, parent=None):
+        super().__init__(FIF.MICROPHONE, "Wake Words",
+                         "Models that wake Plia when spoken. Toggle and tune per model.",
+                         parent)
+        # Convert default horizontal layout into vertical container.
+        self.hBoxLayout.removeWidget(self.titleLabel)
+        self.hBoxLayout.removeWidget(self.contentLabel)
+        self._rows_layout = QVBoxLayout()
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(16, 12, 16, 12)
+        outer.addWidget(self.titleLabel)
+        outer.addWidget(self.contentLabel)
+        outer.addLayout(self._rows_layout)
+
+        # Footer buttons.
+        footer = QHBoxLayout()
+        self.add_btn = QPushButton("+ Add Model…", self)
+        self.reload_btn = QPushButton("↻ Reload", self)
+        footer.addWidget(self.add_btn)
+        footer.addWidget(self.reload_btn)
+        footer.addStretch(1)
+        outer.addLayout(footer)
+        self.add_btn.clicked.connect(self._on_add_model)
+        self.reload_btn.clicked.connect(self._on_reload)
+
+        self._rebuild_rows()
+
+    def _rebuild_rows(self):
+        while self._rows_layout.count():
+            item = self._rows_layout.takeAt(0)
+            w = item.widget()
+            if w:
+                w.deleteLater()
+
+        from core.wake_models import models_dir, reconcile_with_settings
+        models = settings.get("voice.wake_models", [])
+        models = reconcile_with_settings(models, models_dir())
+        settings.set("voice.wake_models", models)
+
+        for entry in models:
+            row = MultiWakeWordRow(entry, self)
+            row.changed.connect(self._on_any_row_changed)
+            row.delete_requested.connect(self._on_delete)
+            self._rows_layout.addWidget(row)
+
+    def _on_any_row_changed(self):
+        models = []
+        for i in range(self._rows_layout.count()):
+            row = self._rows_layout.itemAt(i).widget()
+            if isinstance(row, MultiWakeWordRow):
+                models.append(row._entry)
+        settings.set("voice.wake_models", models)
+        self.models_changed.emit()
+
+    def _on_add_model(self):
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Add wake-word model", "", "ONNX models (*.onnx)"
+        )
+        if not path:
+            return
+        from core.wake_models import models_dir
+        import shutil
+        dest_dir = models_dir() / "custom"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / Path(path).name
+        shutil.copy2(path, dest)
+        self._rebuild_rows()
+        self.models_changed.emit()
+
+    def _on_reload(self):
+        self._rebuild_rows()
+        self.models_changed.emit()
+
+    def _on_delete(self, model_id: str):
+        from core.wake_models import models_dir
+        models = settings.get("voice.wake_models", [])
+        for i, m in enumerate(list(models)):
+            if m["id"] == model_id:
+                # Custom files get unlinked; built-in rows can also be deleted
+                # only if broken (file missing already).
+                full = models_dir() / m["path"]
+                if not m.get("builtin", True) or m.get("broken"):
+                    if full.exists():
+                        try:
+                            full.unlink()
+                        except OSError:
+                            pass
+                    models.pop(i)
+                break
+        settings.set("voice.wake_models", models)
+        self._rebuild_rows()
+        self.models_changed.emit()
 
 
 class SwitchCard(SettingCard):
