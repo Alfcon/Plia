@@ -1503,6 +1503,16 @@ class SettingsTab(ScrollArea):
             if pivot_item is not None:
                 pivot_item.setToolTip(f"{label}  (Ctrl+{idx + 1})")
 
+        # Thin separator between the pinned Apply card and the Pivot bar.
+        self._apply_pivot_divider = QFrame(self.scrollWidget)
+        self._apply_pivot_divider.setFrameShape(QFrame.HLine)
+        self._apply_pivot_divider.setObjectName("applyPivotDivider")
+        self._apply_pivot_divider.setStyleSheet(
+            "#applyPivotDivider { color: rgba(255, 255, 255, 28); "
+            "background-color: rgba(255, 255, 255, 28); max-height: 1px; }"
+        )
+        self.expandLayout.addWidget(self._apply_pivot_divider)
+
         self.expandLayout.addWidget(self.pivot)
         self.expandLayout.addWidget(self.tab_stack)
 

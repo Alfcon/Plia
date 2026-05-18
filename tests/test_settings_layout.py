@@ -34,14 +34,26 @@ def _build_tab(qapp):
     return host, tab
 
 
-def test_pivot_sits_directly_under_apply_group(qapp):
-    """Pivot must be ≤ 50px below the bottom of apply_group."""
+def test_pivot_sits_under_apply_group_with_divider(qapp):
+    """Pivot must be just below apply_group with the divider between them.
+
+    The thin separator + QVBoxLayout spacing yields ~60px of breathing
+    room; the assertion guards against the historical 3000+ px regression
+    while permitting the intentional whitespace.
+    """
     host, tab = _build_tab(qapp)
     apply_bottom = tab.apply_group.y() + tab.apply_group.height()
+    divider_y = tab._apply_pivot_divider.y()
     pivot_y = tab.pivot.y()
+
+    assert apply_bottom < divider_y < pivot_y, (
+        f"Divider must sit between apply_group and pivot. "
+        f"apply_bottom={apply_bottom}, divider_y={divider_y}, pivot_y={pivot_y}"
+    )
+
     gap = pivot_y - apply_bottom
-    assert 0 <= gap <= 50, (
-        f"Pivot is {gap}px below apply_group (expected ≤ 50). "
+    assert 0 <= gap <= 80, (
+        f"Pivot is {gap}px below apply_group (expected ≤ 80 with divider). "
         f"apply_group.y={tab.apply_group.y()}, h={tab.apply_group.height()}; "
         f"pivot.y={pivot_y}"
     )
