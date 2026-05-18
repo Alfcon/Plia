@@ -269,3 +269,36 @@ def test_read_gpu_rocm_handles_missing_files(
     assert info.vram_used_gb == 0.0
     assert info.util_pct == 0.0
     assert info.name == "AMD GPU"
+
+
+def test_read_gpu_cpu_returns_empty(monkeypatch, reset_gpu_info, tmp_path):
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml(init_ok=False))
+    import subprocess
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr=""),
+    )
+
+    empty_root = tmp_path / "drm-empty"
+    empty_root.mkdir()
+    from core import gpu_info
+    monkeypatch.setattr(gpu_info, "_SYSFS_DRM_ROOT", empty_root)
+
+    info = gpu_info.read_gpu()
+    assert info.backend == "cpu"
+    assert info.name == "No GPU"
+    assert info.vram_total_gb == 0.0
+
+
+def test_nvidia_wins_when_both_present(monkeypatch, reset_gpu_info, tmp_path):
+    """When both NVIDIA (pynvml) and AMD (sysfs) are present, NVIDIA wins
+    to preserve today's precedence."""
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml())
+
+    sysfs_root = tmp_path / "drm"
+    _make_amd_card(sysfs_root / "card0" / "device")
+
+    from core import gpu_info
+    monkeypatch.setattr(gpu_info, "_SYSFS_DRM_ROOT", sysfs_root)
+
+    assert gpu_info.detect_backend() == "cuda"
