@@ -14,7 +14,7 @@
 
 | Feature | Description |
 |---------|-------------|
-| 🎤 **Voice Control** | Wake word detection ("Jarvis") with natural language commands |
+| 🎤 **Voice Control** | Multi-wake-word detection via openWakeWord (default: "Hey Jarvis" + "Plia") with natural language commands |
 | 💬 **AI Chat** | Streaming chat with local LLMs via Ollama |
 | 🤖 **Active Agents** | Build, edit, and run autonomous AI agents from chat or GUI |
 | 🧩 **Agent List** | Hierarchical view of multi-agent systems, roles, and message history |
@@ -231,9 +231,10 @@ The full `requirements.txt` installs these packages. This table shows what each 
 | `piper-tts>=1.4.0` | Local text-to-speech (Piper) — uses `synthesize_wav()` |
 | `sounddevice>=0.5.0` | Audio playback (used by `core/tts.py`) |
 | `numpy>=2.0.0` | Numerical computing / audio processing |
-| `realtimestt>=0.3.0` | Real-time speech-to-text + wake word |
+| `realtimestt>=0.3.0` | Real-time speech-to-text (Whisper + Silero VAD) |
 | `faster-whisper>=1.0.0` | RealtimeSTT transcription engine |
-| `pvporcupine>=1.9.0,<2` | Porcupine wake word detection (v1 free tier) |
+| `openwakeword>=0.6.0` | Open-source multi-model wake-word detection (replaces Porcupine) |
+| `onnxruntime>=1.16.0` | ONNX runtime backend for openWakeWord |
 | `PyAudio>=0.2.14` | Microphone access (Linux: `apt install portaudio19-dev` first) |
 | `requests>=2.32.0` | HTTP API calls (weather, finance, news, llm, …) |
 | `feedparser>=6.0.0` | RSS news feed parsing |
@@ -318,7 +319,11 @@ Downloaded models are stored in `~/.plia_ai/` (i.e., `C:\Users\<YourName>\.plia_
 
 ## 🎙️ Voice Assistant
 
-Plia includes Alexa-style voice control with customisable wake word detection.
+Plia includes Alexa-style voice control with multi-wake-word detection powered by
+[openWakeWord](https://github.com/dscripka/openWakeWord). Enable any combination
+of bundled words (Hey Jarvis, Plia, Alexa, Hey Mycroft, Hey Rhasspy, Ok Nabu) or
+drop your own `.onnx` model in via **Settings → Voice & Audio → + Add Model…**.
+Each model has its own sensitivity slider.
 
 ### Visual Indicator States
 
@@ -331,7 +336,7 @@ Plia includes Alexa-style voice control with customisable wake word detection.
 
 ### How It Works
 
-1. Say **"Jarvis"** to activate the assistant
+1. Say **"Hey Jarvis"** or **"Plia"** (or any enabled wake word) to activate the assistant
    → *Dashboard logo shows a pulsing cyan glow ring — "Listening..."*
 2. Speak your command naturally
    → *Glow turns amber — "Thinking..."*
@@ -344,29 +349,44 @@ Plia includes Alexa-style voice control with customisable wake word detection.
 
 | Voice Command | What Happens |
 |--------------|--------------| 
-| *"Jarvis, turn on the office lights"* | Controls TP-Link Kasa smart lights |
-| *"Jarvis, set a timer for 10 minutes"* | Creates a countdown timer in the Planner |
-| *"Jarvis, what's the weather today?"* | Shows current weather from Open-Meteo |
-| *"Jarvis, internet search on Python tutorials"* | Opens DuckDuckGo results in the browser panel |
-| *"Jarvis, next search page"* | Paginates to the next results page |
-| *"Jarvis, open search result 3"* | Opens result #3 in your default browser |
-| *"Jarvis, close search"* | Closes the search results panel |
-| *"Jarvis, add buy groceries to my to-do list"* | Creates a task in the Planner |
-| *"Jarvis, what's on my schedule today?"* | Reads your calendar events |
-| *"Jarvis, open Notepad"* | Desktop Agent launches the application |
-| *"Jarvis, refresh active agents"* | Refreshes the Active Agents tab |
-| *"Jarvis, help"* | Opens the full help guide on the Dashboard |
-| *"Jarvis, what can you do?"* | Opens the full help guide on the Dashboard |
+| *"Hey Jarvis, turn on the office lights"* | Controls TP-Link Kasa smart lights |
+| *"Hey Jarvis, set a timer for 10 minutes"* | Creates a countdown timer in the Planner |
+| *"Hey Jarvis, what's the weather today?"* | Shows current weather from Open-Meteo |
+| *"Hey Jarvis, internet search on Python tutorials"* | Opens DuckDuckGo results in the browser panel |
+| *"Hey Jarvis, next search page"* | Paginates to the next results page |
+| *"Hey Jarvis, open search result 3"* | Opens result #3 in your default browser |
+| *"Hey Jarvis, close search"* | Closes the search results panel |
+| *"Hey Jarvis, add buy groceries to my to-do list"* | Creates a task in the Planner |
+| *"Hey Jarvis, what's on my schedule today?"* | Reads your calendar events |
+| *"Hey Jarvis, open Notepad"* | Desktop Agent launches the application |
+| *"Hey Jarvis, refresh active agents"* | Refreshes the Active Agents tab |
+| *"Hey Jarvis, help"* | Opens the full help guide on the Dashboard |
+| *"Hey Jarvis, what can you do?"* | Opens the full help guide on the Dashboard |
 
-### Voice Configuration (`config.py`)
+### Voice Configuration
+
+Wake-word configuration lives in `settings.json` (managed by the Settings tab),
+not `config.py`. The `voice.wake_models` key is a list of model entries, e.g.:
+
+```json
+"voice": {
+  "wake_models": [
+    {"id": "hey_jarvis", "display": "Hey Jarvis", "path": "bundled/hey_jarvis.onnx",
+     "enabled": true,  "sensitivity": 0.5, "builtin": true},
+    {"id": "plia",       "display": "Plia",        "path": "bundled/plia.onnx",
+     "enabled": true,  "sensitivity": 0.5, "builtin": true},
+    {"id": "alexa",      "display": "Alexa",       "path": "bundled/alexa.onnx",
+     "enabled": false, "sensitivity": 0.5, "builtin": true}
+  ]
+}
+```
+
+`sensitivity` is the per-model threshold (0.0 – 1.0; lower = stricter). Edit
+through **Settings → Voice & Audio** rather than the JSON directly.
+
+Other voice knobs in `config.py`:
 
 ```python
-# Wake word (lowercase). Default: "jarvis"
-WAKE_WORD = "jarvis"
-
-# Sensitivity 0.0–1.0. Lower = fewer false positives.
-WAKE_WORD_SENSITIVITY = 0.4
-
 # Enable/disable the voice assistant entirely
 VOICE_ASSISTANT_ENABLED = True
 
@@ -374,6 +394,23 @@ VOICE_ASSISTANT_ENABLED = True
 # Larger = more accurate but slower and more VRAM
 REALTIMESTT_MODEL = "base"
 ```
+
+#### Adding a custom wake word
+
+Two paths:
+
+1. **Drop in a pretrained `.onnx`** via Settings → Voice & Audio → **+ Add Model…**
+   (file is copied to `models/wake/custom/`).
+2. **Train your own** from synthetic Piper TTS speech:
+
+   ```bash
+   pip install -r requirements-train.txt
+   python scripts/train_wake_word.py --word "your_word" \
+       --output models/wake/custom/your_word.onnx \
+       --variants 5000
+   ```
+
+   Then click **↻ Reload** in the Wake Words card to pick it up.
 
 ---
 
@@ -383,7 +420,7 @@ REALTIMESTT_MODEL = "base"
 
 There are three ways to open the full help guide:
 
-1. **Voice** — Say *"Jarvis, help"* or *"Jarvis, what can you do?"*
+1. **Voice** — Say *"Hey Jarvis, help"* or *"Hey Jarvis, what can you do?"*
 2. **Dashboard button** — Click the **🔍 Help** button in the left panel
 3. **Dashboard input** — Type `help` in the input box and press SEND
 
@@ -420,7 +457,7 @@ Search query and task details are requested at run-time, not at creation time.
 ### Running an Agent
 
 - Open the **Active Agents** tab and click **Run** next to the agent name
-- Or say *"Jarvis, run the \<agent name\> agent"*
+- Or say *"Hey Jarvis, run the \<agent name\> agent"*
 - Standalone: `python "%USERPROFILE%\.plia_ai\agents\<agent_name>.py"`
 
 ### Marketplace-style (Internet Search) Agents
@@ -515,7 +552,9 @@ Plia/
 │   ├── router.py              # FunctionGemma intent classifier (lazy torch import)
 │   ├── function_executor.py   # Dispatches the action chosen by the router
 │   ├── voice_assistant.py     # STT → Router → LLM → TTS pipeline
-│   ├── stt.py                 # RealtimeSTT wrapper (Whisper + wake word + Silero VAD)
+│   ├── stt.py                 # RealtimeSTT wrapper (Whisper + Silero VAD); audio fed to wake_detector
+│   ├── wake_detector.py       # openWakeWord multi-model wake-word detection
+│   ├── wake_models.py         # Discovery + reconciliation of models/wake/{bundled,custom}/*.onnx
 │   ├── tts.py                 # Piper TTS (synthesize_wav + SynthesisConfig)
 │   ├── llm.py                 # Ollama streaming interface
 │   ├── ollama_paths.py        # Resolves OLLAMA_HOST / OLLAMA_MODELS env vars
@@ -741,20 +780,21 @@ Then restart Plia. Replace `qwen3:1.7b` with whatever is set in `RESPONDER_MODEL
 <details>
 <summary><strong>❌ Voice assistant / wake word not working</strong></summary>
 
-**Problem**: "Jarvis" is not being detected, or microphone is not responding.
+**Problem**: Wake word is not being detected, or microphone is not responding.
 
 **Solutions**:
 1. Check microphone permissions: Windows Settings → Privacy → Microphone
-2. Ensure `realtimestt` and `pyaudio` are installed:
+2. Ensure `realtimestt`, `openwakeword`, `onnxruntime`, and `pyaudio` are installed:
    ```bash
-   pip install realtimestt pyaudio
+   pip install realtimestt openwakeword onnxruntime pyaudio
    ```
-3. Lower the sensitivity in `config.py`:
-   ```python
-   WAKE_WORD_SENSITIVITY = 0.3  # try lower values
-   ```
-4. Check your default recording device in Windows Sound settings
-5. Check `log/realtimesst.log` for detailed STT errors
+3. Open **Settings → Voice & Audio → Wake Words** and:
+   - Confirm at least one model is **enabled** (checkbox on)
+   - **Raise** the per-model sensitivity slider (higher = fires more easily;
+     try ~0.6 for stricter models, ~0.4 if it false-triggers)
+4. Check your default recording device in OS sound settings
+5. Check `log/realtimesst.log` for STT errors and watch the terminal for
+   `[Wake] model '<id>' fired` lines — they confirm the engine is running
 
 </details>
 
