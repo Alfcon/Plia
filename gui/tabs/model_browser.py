@@ -210,7 +210,8 @@ def _parse_params_b(pc: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# Hardware detection — FIX: handle pynvml returning bytes for GPU name
+# Hardware detection — delegates GPU probing to core.gpu_info, which handles
+# NVIDIA (pynvml / nvidia-smi) and AMD (sysfs on Linux) uniformly.
 # ---------------------------------------------------------------------------
 class HardwareInfo:
     def __init__(self):
@@ -225,36 +226,19 @@ class HardwareInfo:
         self.ram_gb    = round(mem.available / (1024 ** 3), 1)
         self.cpu_cores = psutil.cpu_count(logical=False) or 2
 
-        try:
-            import pynvml
-            pynvml.nvmlInit()
-            h    = pynvml.nvmlDeviceGetHandleByIndex(0)
-            info = pynvml.nvmlDeviceGetMemoryInfo(h)
-            self.vram_gb  = round(info.free / (1024 ** 3), 1)
-            raw = pynvml.nvmlDeviceGetName(h)
-            # FIX: some pynvml versions return bytes, others return str
-            self.gpu_name = raw.decode("utf-8") if isinstance(raw, bytes) else raw
-            self.backend  = "cuda"
-            pynvml.nvmlShutdown()
-            return self
-        except Exception:
-            pass
-
-        try:
-            out   = subprocess.check_output(
-                ["nvidia-smi","--query-gpu=memory.free,name","--format=csv,noheader,nounits"],
-                timeout=4, text=True
-            ).strip().split("\n")[0]
-            parts = out.split(",")
-            self.vram_gb  = round(float(parts[0].strip()) / 1024.0, 1)
-            self.gpu_name = parts[1].strip() if len(parts) > 1 else "NVIDIA GPU"
-            self.backend  = "cuda"
-        except Exception:
-            pass
-
-        import platform
-        if platform.machine().lower() in ("arm64", "aarch64"):
-            self.backend = "cpu_arm"
+        from core import gpu_info
+        info = gpu_info.read_gpu()
+        self.vram_gb  = round(info.vram_free_gb, 1)
+        self.gpu_name = info.name if info.backend != "cpu" else "Unknown"
+        if info.backend in ("cuda", "rocm"):
+            self.backend = info.backend
+        else:
+            import platform
+            self.backend = (
+                "cpu_arm"
+                if platform.machine().lower() in ("arm64", "aarch64")
+                else "cpu_x86"
+            )
 
         return self
 
