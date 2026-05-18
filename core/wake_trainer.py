@@ -237,6 +237,182 @@ def _slugify(word: str) -> str:
     return slug
 
 
+def _train_loop(
+    positives_dir: Path,
+    neg_features_dir: Path,
+    epochs: int,
+    on_progress: ProgressFn,
+    should_cancel: CancelFn,
+) -> "torch.nn.Module":
+    """Vendored PyTorch training loop from openWakeWord's
+    notebooks/automatic_model_training.ipynb (and openwakeword/train.py).
+    Returns the trained nn.Module. Raises TrainCancelled between epochs if
+    should_cancel() returns True; raises WakeTrainerError for dep / NaN /
+    unrecoverable train errors.
+
+    Neg-feature pack layout expected in neg_features_dir:
+        neg_features.npy  — shape (N, n_frames, 96) float32
+        .ready            — presence marker
+
+    Positive WAVs in positives_dir are embedded on-the-fly using
+    openwakeword's AudioFeatures (ONNX melspec + embedding models).
+    """
+    # ── 1. Lazy-import + dep guard ────────────────────────────────────────
+    import importlib.util as _iutil
+
+    _required_pkgs = [
+        "speechbrain", "audiomentations", "torch_audiomentations",
+        "pronouncing", "acoustics", "mutagen",
+    ]
+    for _pkg in _required_pkgs:
+        if _iutil.find_spec(_pkg) is None:
+            raise WakeTrainerError(
+                f"missing training dep: {_pkg!r}. "
+                f"Run: pip install -r requirements.txt"
+            )
+
+    # speechbrain, audiomentations, torch_audiomentations, pronouncing,
+    # and mutagen are imported by openwakeword internals; we don't need them
+    # directly here but must confirm they're installed (done above).
+    # acoustics.directivity has a broken scipy compat on newer scipy; mock it
+    # so that acoustics.generator (the only submodule OWW uses) still loads.
+    import sys as _sys
+    import types as _types
+    if "acoustics" not in _sys.modules:
+        _sys.modules.setdefault(
+            "acoustics.directivity",
+            _types.ModuleType("acoustics.directivity"),
+        )
+    try:
+        import speechbrain          # noqa: F401
+        import audiomentations      # noqa: F401
+        import torch_audiomentations  # noqa: F401
+        import pronouncing          # noqa: F401
+        import mutagen              # noqa: F401
+    except ImportError as exc:
+        raise WakeTrainerError(
+            f"missing training dep: {exc.name!r}. "
+            f"Run: pip install -r requirements.txt"
+        ) from exc
+
+    import numpy as np
+    import torch
+    from torch import nn, optim
+    from openwakeword.utils import AudioFeatures
+    from openwakeword.train import Model as OWWModel
+
+    on_progress(30.0, "train: computing positive features…")
+
+    # ── 2. Compute features for positive WAVs ────────────────────────────
+    import scipy.io.wavfile as wav_io
+
+    F = AudioFeatures(device="cpu")
+
+    pos_wav_paths = sorted(positives_dir.glob("*.wav"))
+    if not pos_wav_paths:
+        raise WakeTrainerError(f"no WAV files found in {positives_dir}")
+
+    pos_clips = []
+    for p in pos_wav_paths:
+        sr, data = wav_io.read(str(p))
+        if data.dtype != np.int16:
+            data = (data * 32767).astype(np.int16)
+        if data.ndim > 1:
+            data = data[:, 0]
+        pos_clips.append(data)
+
+    # Pad / stack all clips to the same length
+    clip_len = max(len(c) for c in pos_clips)
+    clip_len = max(clip_len, 3200)  # at least 0.2s
+    pos_array = np.zeros((len(pos_clips), clip_len), dtype=np.int16)
+    for i, c in enumerate(pos_clips):
+        pos_array[i, :len(c)] = c
+
+    pos_features = F.embed_clips(pos_array, batch_size=len(pos_clips))  # (N, n_frames, 96)
+
+    # ── 3. Load neg features ─────────────────────────────────────────────
+    neg_npy = neg_features_dir / "neg_features.npy"
+    if not neg_npy.exists():
+        raise WakeTrainerError(
+            f"neg_features.npy not found in {neg_features_dir}. "
+            "Ensure ensure_negative_features() was called first."
+        )
+    neg_features = np.load(str(neg_npy))  # (N, n_frames, 96)
+
+    # ── 4. Determine model input shape ───────────────────────────────────
+    # openWakeWord models take (batch, n_frames, 96) where n_frames is the
+    # number of embedding frames per example.  Normalise to whichever is
+    # smaller so the positive/neg dims match.
+    pos_n_frames = pos_features.shape[1]
+    neg_n_frames = neg_features.shape[1]
+    n_frames = min(pos_n_frames, neg_n_frames)
+    if n_frames < 1:
+        raise WakeTrainerError("computed n_frames < 1; audio clips may be too short")
+
+    # Slice each feature matrix to n_frames along axis=1
+    if pos_features.shape[1] > n_frames:
+        pos_features = pos_features[:, :n_frames, :]
+    if neg_features.shape[1] > n_frames:
+        neg_features = neg_features[:, :n_frames, :]
+
+    input_shape = (n_frames, 96)
+
+    # ── 5. Build model (DNN, from openwakeword/train.py) ─────────────────
+    oww = OWWModel(n_classes=1, input_shape=input_shape, model_type="dnn",
+                   layer_dim=128, n_blocks=1)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    try:
+        oww.model = oww.model.to(device)
+    except RuntimeError as exc:
+        if "out of memory" in str(exc).lower():
+            on_progress(30.0, "CUDA OOM — falling back to CPU")
+            torch.cuda.empty_cache()
+            device = "cpu"
+            oww.model = oww.model.to(device)
+        else:
+            raise
+
+    optimizer = optim.Adam(oww.model.parameters(), lr=0.0001)
+    loss_fn = torch.nn.functional.binary_cross_entropy
+
+    # Build tensors — shape (N, n_frames, 96)
+    X_pos = torch.from_numpy(pos_features).float()
+    X_neg = torch.from_numpy(neg_features).float()
+    y_pos = torch.ones(X_pos.shape[0], 1)
+    y_neg = torch.zeros(X_neg.shape[0], 1)
+
+    X_all = torch.cat([X_pos, X_neg], dim=0).to(device)
+    y_all = torch.cat([y_pos, y_neg], dim=0).to(device)
+
+    # ── 6. Epoch loop ─────────────────────────────────────────────────────
+    for epoch in range(epochs):
+        if should_cancel():
+            raise TrainCancelled(f"cancelled before epoch {epoch + 1}")
+
+        oww.model.train()
+
+        # Shuffle
+        perm = torch.randperm(X_all.shape[0])
+        X_shuf = X_all[perm]
+        y_shuf = y_all[perm]
+
+        optimizer.zero_grad()
+        preds = oww.model(X_shuf)
+        loss = loss_fn(preds, y_shuf)
+
+        if torch.isnan(loss):
+            raise WakeTrainerError(f"training diverged at epoch {epoch}")
+
+        loss.backward()
+        optimizer.step()
+
+        pct = 30.0 + 65.0 * (epoch + 1) / epochs
+        on_progress(pct, f"epoch {epoch + 1}/{epochs}, loss={loss.item():.4f}")
+
+    return oww.model
+
+
 def train_wake_word(
     word: str,
     *,

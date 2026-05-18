@@ -245,3 +245,79 @@ def test_synthesize_positives_aborts_when_too_many_synth_failures(monkeypatch, t
             variants=12,
             out_dir=tmp_path / "p",
         )
+
+
+def test_train_loop_returns_module_and_reports_progress(monkeypatch, tmp_path):
+    """Tiny end-to-end: 4 positives + a 4-feature fake neg pack, 2 epochs.
+    We don't care about model quality — only that the loop runs, reports
+    progress, and returns a torch.nn.Module."""
+    pytest.importorskip("torch")
+    from core import wake_trainer
+    import torch
+
+    # Build a fake positives dir with 4 silent 0.2s WAVs.
+    positives = tmp_path / "positives"
+    positives.mkdir()
+    import wave
+    for i in range(4):
+        with wave.open(str(positives / f"{i:05d}.wav"), "wb") as wf:
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(16000)
+            wf.writeframes(b"\x00\x00" * 16000)  # 1s — embedding needs ≥76 mel frames
+
+    # Fake neg-feature pack: tiny .npy files with the right shape.
+    # _train_loop expects neg_features_dir to contain:
+    #   - neg_features.npy : shape (N, n_frames, 96) float32
+    #   - .ready            : marker file
+    neg = tmp_path / "neg"
+    neg.mkdir()
+    (neg / ".ready").write_text("ok\n")
+    import numpy as np
+    # shape: (8 samples, 3 frames, 96 features) matching 1s-clip embeddings
+    neg_arr = np.zeros((8, 3, 96), dtype=np.float32)
+    np.save(str(neg / "neg_features.npy"), neg_arr)
+
+    progress: list[tuple[float, str]] = []
+    model = wake_trainer._train_loop(
+        positives_dir=positives,
+        neg_features_dir=neg,
+        epochs=2,
+        on_progress=lambda pct, msg: progress.append((pct, msg)),
+        should_cancel=lambda: False,
+    )
+    assert isinstance(model, torch.nn.Module)
+    assert any(30.0 <= pct <= 95.0 for pct, _ in progress)
+    assert any("epoch" in msg for _, msg in progress)
+
+
+def test_train_loop_cancel_between_epochs(monkeypatch, tmp_path):
+    pytest.importorskip("torch")
+    from core import wake_trainer
+
+    positives = tmp_path / "positives"
+    positives.mkdir()
+    import wave
+    for i in range(4):
+        with wave.open(str(positives / f"{i:05d}.wav"), "wb") as wf:
+            wf.setnchannels(1); wf.setsampwidth(2); wf.setframerate(16000)
+            wf.writeframes(b"\x00\x00" * 16000)  # 1s — embedding needs ≥76 mel frames
+
+    neg = tmp_path / "neg"
+    neg.mkdir()
+    (neg / ".ready").write_text("ok\n")
+    import numpy as np
+    neg_arr = np.zeros((8, 1, 96), dtype=np.float32)
+    np.save(str(neg / "neg_features.npy"), neg_arr)
+
+    epoch_count = {"n": 0}
+    def cancel_after_one_epoch():
+        epoch_count["n"] += 1
+        return epoch_count["n"] > 1
+
+    with pytest.raises(wake_trainer.TrainCancelled):
+        wake_trainer._train_loop(
+            positives_dir=positives,
+            neg_features_dir=neg,
+            epochs=10,
+            on_progress=lambda pct, msg: None,
+            should_cancel=cancel_after_one_epoch,
+        )
