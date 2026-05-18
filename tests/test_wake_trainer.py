@@ -169,11 +169,11 @@ def test_synthesize_positives_writes_wav_files(monkeypatch, tmp_path):
     wake_trainer.synthesize_positives(
         word="plia",
         voices=["en_US-lessac-medium", "en_US-amy-medium"],
-        variants=12,
+        variants=50,
         out_dir=out_dir,
     )
     wavs = sorted(out_dir.glob("*.wav"))
-    assert len(wavs) == 12, f"expected 12 wavs, got {len(wavs)}"
+    assert len(wavs) == 50, f"expected 50 wavs, got {len(wavs)}"
     # Both voices used at least once.
     voices_used = {name for name, _ in rendered}
     assert voices_used == {"en_US-lessac-medium", "en_US-amy-medium"}
@@ -201,4 +201,47 @@ def test_synthesize_positives_respects_cancellation(monkeypatch, tmp_path):
             variants=100,
             out_dir=tmp_path / "p",
             should_cancel=should_cancel,
+        )
+
+
+def test_synthesize_positives_raises_when_all_voices_fail(monkeypatch, tmp_path):
+    """If every voice's loader raises, the function must raise WakeTrainerError."""
+    from core import wake_trainer
+
+    def always_fails(name):
+        raise RuntimeError(f"voice {name} broken")
+    monkeypatch.setattr(wake_trainer, "_load_piper_voice", always_fails)
+
+    with pytest.raises(wake_trainer.WakeTrainerError, match="all loads failed"):
+        wake_trainer.synthesize_positives(
+            word="plia",
+            voices=["en_US-lessac-medium", "en_US-amy-medium"],
+            variants=12,
+            out_dir=tmp_path / "p",
+        )
+
+
+def test_synthesize_positives_aborts_when_too_many_synth_failures(monkeypatch, tmp_path):
+    """After the first WAV succeeds, every subsequent synth call raises; once
+    the failure count exceeds variants // 10, the function aborts with
+    WakeTrainerError mentioning '>10%'."""
+    from core import wake_trainer
+
+    class FlakyVoice:
+        def __init__(self):
+            self.calls = 0
+        def synthesize(self, text, wf, length_scale=1.0):
+            self.calls += 1
+            if self.calls > 1:
+                raise RuntimeError("synth error")
+            wf.writeframes(b"\x00\x00" * 3200)
+
+    monkeypatch.setattr(wake_trainer, "_load_piper_voice", lambda n: FlakyVoice())
+
+    with pytest.raises(wake_trainer.WakeTrainerError, match=">10%"):
+        wake_trainer.synthesize_positives(
+            word="plia",
+            voices=["en_US-lessac-medium"],
+            variants=12,
+            out_dir=tmp_path / "p",
         )
