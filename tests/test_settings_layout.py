@@ -103,3 +103,30 @@ def test_stack_sizehint_tracks_current_panel(qapp):
         f"About sizeHint ({about_hint}). If they're equal the stack is "
         f"reserving max-panel space on every tab."
     )
+
+
+def test_pivot_remembers_last_tab_across_constructions(qapp):
+    """The last-selected tab must persist via settings and restore on rebuild."""
+    from core.settings_store import settings
+
+    host, tab = _build_tab(qapp)
+
+    # User clicks Features
+    tab.pivot.widget("features").click()
+    qapp.processEvents()
+    assert tab.tab_stack.currentIndex() == 2
+    assert settings.get("ui.settings_last_tab") == "features"
+
+    # Tear down host/tab (simulate closing settings)
+    host.close()
+    del tab, host
+    qapp.processEvents()
+
+    # Build a fresh SettingsTab — should restore to Features
+    host2, tab2 = _build_tab(qapp)
+    assert tab2.tab_stack.currentIndex() == 2, (
+        f"Expected restored tab index 2 (features); got {tab2.tab_stack.currentIndex()}"
+    )
+
+    # Reset for other tests so they don't get a stale default
+    settings.set("ui.settings_last_tab", "core")

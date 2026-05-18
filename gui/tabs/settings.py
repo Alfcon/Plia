@@ -1503,12 +1503,18 @@ class SettingsTab(ScrollArea):
         self.expandLayout.addWidget(self.pivot)
         self.expandLayout.addWidget(self.tab_stack)
 
-        # Default to the first tab.
-        self.pivot.setCurrentItem(categories[0][0])
-        self.tab_stack.setCurrentIndex(0)
+        # Restore last-viewed tab if known, else default to the first.
+        keys = [c[0] for c in categories]
+        last = settings.get("ui.settings_last_tab", keys[0])
+        if last not in keys:
+            last = keys[0]
+        idx = keys.index(last)
+        self.pivot.setCurrentItem(last)
+        self.tab_stack.setCurrentIndex(idx)
 
     def _on_pivot_changed(self, index: int, key: str) -> None:
         self.tab_stack.setCurrentIndex(index)
+        settings.set("ui.settings_last_tab", key)
 
     # ── Handlers ─────────────────────────────────────────────────────────────
 
