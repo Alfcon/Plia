@@ -100,5 +100,6 @@ def train_wake_word(
     epochs: int = 100,
 ) -> Path:
     """End-to-end wake-word training. Fully implemented by Task 8."""
+    word = word.strip() if isinstance(word, str) else word
     _validate_inputs(word, variants, voices or [])
     raise NotImplementedError("train_wake_word — see Task 8")

@@ -49,3 +49,12 @@ def test_validate_voices_rejects_unknown():
     from core.wake_trainer import train_wake_word, WakeTrainerError
     with pytest.raises(WakeTrainerError, match="voice"):
         train_wake_word("plia", voices=["en_ZZ-fake-medium"])
+
+
+def test_train_wake_word_strips_surrounding_whitespace():
+    """Whitespace-wrapped words must be normalised before being forwarded
+    downstream — otherwise slug/synth/train bake the whitespace in."""
+    from core.wake_trainer import train_wake_word
+    # Wrapped word strips to "plia", passes validation, then hits NotImplementedError.
+    with pytest.raises(NotImplementedError):
+        train_wake_word("  plia  ")
