@@ -39,13 +39,9 @@ from PySide6.QtGui import (
 )
 
 
-# ── GPU monitoring ────────────────────────────────────────────
-try:
-    import pynvml
-    pynvml.nvmlInit()
-    _GPU_OK = True
-except Exception:
-    _GPU_OK = False
+# ── GPU monitoring (cross-vendor: NVIDIA via pynvml, AMD via sysfs) ──
+from core import gpu_info
+_GPU_OK = gpu_info.detect_backend() != "cpu"
 
 # ── Colour palette (matches plia2.py C_* constants) ───────────
 C_BG          = "#0a0a0f"
@@ -171,14 +167,18 @@ class _MonitorWorker(QObject):
 
             if _GPU_OK:
                 try:
-                    handle         = pynvml.nvmlDeviceGetHandleByIndex(0)
-                    util           = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                    mi             = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                    data["gpu"]    = float(util.gpu)
-                    data["vram"]   = (mi.used / mi.total) * 100 if mi.total else 0.0
-                    data["vram_gb"] = (
-                        f"{mi.used / 1024**3:.1f} / {mi.total / 1024**3:.1f} GB"
-                    )
+                    info = gpu_info.read_gpu()
+                    if info.vram_total_gb > 0:
+                        data["gpu"]  = info.util_pct
+                        data["vram"] = (
+                            (info.vram_used_gb / info.vram_total_gb) * 100
+                        )
+                        data["vram_gb"] = (
+                            f"{info.vram_used_gb:.1f} / "
+                            f"{info.vram_total_gb:.1f} GB"
+                        )
+                    else:
+                        data["gpu"] = data["vram"] = None
                 except Exception:
                     data["gpu"] = data["vram"] = None
             else:
@@ -618,12 +618,15 @@ class DashboardView(QWidget):
                     f"Disk: {disk.percent:.1f}%")
             if _GPU_OK:
                 try:
-                    h    = pynvml.nvmlDeviceGetHandleByIndex(0)
-                    util = pynvml.nvmlDeviceGetUtilizationRates(h)
-                    mi   = pynvml.nvmlDeviceGetMemoryInfo(h)
-                    msg += (f"  GPU: {util.gpu}%  "
-                            f"VRAM: {mi.used/1024**3:.1f}/"
-                            f"{mi.total/1024**3:.1f} GB")
+                    info = gpu_info.read_gpu()
+                    if info.vram_total_gb > 0:
+                        msg += (
+                            f"  GPU: {info.util_pct:.0f}%  "
+                            f"VRAM: {info.vram_used_gb:.1f}/"
+                            f"{info.vram_total_gb:.1f} GB"
+                        )
+                    else:
+                        msg += "  GPU: no data"
                 except Exception:
                     msg += "  GPU: read error"
             self.log.append_message(msg, "success")
