@@ -412,7 +412,8 @@ _SYSTEM_PROMPT = textwrap.dedent("""\
           }
     4.  Use only Python standard library modules PLUS any packages already listed
         in Plia's requirements.txt:
-          PySide6, requests, psutil, pynvml, python-kasa, playwright,
+          PySide6, requests, psutil, pynvml (NVIDIA only — prefer
+          core.gpu_info for cross-vendor GPU info), python-kasa, playwright,
           duckduckgo-search, feedparser, Pillow, pyautogui, pyperclip,
           piper-tts, sounddevice, soundfile, numpy, realtimestt, PyAudio,
           transformers, accelerate, safetensors, huggingface-hub
