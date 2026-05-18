@@ -16,7 +16,7 @@ def test_module_exposes_public_surface():
 
 
 def test_train_wake_word_is_not_implemented_yet():
-    from core.wake_trainer import train_wake_word, WakeTrainerError
+    from core.wake_trainer import train_wake_word
 
     with pytest.raises(NotImplementedError):
         train_wake_word("plia")
