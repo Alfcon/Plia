@@ -321,3 +321,43 @@ def test_train_loop_cancel_between_epochs(monkeypatch, tmp_path):
             on_progress=lambda pct, msg: None,
             should_cancel=cancel_after_one_epoch,
         )
+
+
+def test_export_onnx_writes_loadable_file(monkeypatch, tmp_path):
+    pytest.importorskip("torch")
+    from core import wake_trainer
+    import torch
+
+    class TinyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc = torch.nn.Linear(96, 1)
+        def forward(self, x):
+            return self.fc(x)
+
+    model = TinyModel()
+    onnx_path = tmp_path / "tiny.onnx"
+
+    # Bypass openwakeword.Model load by stubbing _verify_onnx_loads.
+    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: True)
+
+    wake_trainer._export_onnx(model, onnx_path, torch.zeros(1, 96, dtype=torch.float32))
+    assert onnx_path.exists()
+    assert onnx_path.stat().st_size > 0
+
+
+def test_export_onnx_deletes_file_on_verify_failure(monkeypatch, tmp_path):
+    pytest.importorskip("torch")
+    from core import wake_trainer
+    import torch
+
+    class TinyModel(torch.nn.Module):
+        def __init__(self): super().__init__(); self.fc = torch.nn.Linear(96, 1)
+        def forward(self, x): return self.fc(x)
+
+    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: False)
+
+    onnx_path = tmp_path / "tiny.onnx"
+    with pytest.raises(wake_trainer.WakeTrainerError, match="verify"):
+        wake_trainer._export_onnx(TinyModel(), onnx_path, torch.zeros(1, 96, dtype=torch.float32))
+    assert not onnx_path.exists()

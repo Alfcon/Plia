@@ -413,6 +413,49 @@ def _train_loop(
     return oww.model
 
 
+# Opset matching the version openwakeword.Model consumes.
+_ONNX_OPSET = 17
+
+
+def _verify_onnx_loads(path: Path) -> bool:
+    """Try to load the freshly written ONNX through openwakeword's runtime.
+    Returns True on success, False on any failure (so the caller can clean
+    up without raising twice)."""
+    try:
+        from openwakeword.model import Model
+        Model(wakeword_models=[str(path)], inference_framework="onnx")
+        return True
+    except Exception:
+        return False
+
+
+def _export_onnx(model: "torch.nn.Module", path: Path, dummy_input: "torch.Tensor") -> None:
+    """Export `model` to ONNX at `path`, then smoke-test it via
+    openwakeword.Model. Deletes the file and raises WakeTrainerError if
+    verification fails.
+
+    `dummy_input` must match the model's forward signature. For openwakeword's
+    DNN it's `(batch, n_frames, 96)` float32; for arbitrary tests it can be
+    `(batch, 96)`. Callers are responsible for the right shape.
+    """
+    import torch
+    path.parent.mkdir(parents=True, exist_ok=True)
+    model.eval()
+    try:
+        torch.onnx.export(
+            model, dummy_input, str(path),
+            input_names=["input"], output_names=["output"],
+            opset_version=_ONNX_OPSET,
+        )
+    except RuntimeError as exc:
+        path.unlink(missing_ok=True)
+        raise WakeTrainerError(f"onnx export failed: {exc}") from exc
+
+    if not _verify_onnx_loads(path):
+        path.unlink(missing_ok=True)
+        raise WakeTrainerError(f"onnx export wrote {path} but verify load failed")
+
+
 def train_wake_word(
     word: str,
     *,
