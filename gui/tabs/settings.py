@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
 
 from qfluentwidgets import (
-    ScrollArea, ExpandLayout, SettingCardGroup, PushSettingCard, FluentIcon as FIF,
+    ScrollArea, SettingCardGroup, PushSettingCard, FluentIcon as FIF,
     setTheme, Theme, PrimaryPushSettingCard, ComboBox, LineEdit,
     PrimaryPushButton, InfoBar, InfoBarPosition, SettingCard, Slider,
     StrongBodyLabel, SwitchButton, Pivot
@@ -875,7 +875,15 @@ class SettingsTab(ScrollArea):
         super().__init__(parent)
         self.setObjectName("settingsInterface")
         self.scrollWidget = QWidget()
-        self.expandLayout = ExpandLayout(self.scrollWidget)
+        # QVBoxLayout (not qfluentwidgets ExpandLayout): the Pivot restructure
+        # needs to remove groups from this layout at runtime, but ExpandLayout
+        # bypasses QLayout.addItem so the inherited removeWidget is a no-op
+        # there — stale entries keep accumulating heights and push the Pivot
+        # hundreds of pixels off-screen. QVBoxLayout removes cleanly and
+        # honors child sizeHints, which is what the tabbed panels need.
+        self.expandLayout = QVBoxLayout(self.scrollWidget)
+        self.expandLayout.setContentsMargins(0, 0, 0, 0)
+        self.expandLayout.setSpacing(28)
 
         self.setStyleSheet("background-color: transparent;")
         self.scrollWidget.setObjectName("scrollWidget")
