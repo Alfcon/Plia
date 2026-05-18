@@ -330,26 +330,32 @@ class MultiWakeWordCard(SettingCard):
         super().__init__(FIF.MICROPHONE, "Wake Words",
                          "Models that wake Plia when spoken. Toggle and tune per model.",
                          parent)
-        # Convert default horizontal layout into vertical container.
-        self.hBoxLayout.removeWidget(self.titleLabel)
-        self.hBoxLayout.removeWidget(self.contentLabel)
-        self._rows_layout = QVBoxLayout()
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(16, 12, 16, 12)
-        outer.addWidget(self.titleLabel)
-        outer.addWidget(self.contentLabel)
-        outer.addLayout(self._rows_layout)
+        # SettingCard installs its own hBoxLayout containing
+        # [icon | vBoxLayout(title + description) | stretch]. Calling
+        # QVBoxLayout(self) here would conflict with that and Qt would silently
+        # ignore the second layout, leaving title/description orphaned at (0,0).
+        # Instead, extend the existing vBoxLayout downward.
+        self.vBoxLayout.setSpacing(6)
 
-        # Footer buttons.
+        self._rows_layout = QVBoxLayout()
+        self._rows_layout.setSpacing(2)
+        self.vBoxLayout.addLayout(self._rows_layout)
+
         footer = QHBoxLayout()
         self.add_btn = QPushButton("+ Add Model…", self)
         self.reload_btn = QPushButton("↻ Reload", self)
         footer.addWidget(self.add_btn)
         footer.addWidget(self.reload_btn)
         footer.addStretch(1)
-        outer.addLayout(footer)
+        self.vBoxLayout.addLayout(footer)
+
         self.add_btn.clicked.connect(self._on_add_model)
         self.reload_btn.clicked.connect(self._on_reload)
+
+        # SettingCard pins itself to ~70px (the height of a single header row).
+        # Let the card grow with its children.
+        self.setMinimumHeight(0)
+        self.setMaximumHeight(16777215)
 
         self._rebuild_rows()
 
