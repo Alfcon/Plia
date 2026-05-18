@@ -1495,11 +1495,13 @@ class SettingsTab(ScrollArea):
             # PivotItem.itemClicked emits a bool, which we must accept and
             # discard — otherwise it overwrites the captured idx default and
             # every click routes to tab index 1.
-            self.pivot.addItem(
+            pivot_item = self.pivot.addItem(
                 routeKey=key, text=label, icon=icon,
                 onClick=lambda _checked, i=idx, k=key:
                     self._on_pivot_changed(i, k),
             )
+            if pivot_item is not None:
+                pivot_item.setToolTip(f"{label}  (Ctrl+{idx + 1})")
 
         self.expandLayout.addWidget(self.pivot)
         self.expandLayout.addWidget(self.tab_stack)
