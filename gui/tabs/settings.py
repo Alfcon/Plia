@@ -1516,15 +1516,7 @@ class SettingsTab(ScrollArea):
         """Apply all settings and refresh every live display immediately."""
         errors = []
 
-        # 1. Refresh dashboard weather + data feed
-        try:
-            main_win = self.window()
-            if hasattr(main_win, 'dashboard_view') and main_win.dashboard_view:
-                main_win.dashboard_view.refresh()
-        except Exception as e:
-            errors.append(f"Dashboard: {e}")
-
-        # 2. Refresh briefing news feed
+        # 1. Refresh briefing news feed
         try:
             main_win = self.window()
             if hasattr(main_win, 'briefing_view') and main_win.briefing_view:
@@ -1532,21 +1524,14 @@ class SettingsTab(ScrollArea):
         except Exception as e:
             errors.append(f"Briefing: {e}")
 
-        # 3. Flush in-memory news cache so next fetch uses fresh settings
+        # 2. Flush in-memory news cache so next fetch uses fresh settings
         try:
             from core.news import news_manager
             news_manager.cache.clear()
         except Exception as e:
             errors.append(f"News cache: {e}")
 
-        # 4. Convert sensitivity percentage to float and save
-        try:
-            pct = settings.get("voice.sensitivity_pct", 40)
-            settings.set("voice.sensitivity", round(pct / 100.0, 2))
-        except Exception as e:
-            errors.append(f"Sensitivity: {e}")
-
-        # 5. Apply TTS voice change immediately
+        # 3. Apply TTS voice change immediately
         try:
             from core.tts import tts
             new_voice = settings.get("tts.voice", "en_GB-northern_english_male-medium")
@@ -1558,7 +1543,7 @@ class SettingsTab(ScrollArea):
         except Exception as e:
             errors.append(f"TTS voice: {e}")
 
-        # 6. Restart STT listener with new wake word / sensitivity
+        # 4. Restart STT listener with new wake-word selection / thresholds
         try:
             from core.voice_assistant import voice_assistant
             if voice_assistant.running:
