@@ -81,3 +81,25 @@ def test_clicking_each_pivot_item_switches_to_that_tab(qapp):
             f"clicking {key!r} should switch to index {expected_idx}, "
             f"got {tab.tab_stack.currentIndex()}"
         )
+
+
+def test_stack_sizehint_tracks_current_panel(qapp):
+    """The stack widget's sizeHint must shrink/grow with the active panel,
+    so the scroll area doesn't reserve space for the largest tab."""
+    host, tab = _build_tab(qapp)
+
+    # Switch to About (smallest panel, 1 group)
+    tab.pivot.widget("about").click()
+    qapp.processEvents()
+    about_hint = tab.tab_stack.sizeHint().height()
+
+    # Switch to Features (largest panel, 7 groups)
+    tab.pivot.widget("features").click()
+    qapp.processEvents()
+    features_hint = tab.tab_stack.sizeHint().height()
+
+    assert features_hint > about_hint + 300, (
+        f"Features sizeHint ({features_hint}) should be much taller than "
+        f"About sizeHint ({about_hint}). If they're equal the stack is "
+        f"reserving max-panel space on every tab."
+    )

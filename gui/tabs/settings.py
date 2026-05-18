@@ -317,6 +317,29 @@ class MultiWakeWordRow(QWidget):
         self.changed.emit()
 
 
+class _AdaptiveStack(QStackedWidget):
+    """QStackedWidget that sizes to the current panel, not the largest one.
+
+    Default QStackedWidget.sizeHint returns the max of all child sizeHints
+    so the layout reserves space for the tallest panel even on shorter
+    tabs, leaving a big empty scroll region. This subclass instead
+    reports the active panel's sizeHint and calls updateGeometry() on
+    every tab switch so parent layouts re-flow.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.currentChanged.connect(lambda _i: self.updateGeometry())
+
+    def sizeHint(self):
+        w = self.currentWidget()
+        return w.sizeHint() if w is not None else super().sizeHint()
+
+    def minimumSizeHint(self):
+        w = self.currentWidget()
+        return w.minimumSizeHint() if w is not None else super().minimumSizeHint()
+
+
 class MultiWakeWordCard(SettingCard):
     """Multi-select card listing all known wake-word models.
 
@@ -1437,25 +1460,25 @@ class SettingsTab(ScrollArea):
         them into per-category panels and replace the linear scroll with a
         Pivot + QStackedWidget.
         """
-        categories: list[tuple[str, str, list[QWidget]]] = [
-            ("core",     "Core", [
+        categories: list[tuple[str, str, FIF, list[QWidget]]] = [
+            ("core",     "Core", FIF.SETTING, [
                 self.personal_group, self.ai_group, self.connection_group,
             ]),
-            ("voice",    "Voice & Weather", [
+            ("voice",    "Voice & Weather", FIF.MICROPHONE, [
                 self.voice_group, self.weather_group, self.location_card,
             ]),
-            ("features", "Features", [
+            ("features", "Features", FIF.APPLICATION, [
                 self.general_group, self.search_group, self.privacy_group,
                 self.digest_group, self.news_group, self.calendar_group,
                 self.desktop_group,
             ]),
-            ("about",    "About", [self.about_group]),
+            ("about",    "About", FIF.INFO, [self.about_group]),
         ]
 
         self.pivot = Pivot(self.scrollWidget)
-        self.tab_stack = QStackedWidget(self.scrollWidget)
+        self.tab_stack = _AdaptiveStack(self.scrollWidget)
 
-        for idx, (key, label, widgets) in enumerate(categories):
+        for idx, (key, label, icon, widgets) in enumerate(categories):
             panel = QWidget(self.tab_stack)
             layout = QVBoxLayout(panel)
             layout.setContentsMargins(0, 8, 0, 0)
@@ -1472,7 +1495,7 @@ class SettingsTab(ScrollArea):
             # discard — otherwise it overwrites the captured idx default and
             # every click routes to tab index 1.
             self.pivot.addItem(
-                routeKey=key, text=label,
+                routeKey=key, text=label, icon=icon,
                 onClick=lambda _checked, i=idx, k=key:
                     self._on_pivot_changed(i, k),
             )
