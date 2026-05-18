@@ -38,6 +38,23 @@ def test_validate_word_accepts_reasonable(good_word):
         train_wake_word(good_word)
 
 
+@pytest.mark.parametrize("word, expected", [
+    ("plia", "plia"),
+    ("Hey Jarvis", "hey_jarvis"),
+    ("OK  nabu", "ok_nabu"),
+    ("plia_v2", "plia_v2"),
+])
+def test_slugify_word(word, expected):
+    from core.wake_trainer import _slugify
+    assert _slugify(word) == expected
+
+
+def test_slugify_empty_raises():
+    from core.wake_trainer import _slugify, WakeTrainerError
+    with pytest.raises(WakeTrainerError, match="empty"):
+        _slugify("   ")
+
+
 @pytest.mark.parametrize("bad_variants", [0, 100, 50000, -5])
 def test_validate_variants_rejects_out_of_range(bad_variants):
     from core.wake_trainer import train_wake_word, WakeTrainerError

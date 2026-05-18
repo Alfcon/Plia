@@ -89,6 +89,15 @@ def synthesize_positives(
     raise NotImplementedError("synthesize_positives — see Task 5")
 
 
+def _slugify(word: str) -> str:
+    """Lower-case, collapse runs of non-[a-z0-9_] into '_', strip edges.
+    Raises WakeTrainerError if the result is empty."""
+    slug = re.sub(r"[^a-z0-9_]+", "_", word.lower()).strip("_")
+    if not slug:
+        raise WakeTrainerError(f"word {word!r} produced an empty slug")
+    return slug
+
+
 def train_wake_word(
     word: str,
     *,
