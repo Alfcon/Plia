@@ -326,6 +326,12 @@ class MultiWakeWordCard(SettingCard):
 
     models_changed = Signal()
 
+    # Visual constants for the dynamic height calc.
+    _ROW_PX = 36           # one MultiWakeWordRow
+    _HEADER_PX = 56        # title + description + spacing
+    _FOOTER_PX = 40        # button row
+    _PADDING_PX = 16
+
     def __init__(self, parent=None):
         super().__init__(FIF.MICROPHONE, "Wake Words",
                          "Models that wake Plia when spoken. Toggle and tune per model.",
@@ -335,7 +341,10 @@ class MultiWakeWordCard(SettingCard):
         # QVBoxLayout(self) here would conflict with that and Qt would silently
         # ignore the second layout, leaving title/description orphaned at (0,0).
         # Instead, extend the existing vBoxLayout downward.
+        self.vBoxLayout.setAlignment(Qt.AlignTop)
         self.vBoxLayout.setSpacing(6)
+        self.hBoxLayout.setAlignment(Qt.AlignTop)
+        self.hBoxLayout.setContentsMargins(16, 12, 16, 12)
 
         self._rows_layout = QVBoxLayout()
         self._rows_layout.setSpacing(2)
@@ -352,12 +361,21 @@ class MultiWakeWordCard(SettingCard):
         self.add_btn.clicked.connect(self._on_add_model)
         self.reload_btn.clicked.connect(self._on_reload)
 
-        # SettingCard pins itself to ~70px (the height of a single header row).
-        # Let the card grow with its children.
-        self.setMinimumHeight(0)
-        self.setMaximumHeight(16777215)
+        self._rebuild_rows()  # also calls _resize_to_rows()
 
-        self._rebuild_rows()
+    def _resize_to_rows(self):
+        """Override SettingCard's setFixedHeight(70) clamp.
+
+        ExpandLayout in SettingCardGroup positions each card by its current
+        height, so the card itself must resize when its row count changes.
+        """
+        n = max(self._rows_layout.count(), 1)
+        h = self._HEADER_PX + n * self._ROW_PX + self._FOOTER_PX + self._PADDING_PX
+        self.setFixedHeight(h)
+        # Tell the parent SettingCardGroup to re-flow.
+        parent = self.parent()
+        if parent and hasattr(parent, "adjustSize"):
+            parent.adjustSize()
 
     def _rebuild_rows(self):
         while self._rows_layout.count():
@@ -376,6 +394,8 @@ class MultiWakeWordCard(SettingCard):
             row.changed.connect(self._on_any_row_changed)
             row.delete_requested.connect(self._on_delete)
             self._rows_layout.addWidget(row)
+
+        self._resize_to_rows()
 
     def _on_any_row_changed(self):
         models = []
