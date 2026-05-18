@@ -162,10 +162,44 @@ def _read_cuda() -> GpuInfo:
 
 
 def _read_rocm() -> GpuInfo:
-    # Stub for now — implemented in Task 7
+    """Read VRAM/util from the cached AMD card sysfs path.
+
+    _AMD_CARD_PATH points at the `cardN` directory; per-tick sysfs files
+    live one level down in `cardN/device/`.
+    """
+    if _AMD_CARD_PATH is None:
+        return GpuInfo(
+            backend="rocm", name="AMD GPU",
+            vram_total_gb=0.0, vram_used_gb=0.0, vram_free_gb=0.0, util_pct=0.0,
+        )
+
+    device = _AMD_CARD_PATH / "device"
+
+    def _read_int(name: str) -> int:
+        try:
+            return int((device / name).read_text().strip())
+        except (OSError, ValueError):
+            return 0
+
+    def _read_text(name: str) -> str:
+        try:
+            return (device / name).read_text().strip()
+        except OSError:
+            return ""
+
+    gb = 1024 ** 3
+    total_b = _read_int("mem_info_vram_total")
+    used_b = _read_int("mem_info_vram_used")
+    util = float(_read_int("gpu_busy_percent"))
+    name = _read_text("product_name") or "AMD GPU"
+
     return GpuInfo(
-        backend="rocm", name="AMD GPU",
-        vram_total_gb=0.0, vram_used_gb=0.0, vram_free_gb=0.0, util_pct=0.0,
+        backend="rocm",
+        name=name,
+        vram_total_gb=round(total_b / gb, 2) if total_b else 0.0,
+        vram_used_gb=round(used_b / gb, 2),
+        vram_free_gb=round(max(total_b - used_b, 0) / gb, 2),
+        util_pct=util,
     )
 
 

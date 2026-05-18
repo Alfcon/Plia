@@ -209,3 +209,63 @@ def test_read_gpu_cuda(monkeypatch, reset_gpu_info):
     assert info.vram_used_gb == pytest.approx(4.0, abs=0.1)
     assert info.vram_free_gb == pytest.approx(20.0, abs=0.1)
     assert info.util_pct == 42.0
+
+
+def test_read_gpu_rocm_basic(monkeypatch, reset_gpu_info, tmp_path):
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml(init_ok=False))
+    import subprocess
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr=""),
+    )
+
+    sysfs_root = tmp_path / "drm"
+    device = sysfs_root / "card0" / "device"
+    device.mkdir(parents=True)
+    (device / "vendor").write_text("0x1002\n")
+    (device / "mem_info_vram_total").write_text(f"{24 * 1024**3}\n")
+    (device / "mem_info_vram_used").write_text(f"{8 * 1024**3}\n")
+    (device / "gpu_busy_percent").write_text("55\n")
+    (device / "product_name").write_text("AMD Radeon RX 7900 XTX\n")
+
+    from core import gpu_info
+    monkeypatch.setattr(gpu_info, "_SYSFS_DRM_ROOT", sysfs_root)
+
+    info = gpu_info.read_gpu()
+    assert info.backend == "rocm"
+    assert info.name == "AMD Radeon RX 7900 XTX"
+    assert info.vram_total_gb == pytest.approx(24.0, abs=0.1)
+    assert info.vram_used_gb == pytest.approx(8.0, abs=0.1)
+    assert info.vram_free_gb == pytest.approx(16.0, abs=0.1)
+    assert info.util_pct == 55.0
+
+
+def test_read_gpu_rocm_handles_missing_files(
+    monkeypatch, reset_gpu_info, tmp_path
+):
+    """If mem_info_vram_used or gpu_busy_percent are missing/unreadable,
+    return zeros for those fields without raising."""
+    monkeypatch.setitem(sys.modules, "pynvml", _make_fake_pynvml(init_ok=False))
+    import subprocess
+    monkeypatch.setattr(
+        subprocess, "run",
+        lambda *a, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr=""),
+    )
+
+    sysfs_root = tmp_path / "drm"
+    device = sysfs_root / "card0" / "device"
+    device.mkdir(parents=True)
+    (device / "vendor").write_text("0x1002\n")
+    (device / "mem_info_vram_total").write_text(f"{16 * 1024**3}\n")
+    # NB: mem_info_vram_used and gpu_busy_percent intentionally absent.
+    # No product_name either — should fall through to "AMD GPU".
+
+    from core import gpu_info
+    monkeypatch.setattr(gpu_info, "_SYSFS_DRM_ROOT", sysfs_root)
+
+    info = gpu_info.read_gpu()
+    assert info.backend == "rocm"
+    assert info.vram_total_gb == pytest.approx(16.0, abs=0.1)
+    assert info.vram_used_gb == 0.0
+    assert info.util_pct == 0.0
+    assert info.name == "AMD GPU"
