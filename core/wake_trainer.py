@@ -413,20 +413,23 @@ def _train_loop(
     return oww.model
 
 
-# Opset matching the version openwakeword.Model consumes.
+# 17 matches openwakeword 0.6.x runtime expectation; update if openwakeword
+# ships a new opset.
 _ONNX_OPSET = 17
 
 
-def _verify_onnx_loads(path: Path) -> bool:
+def _verify_onnx_loads(path: Path) -> tuple[bool, str]:
     """Try to load the freshly written ONNX through openwakeword's runtime.
-    Returns True on success, False on any failure (so the caller can clean
-    up without raising twice)."""
+
+    Returns (True, "") on success; (False, repr_of_exc) on any failure so
+    the caller can surface the reason without re-raising.
+    """
     try:
         from openwakeword.model import Model
         Model(wakeword_models=[str(path)], inference_framework="onnx")
-        return True
-    except Exception:
-        return False
+        return True, ""
+    except Exception as exc:
+        return False, f"{type(exc).__name__}: {exc}"
 
 
 def _export_onnx(model: "torch.nn.Module", path: Path, dummy_input: "torch.Tensor") -> None:
@@ -451,9 +454,12 @@ def _export_onnx(model: "torch.nn.Module", path: Path, dummy_input: "torch.Tenso
         path.unlink(missing_ok=True)
         raise WakeTrainerError(f"onnx export failed: {exc}") from exc
 
-    if not _verify_onnx_loads(path):
+    ok, why = _verify_onnx_loads(path)
+    if not ok:
         path.unlink(missing_ok=True)
-        raise WakeTrainerError(f"onnx export wrote {path} but verify load failed")
+        raise WakeTrainerError(
+            f"onnx export wrote {path} but verify load failed: {why}"
+        )
 
 
 def train_wake_word(

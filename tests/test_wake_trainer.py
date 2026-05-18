@@ -339,7 +339,7 @@ def test_export_onnx_writes_loadable_file(monkeypatch, tmp_path):
     onnx_path = tmp_path / "tiny.onnx"
 
     # Bypass openwakeword.Model load by stubbing _verify_onnx_loads.
-    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: True)
+    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: (True, ""))
 
     wake_trainer._export_onnx(model, onnx_path, torch.zeros(1, 96, dtype=torch.float32))
     assert onnx_path.exists()
@@ -355,7 +355,7 @@ def test_export_onnx_deletes_file_on_verify_failure(monkeypatch, tmp_path):
         def __init__(self): super().__init__(); self.fc = torch.nn.Linear(96, 1)
         def forward(self, x): return self.fc(x)
 
-    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: False)
+    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: (False, "stub"))
 
     onnx_path = tmp_path / "tiny.onnx"
     with pytest.raises(wake_trainer.WakeTrainerError, match="verify"):
