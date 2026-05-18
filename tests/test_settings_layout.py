@@ -105,6 +105,34 @@ def test_stack_sizehint_tracks_current_panel(qapp):
     )
 
 
+def test_keyboard_shortcuts_switch_tabs(qapp):
+    """Ctrl+1..4 actions must exist and trigger the matching tab."""
+    from PySide6.QtGui import QKeySequence
+
+    host, tab = _build_tab(qapp)
+
+    # Collect the four Ctrl+N actions on the tab.
+    wanted = {QKeySequence(f"Ctrl+{n}").toString(): n - 1 for n in range(1, 5)}
+    found: dict[str, "QAction"] = {}
+    for action in tab.actions():
+        if action.shortcut().isEmpty():
+            continue
+        key = action.shortcut().toString()
+        if key in wanted:
+            found[key] = action
+
+    assert set(found.keys()) == set(wanted.keys()), (
+        f"Missing Ctrl+1..4 actions. Got shortcuts: {sorted(found.keys())}"
+    )
+
+    for shortcut, idx in wanted.items():
+        found[shortcut].trigger()
+        qapp.processEvents()
+        assert tab.tab_stack.currentIndex() == idx, (
+            f"{shortcut} should switch to tab {idx}, got {tab.tab_stack.currentIndex()}"
+        )
+
+
 def test_pivot_remembers_last_tab_across_constructions(qapp):
     """The last-selected tab must persist via settings and restore on rebuild."""
     from core.settings_store import settings

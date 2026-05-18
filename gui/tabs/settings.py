@@ -12,6 +12,7 @@ from PySide6.QtWidgets import (
     QCheckBox, QSlider, QPushButton, QFileDialog, QStackedWidget
 )
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
+from PySide6.QtGui import QAction, QKeySequence
 
 from qfluentwidgets import (
     ScrollArea, SettingCardGroup, PushSettingCard, FluentIcon as FIF,
@@ -1503,8 +1504,20 @@ class SettingsTab(ScrollArea):
         self.expandLayout.addWidget(self.pivot)
         self.expandLayout.addWidget(self.tab_stack)
 
-        # Restore last-viewed tab if known, else default to the first.
+        # Ctrl+1..N jump to the matching tab.
         keys = [c[0] for c in categories]
+        for shortcut_idx, key in enumerate(keys, start=1):
+            action = QAction(self)
+            action.setShortcut(QKeySequence(f"Ctrl+{shortcut_idx}"))
+            action.setShortcutContext(Qt.WindowShortcut)
+            action.triggered.connect(
+                lambda _checked=False, i=shortcut_idx - 1, k=key:
+                    (self._on_pivot_changed(i, k),
+                     self.pivot.setCurrentItem(k))
+            )
+            self.addAction(action)
+
+        # Restore last-viewed tab if known, else default to the first.
         last = settings.get("ui.settings_last_tab", keys[0])
         if last not in keys:
             last = keys[0]
