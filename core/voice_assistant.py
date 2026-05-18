@@ -928,5 +928,9 @@ class VoiceAssistant(QObject):
             self.processing_finished.emit()
 
 
-# Global voice assistant instance
-voice_assistant = VoiceAssistant()
+# Global voice assistant instance.
+# voice_assistant_instance is the canonical name for code that wants to feature-
+# detect (e.g. the settings UI wires .models_changed → wake_detector.reload only
+# when this is non-None).
+voice_assistant: VoiceAssistant = VoiceAssistant()
+voice_assistant_instance: Optional[VoiceAssistant] = voice_assistant

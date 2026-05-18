@@ -399,29 +399,20 @@ class SettingsTab(ScrollArea):
         # ── Voice & Audio ────────────────────────────────────────────────────
         self.voice_group = SettingCardGroup("Voice & Audio", self.scrollWidget)
 
-        # Wake word — dropdown restricted to words supported by Porcupine
-        from core.stt import SUPPORTED_WAKE_WORDS
-        self.wake_word_card = ComboBoxCard(
-            FIF.MICROPHONE,
-            "Wake Word",
-            "The word you say to activate the voice assistant",
-            SUPPORTED_WAKE_WORDS,
-            "voice.wake_word",
-            self.voice_group
-        )
-        self.voice_group.addSettingCard(self.wake_word_card)
-
-        # Sensitivity slider (0 = strict, 100 = very sensitive)
-        self.wake_sensitivity_card = SliderCard(
-            FIF.SPEED_HIGH,
-            "Wake Word Sensitivity",
-            "Higher = activates more easily but risks false triggers (recommended: 40-60)",
-            "voice.sensitivity_pct",
-            0, 100,
-            self.voice_group
-        )
-        self.voice_group.addSettingCard(self.wake_sensitivity_card)
-        self.voice_group.addSettingCard(self.wake_sensitivity_card)
+        # Wake words — multi-select with per-model sensitivity
+        from gui.tabs.settings import MultiWakeWordCard
+        self.wake_words_card = MultiWakeWordCard(self.voice_group)
+        self.voice_group.addSettingCard(self.wake_words_card)
+        try:
+            from core.voice_assistant import voice_assistant_instance
+            if voice_assistant_instance and voice_assistant_instance.wake_detector:
+                self.wake_words_card.models_changed.connect(
+                    lambda: voice_assistant_instance.wake_detector.reload(
+                        settings.get("voice.wake_models", [])
+                    )
+                )
+        except Exception:
+            pass  # voice assistant not yet wired — settings still work standalone
 
         piper_voices = [
             "en_GB-northern_english_male-medium",
