@@ -36,6 +36,7 @@ class VoiceAssistant(QObject):
     processing_started = Signal()
     processing_finished = Signal()
     error_occurred = Signal(str)
+    info_occurred = Signal(str)  # benign info messages (green toast)
     # GUI update signals
     timer_set = Signal(int, str)  # seconds, label
     alarm_added = Signal()
@@ -108,6 +109,13 @@ class VoiceAssistant(QObject):
             self.wake_detector.wake_word_detected.connect(self._on_wake_model_fired)
             self.wake_detector.error.connect(lambda msg: print(f"{GRAY}[Wake] {msg}{RESET}"))
             print(f"{CYAN}[VoiceAssistant] ✓ Wake detector ready ({len(self.wake_detector.thresholds)} models loaded){RESET}")
+
+            if app_settings.get("voice._migration_toast_pending"):
+                self.info_occurred.emit(
+                    "Wake-word engine changed to openWakeWord. "
+                    "Defaults: 'Hey Jarvis' + 'Plia'. Adjust in Settings → Voice."
+                )
+                app_settings.set("voice._migration_toast_pending", False)
 
             # Ensure TTS is initialized — but guard against calling initialize()
             # a second time if the model preloader already did so.

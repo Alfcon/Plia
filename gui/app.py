@@ -333,6 +333,7 @@ class MainWindow(FluentWindow):
         voice_assistant.refresh_agents_requested.connect(self._on_voice_refresh_agents)
         voice_assistant.help_requested.connect(self._on_voice_help_requested)
         voice_assistant.read_file_requested.connect(self.read_file_option)
+        voice_assistant.info_occurred.connect(self._on_voice_info)
         print(f"[App] ✓ Voice assistant signals connected")
 
         # ── Connect TTS speaking signals to UI handlers ─────────────────
@@ -957,6 +958,20 @@ class MainWindow(FluentWindow):
             self.dashboard_view._cmd_help()
         except Exception as e:
             print(f"[App] _on_voice_help_requested error: {e}")
+
+    def _on_voice_info(self, message: str) -> None:
+        """Show a benign info toast emitted by VoiceAssistant (e.g. migration notice)."""
+        try:
+            from qfluentwidgets import InfoBar, InfoBarPosition
+            InfoBar.success(
+                title="Voice",
+                content=message,
+                duration=8000,
+                position=InfoBarPosition.TOP_RIGHT,
+                parent=self,
+            )
+        except Exception as exc:
+            print(f"[App] info toast failed: {exc}")
 
     def closeEvent(self, event):
         """Handle application close event."""
