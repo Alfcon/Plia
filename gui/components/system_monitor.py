@@ -11,13 +11,9 @@ from PySide6.QtGui import QFont
 from config import OLLAMA_URL
 from core.llm import is_router_loaded
 
-# Try to import pynvml for GPU monitoring
-try:
-    import pynvml
-    pynvml.nvmlInit()
-    GPU_AVAILABLE = True
-except Exception:
-    GPU_AVAILABLE = False
+# GPU monitoring is delegated to core.gpu_info (cross-vendor: NVIDIA + AMD)
+from core import gpu_info
+GPU_AVAILABLE = gpu_info.detect_backend() != "cpu"
 
 
 class MonitorWorker(QObject):
@@ -43,19 +39,20 @@ class MonitorWorker(QObject):
                 'total': ram.total / (1024 ** 3)
             }
             
-            # GPU
+            # GPU (NVIDIA via pynvml, AMD via sysfs — both handled by core.gpu_info)
             if GPU_AVAILABLE:
                 try:
-                    handle = pynvml.nvmlDeviceGetHandleByIndex(0)
-                    util = pynvml.nvmlDeviceGetUtilizationRates(handle)
-                    mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
-                    
-                    stats['gpu'] = {
-                        'percent': util.gpu,
-                        'vram_used': mem_info.used / (1024 ** 3),
-                        'vram_total': mem_info.total / (1024 ** 3),
-                        'vram_percent': (mem_info.used / mem_info.total) * 100
-                    }
+                    info = gpu_info.read_gpu()
+                    if info.vram_total_gb > 0:
+                        stats['gpu'] = {
+                            'percent': info.util_pct,
+                            'vram_used': info.vram_used_gb,
+                            'vram_total': info.vram_total_gb,
+                            'vram_percent':
+                                (info.vram_used_gb / info.vram_total_gb) * 100,
+                        }
+                    else:
+                        stats['gpu'] = None
                 except Exception:
                     stats['gpu'] = None
             else:
