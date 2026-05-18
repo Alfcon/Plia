@@ -9,7 +9,7 @@ from pathlib import Path
 import requests
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, QFrame, QSizePolicy,
-    QCheckBox, QSlider, QPushButton, QFileDialog
+    QCheckBox, QSlider, QPushButton, QFileDialog, QStackedWidget
 )
 from PySide6.QtCore import Qt, QThread, QTimer, Signal, Slot
 
@@ -17,7 +17,7 @@ from qfluentwidgets import (
     ScrollArea, ExpandLayout, SettingCardGroup, PushSettingCard, FluentIcon as FIF,
     setTheme, Theme, PrimaryPushSettingCard, ComboBox, LineEdit,
     PrimaryPushButton, InfoBar, InfoBarPosition, SettingCard, Slider,
-    StrongBodyLabel, SwitchButton
+    StrongBodyLabel, SwitchButton, Pivot
 )
 
 from core.settings_store import settings
@@ -1416,6 +1416,64 @@ class SettingsTab(ScrollArea):
         self.delete_settings_card.clicked.connect(self._on_delete_settings)
         self.about_group.addSettingCard(self.delete_settings_card)
         self.expandLayout.addWidget(self.about_group)
+
+        # Re-organise everything below Apply Changes into a 4-tab Pivot.
+        self._build_pivot_tabs()
+
+    # ── Tabbed layout ────────────────────────────────────────────────────────
+    def _build_pivot_tabs(self):
+        """Pull every section except Apply Changes into a 4-category Pivot.
+
+        Sections were added to expandLayout during _init_ui so that any
+        construction error surfaces a usable page. After construction, move
+        them into per-category panels and replace the linear scroll with a
+        Pivot + QStackedWidget.
+        """
+        categories: list[tuple[str, str, list[QWidget]]] = [
+            ("core",     "Core", [
+                self.personal_group, self.ai_group, self.connection_group,
+            ]),
+            ("voice",    "Voice & Weather", [
+                self.voice_group, self.weather_group, self.location_card,
+            ]),
+            ("features", "Features", [
+                self.general_group, self.search_group, self.privacy_group,
+                self.digest_group, self.news_group, self.calendar_group,
+                self.desktop_group,
+            ]),
+            ("about",    "About", [self.about_group]),
+        ]
+
+        self.pivot = Pivot(self.scrollWidget)
+        self.tab_stack = QStackedWidget(self.scrollWidget)
+
+        for idx, (key, label, widgets) in enumerate(categories):
+            panel = QWidget(self.tab_stack)
+            layout = QVBoxLayout(panel)
+            layout.setContentsMargins(0, 8, 0, 0)
+            layout.setSpacing(28)
+
+            for w in widgets:
+                self.expandLayout.removeWidget(w)
+                w.setParent(panel)
+                layout.addWidget(w)
+            layout.addStretch(1)
+
+            self.tab_stack.addWidget(panel)
+            self.pivot.addItem(
+                routeKey=key, text=label,
+                onClick=lambda i=idx, k=key: self._on_pivot_changed(i, k),
+            )
+
+        self.expandLayout.addWidget(self.pivot)
+        self.expandLayout.addWidget(self.tab_stack)
+
+        # Default to the first tab.
+        self.pivot.setCurrentItem(categories[0][0])
+        self.tab_stack.setCurrentIndex(0)
+
+    def _on_pivot_changed(self, index: int, key: str) -> None:
+        self.tab_stack.setCurrentIndex(index)
 
     # ── Handlers ─────────────────────────────────────────────────────────────
 
