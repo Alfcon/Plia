@@ -20,6 +20,7 @@ for the design rationale.
 from __future__ import annotations
 
 import re
+import shutil
 import time
 import urllib.request
 from pathlib import Path
@@ -117,7 +118,9 @@ def _download_neg_features(dest: Path) -> None:
 
         # Extract.
         with tarfile.open(archive_path, "r:gz") as tar:
-            tar.extractall(dest)
+            # filter='data' hardens against path traversal + special files,
+            # and silences the DeprecationWarning on 3.12+.
+            tar.extractall(dest, filter="data")
         (dest / ".ready").write_text("ok\n")
     finally:
         archive_path.unlink(missing_ok=True)
@@ -135,7 +138,7 @@ def ensure_negative_features(on_progress: ProgressFn = lambda pct, msg: None) ->
 
     on_progress(0.0, "neg features: downloading…")
     last_err: Exception | None = None
-    for attempt, delay in enumerate([0.0] + _RETRY_DELAYS):
+    for delay in [0.0] + _RETRY_DELAYS:
         if delay:
             time.sleep(delay)
         try:
@@ -145,7 +148,6 @@ def ensure_negative_features(on_progress: ProgressFn = lambda pct, msg: None) ->
         except Exception as exc:
             last_err = exc
             # Half-written dir gets wiped so the next attempt is clean.
-            import shutil
             if NEG_FEATURES_DIR.exists():
                 shutil.rmtree(NEG_FEATURES_DIR, ignore_errors=True)
 
