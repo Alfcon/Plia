@@ -401,16 +401,16 @@ Two paths:
 
 1. **Drop in a pretrained `.onnx`** via Settings → Voice & Audio → **+ Add Model…**
    (file is copied to `models/wake/custom/`).
-2. **Train your own** from synthetic Piper TTS speech:
+2. **Train your own** in openWakeWord's official Colab notebook:
+   [`automatic_model_training.ipynb`](https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb).
+   Open it in Google Colab (free GPU), set the target word, run all
+   cells, download the resulting `<word>.onnx`, and copy it into
+   `models/wake/custom/`. Click **↻ Reload** in the Wake Words card to
+   pick it up.
 
-   ```bash
-   pip install -r requirements-train.txt
-   python scripts/train_wake_word.py --word "your_word" \
-       --output models/wake/custom/your_word.onnx \
-       --variants 5000
-   ```
-
-   Then click **↻ Reload** in the Wake Words card to pick it up.
+   openWakeWord ≥ 0.6 doesn't ship a stable Python training API, so the
+   notebook is the supported path; `scripts/train_wake_word.py` is a
+   pointer script that prints these instructions.
 
 ---
 

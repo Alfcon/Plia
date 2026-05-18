@@ -1,6 +1,6 @@
-# Extra dependencies for scripts/train_wake_word.py
-# Not needed to run Plia — only for training new wake-word models.
-piper-tts>=1.2.0
-openwakeword>=0.6.0
-onnx>=1.15.0
-torch>=2.0
+# Training custom wake-word models happens off-machine via openWakeWord's
+# Colab/Jupyter notebook — see scripts/train_wake_word.py for the link.
+# No Python dependencies need to be installed locally for that flow.
+#
+# This file is kept as a marker so existing READMEs/PRs that reference it
+# still resolve, but it is intentionally empty.
