@@ -589,6 +589,83 @@ class TextInputCard(SettingCard):
             self.value_changed.emit(text)
 
 
+class PasswordInputCard(SettingCard):
+    """Text input card that masks the value and persists it as a string.
+
+    The plain ``TextInputCard`` coerces all-digit input to a float — fine
+    for ports, fatal for passwords ("12345" → 12345.0 → SMTP login fails).
+    This variant skips the coercion entirely.
+    """
+
+    value_changed = Signal(str)
+
+    def __init__(self, icon, title, description, key_path: str,
+                 placeholder: str = "", parent=None):
+        super().__init__(icon, title, description, parent)
+        self.key_path = key_path
+
+        from PySide6.QtWidgets import QLineEdit as _QLineEdit
+        self.input = LineEdit(self)
+        self.input.setMinimumWidth(200)
+        self.input.setPlaceholderText(placeholder)
+        self.input.setEchoMode(_QLineEdit.Password)
+        self.input.setText(str(settings.get(key_path, "") or ""))
+        self.input.textChanged.connect(self._on_changed)
+
+        self.hBoxLayout.addWidget(self.input, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+    def _on_changed(self, text: str):
+        settings.set(self.key_path, text)
+        self.value_changed.emit(text)
+
+
+class EmailConnectionTester(QThread):
+    """Background SMTP + IMAP login test for the Email Integration card."""
+
+    done = Signal(bool, str)   # (success, message)
+
+    def __init__(self, *, smtp_server: str, smtp_port: int,
+                 imap_server: str, imap_port: int,
+                 username: str, password: str):
+        super().__init__()
+        self.smtp_server = smtp_server
+        self.smtp_port = smtp_port
+        self.imap_server = imap_server
+        self.imap_port = imap_port
+        self.username = username
+        self.password = password
+
+    def run(self):
+        import smtplib
+        import imaplib
+        problems: list[str] = []
+
+        if self.smtp_server:
+            try:
+                with smtplib.SMTP(self.smtp_server, self.smtp_port, timeout=10) as s:
+                    s.starttls()
+                    s.login(self.username, self.password)
+            except Exception as exc:
+                problems.append(f"SMTP: {type(exc).__name__}: {exc}")
+        else:
+            problems.append("SMTP: server is empty")
+
+        if self.imap_server:
+            try:
+                with imaplib.IMAP4_SSL(self.imap_server, self.imap_port, timeout=10) as m:
+                    m.login(self.username, self.password)
+            except Exception as exc:
+                problems.append(f"IMAP: {type(exc).__name__}: {exc}")
+        else:
+            problems.append("IMAP: server is empty")
+
+        if problems:
+            self.done.emit(False, " · ".join(problems))
+        else:
+            self.done.emit(True, "SMTP + IMAP login succeeded.")
+
+
 class WeatherLocationCard(QFrame):
     """
     Full-width, multi-row weather location card.
@@ -1502,6 +1579,71 @@ class SettingsTab(ScrollArea):
 
         self.expandLayout.addWidget(self.calendar_group)
 
+        # ── Email Integration (SMTP send + IMAP read) ────────────────────────
+        # Backend at core/email_manager.py reads all seven keys; these cards
+        # are the UI surface the 2026-05-19 audit flagged as missing.
+        self.email_group = SettingCardGroup("Email Integration", self.scrollWidget)
+
+        self.email_smtp_server_card = TextInputCard(
+            FIF.SEND, "SMTP Server",
+            "Hostname for sending mail (e.g. smtp.gmail.com)",
+            "email.smtp_server", "smtp.example.com", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_smtp_server_card)
+
+        self.email_smtp_port_card = TextInputCard(
+            FIF.SEND, "SMTP Port",
+            "Usually 587 for STARTTLS, 465 for SSL",
+            "email.smtp_port", "587", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_smtp_port_card)
+
+        self.email_imap_server_card = TextInputCard(
+            FIF.MAIL, "IMAP Server",
+            "Hostname for reading mail (e.g. imap.gmail.com)",
+            "email.imap_server", "imap.example.com", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_imap_server_card)
+
+        self.email_imap_port_card = TextInputCard(
+            FIF.MAIL, "IMAP Port",
+            "Usually 993 for IMAP4 over SSL",
+            "email.imap_port", "993", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_imap_port_card)
+
+        self.email_username_card = TextInputCard(
+            FIF.PEOPLE, "Username",
+            "Login (usually your full email address)",
+            "email.username", "you@example.com", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_username_card)
+
+        self.email_password_card = PasswordInputCard(
+            FIF.HIDE, "Password",
+            "App-specific password for Gmail / Outlook recommended",
+            "email.password", "••••••••", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_password_card)
+
+        self.email_from_card = TextInputCard(
+            FIF.MAIL, "From address",
+            "Address used in the From: header (defaults to username)",
+            "email.from_address", "you@example.com", self.email_group,
+        )
+        self.email_group.addSettingCard(self.email_from_card)
+
+        self.email_test_card = PushSettingCard(
+            "Test connection", FIF.LINK,
+            "Verify SMTP + IMAP login",
+            "Tries both servers and reports any failures (no email is sent).",
+            self.email_group,
+        )
+        self.email_test_card.clicked.connect(self._on_email_test)
+        self.email_group.addSettingCard(self.email_test_card)
+
+        self.expandLayout.addWidget(self.email_group)
+
         # ── Desktop Agent ────────────────────────────────────────────────────
         self.desktop_group = SettingCardGroup("Desktop Agent (AI Computer Control)", self.scrollWidget)
 
@@ -1590,7 +1732,7 @@ class SettingsTab(ScrollArea):
             ("features", "Features", FIF.APPLICATION, [
                 self.general_group, self.search_group, self.privacy_group,
                 self.digest_group, self.news_group, self.calendar_group,
-                self.desktop_group,
+                self.email_group, self.desktop_group,
             ]),
             ("about",    "About", FIF.INFO, [self.about_group]),
         ]
@@ -1854,6 +1996,53 @@ class SettingsTab(ScrollArea):
             position=InfoBarPosition.TOP,
             duration=4000,
             parent=self.window()
+        )
+
+    # ── Email handlers ───────────────────────────────────────────────────────
+
+    def _on_email_test(self):
+        """Run SMTP + IMAP login checks in a background thread."""
+        def _to_int(v, default):
+            try:
+                return int(float(v))
+            except (TypeError, ValueError):
+                return default
+
+        smtp_port = _to_int(settings.get("email.smtp_port", 587), 587)
+        imap_port = _to_int(settings.get("email.imap_port", 993), 993)
+        username = settings.get("email.username", "")
+        password = settings.get("email.password", "")
+        if not username or not password:
+            InfoBar.warning(
+                title="Email test", content="Username and password are required.",
+                orient=Qt.Horizontal, isClosable=True,
+                position=InfoBarPosition.TOP, duration=4000, parent=self.window(),
+            )
+            return
+
+        self.email_test_card.button.setEnabled(False)
+        self._email_tester = EmailConnectionTester(
+            smtp_server=settings.get("email.smtp_server", ""),
+            smtp_port=smtp_port,
+            imap_server=settings.get("email.imap_server", ""),
+            imap_port=imap_port,
+            username=username, password=password,
+        )
+        self._email_tester.done.connect(self._on_email_test_done)
+        self._email_tester.finished.connect(
+            lambda: self.email_test_card.button.setEnabled(True)
+        )
+        self._email_tester.start()
+
+    @Slot(bool, str)
+    def _on_email_test_done(self, success: bool, message: str):
+        bar = InfoBar.success if success else InfoBar.error
+        bar(
+            title="Email connected" if success else "Email test failed",
+            content=message, orient=Qt.Horizontal, isClosable=True,
+            position=InfoBarPosition.TOP,
+            duration=4000 if success else 8000,
+            parent=self.window(),
         )
 
     # ── Calendar handlers ─────────────────────────────────────────────────────
