@@ -46,9 +46,7 @@ warnings.filterwarnings("ignore", message=".*generation flags are not valid.*")
 # It only reads Python function signatures; no model loading occurs.
 try:
     from transformers.utils import get_json_schema
-    _HAS_GET_JSON_SCHEMA = True
 except ImportError:
-    _HAS_GET_JSON_SCHEMA = False
     def get_json_schema(fn):
         """Fallback: return a minimal schema if transformers is unavailable."""
         return {"name": fn.__name__, "description": fn.__doc__ or ""}
