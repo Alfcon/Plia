@@ -1,31 +1,40 @@
 # Voice & TTS
 
-Plia uses **Porcupine** for wake-word detection, **RealTimeSTT (Whisper)** for speech-to-text, and **Piper** for text-to-speech. All local.
+Plia uses **openWakeWord** for wake-word detection, **RealTimeSTT (Whisper)** for speech-to-text, and **Piper** for text-to-speech. All local.
 
-## Wake word
+## Wake words
 
-Default: **jarvis**. You can change it in **Settings → Voice → Wake Word** to one of the supported keywords (computer, terminator, alexa, etc.).
+Plia supports **multiple wake words at once**. Bundled models that ship with the repo:
 
-After the wake word fires you have a short window to speak your command. STT returns the text to the pipeline:
-1. **Create-agent intent** → wizard starts (see Live Agents page)
-2. **Active wizard** → your answer is routed to the wizard
-3. **"read option N" / "open file N"** → opens that file from the last list
-4. **Search browser controls** → "next page", "previous page", "open result N"
-5. **Everything else** → routed to the Function Gemma router, which picks a tool or replies via the LLM
+- **Hey Jarvis** (enabled by default)
+- **Plia** (enabled by default *— but currently unavailable until the .onnx is committed; see below*)
+- Alexa, Hey Mycroft, OK Nabu, Hey Rhasspy (disabled by default)
+
+Toggle them on/off and tune per-model sensitivity in **Settings → Voice & Audio → Wake Words**. Use **+ Add Model…** to drop in any openWakeWord `.onnx`.
+
+> **Plia wake word not firing on a fresh install?** The default settings list `bundled/plia.onnx` but the file is not yet committed to the repo — train your own via openWakeWord's [automatic_model_training notebook](https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb) and drop the result into `models/wake/bundled/plia.onnx`. The in-app trainer is paused (see `config.WAKE_TRAINER_ENABLED`).
+
+After any wake word fires you have a short window to speak your command. STT returns the text to the pipeline:
+1. **Wake-trainer build intent** (e.g. *"train a wake word for plia"*) → currently announces it's paused
+2. **Create-agent intent** → wizard starts (see Live Agents page)
+3. **Active wizard** → your answer is routed to the wizard
+4. **"read option N" / "open file N"** → opens that file from the last list
+5. **Search browser controls** → "next page", "previous page", "open result N"
+6. **Everything else** → routed to the FunctionGemma router, which picks a tool or replies via the LLM
 
 ## Multi-turn wizard
 
-When you're in the middle of an agent-creation wizard, **STT is primed for follow-up between turns** — you don't have to say "jarvis" before each answer. Plia's TTS finishes speaking the next question, then immediately re-arms the microphone for your answer.
+When you're in the middle of an agent-creation wizard, **STT is primed for follow-up between turns** — you don't have to say a wake word before each answer. Plia's TTS finishes speaking the next question, then immediately re-arms the microphone for your answer.
 
 ## TTS settings
 
-In **Settings → Voice**:
+In **Settings → Voice & Audio**:
 - Voice (e.g. en_US-lessac-medium, en_GB-northern_english_male-medium)
-- Length scale (speech speed)
-- Volume
-- Mute toggle
+- Speech length (50–200%, 100% is normal)
+- Volume (0–100%)
+- Mute TTS
 
-The voice model is downloaded on first use.
+Changes apply immediately to the running engine; values survive restart.
 
 ## Idle VRAM management
 

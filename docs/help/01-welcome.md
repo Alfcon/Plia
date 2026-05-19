@@ -20,9 +20,9 @@ Plia is a **local-first AI assistant**: a voice-driven, multi-agent system that 
 
 ## First 5 minutes
 
-1. **Say "jarvis"** (or your configured wake word). Plia's voice indicator lights up.
-2. Try a voice command: *"jarvis what's the weather?"* or *"jarvis open the chat"*.
-3. **Create your first agent** by saying: *"jarvis create an agent that watches GitHub for AI assistant projects"*. Walk through the spoken wizard.
+1. **Say "Hey Jarvis"** (the default wake word — toggle others in Settings → Voice & Audio → Wake Words). Plia's voice indicator lights up.
+2. Try a voice command: *"Hey Jarvis, what's the weather?"* or *"Hey Jarvis, open the chat"*.
+3. **Create your first agent** by saying: *"Hey Jarvis, create an agent that watches GitHub for AI assistant projects"*. Walk through the spoken wizard.
 4. Or **type the same** in the Chat tab — the same wizard opens as a dialog.
 5. Find your new agent in **Agent List** under "Live Agents". Click **▶ Run now** or **💬 Run with prompt…**.
 

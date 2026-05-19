@@ -19,8 +19,8 @@ Live agents are the worker units of Plia. Each agent has a task, a trigger, a se
 ## Creating an agent
 
 ### Voice
-Say *"jarvis create an agent that &lt;task description&gt;"*. The wizard asks:
-1. **Trigger** — say "on demand", "scheduled", or "quota". (Between answers Plia primes STT so you don't need to say "jarvis" each time.)
+Say *"Hey Jarvis, create an agent that &lt;task description&gt;"*. The wizard asks:
+1. **Trigger** — say "on demand", "scheduled", or "quota". (Between answers Plia primes STT so you don't need to say a wake word each time.)
 2. **Cadence / Quota** — only if you picked scheduled / quota.
 3. **Persistence** — "persistent" or "session only".
 4. **Notify** — say one or many: "speak", "chat", "save to file", "communication log", "web searches", "toast" — or combine: "speak and save to file".
