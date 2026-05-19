@@ -1644,6 +1644,21 @@ class SettingsTab(ScrollArea):
 
         self.expandLayout.addWidget(self.email_group)
 
+        # ── Discord Integration ──────────────────────────────────────────────
+        # core/discord_reader.py reads discord.bot_token. Get one at
+        # https://discord.com/developers/applications → create app → Bot →
+        # Add Bot → Reset Token, then invite it to your server with the
+        # `MESSAGE CONTENT INTENT` enabled.
+        self.discord_group = SettingCardGroup("Discord Integration", self.scrollWidget)
+        self.discord_token_card = PasswordInputCard(
+            FIF.CHAT, "Bot Token",
+            "Discord application bot token (kept locally; never logged or sent anywhere)",
+            "discord.bot_token", "MTAxxxxxxx…",
+            self.discord_group,
+        )
+        self.discord_group.addSettingCard(self.discord_token_card)
+        self.expandLayout.addWidget(self.discord_group)
+
         # ── Desktop Agent ────────────────────────────────────────────────────
         self.desktop_group = SettingCardGroup("Desktop Agent (AI Computer Control)", self.scrollWidget)
 
@@ -1675,6 +1690,39 @@ class SettingsTab(ScrollArea):
             self.desktop_group
         )
         self.desktop_group.addSettingCard(self.desktop_steps_card)
+
+        # ── VLM sampling parameters (consumed by core/agent/vlm_client.py) ─
+        # Defaults match settings_store.DEFAULT_SETTINGS["web_agent_params"]:
+        # temperature=1.0, top_k=20, top_p=0.95.
+        self.web_agent_temperature_card = FloatSliderCard(
+            FIF.SETTING, "VLM Temperature",
+            "Sampling temperature (higher = more random; 1.0 is the model default)",
+            "web_agent_params.temperature",
+            min_val=0.0, max_val=2.0, step=0.01, default=1.0,
+            display_format="{:.2f}", display_scale=0.01,
+            parent=self.desktop_group,
+        )
+        self.desktop_group.addSettingCard(self.web_agent_temperature_card)
+
+        self.web_agent_top_k_card = SliderCard(
+            FIF.SETTING, "VLM Top-K",
+            "Restrict sampling to the K most-likely tokens (lower = more focused)",
+            "web_agent_params.top_k",
+            1, 100,
+            self.desktop_group,
+        )
+        self.desktop_group.addSettingCard(self.web_agent_top_k_card)
+
+        self.web_agent_top_p_card = FloatSliderCard(
+            FIF.SETTING, "VLM Top-P",
+            "Nucleus sampling cutoff (0.95 keeps the top 95% probability mass)",
+            "web_agent_params.top_p",
+            min_val=0.0, max_val=1.0, step=0.01, default=0.95,
+            display_format="{:.2f}", display_scale=0.01,
+            parent=self.desktop_group,
+        )
+        self.desktop_group.addSettingCard(self.web_agent_top_p_card)
+
         self.expandLayout.addWidget(self.desktop_group)
 
         # ── About ────────────────────────────────────────────────────────────
@@ -1732,7 +1780,7 @@ class SettingsTab(ScrollArea):
             ("features", "Features", FIF.APPLICATION, [
                 self.general_group, self.search_group, self.privacy_group,
                 self.digest_group, self.news_group, self.calendar_group,
-                self.email_group, self.desktop_group,
+                self.email_group, self.discord_group, self.desktop_group,
             ]),
             ("about",    "About", FIF.INFO, [self.about_group]),
         ]
