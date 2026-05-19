@@ -73,6 +73,59 @@ _DOWNLOAD_PATH_RE = re.compile(
     re.IGNORECASE,
 )
 
+# ── Wake-word trainer template ─────────────────────────────────────────────
+# Emitted when the user says e.g. "train a wake word for 'plia'". The
+# generated agent is a thin wrapper around core.wake_trainer so users get a
+# repeatable, runnable artifact instead of a one-shot training run.
+_WAKE_TRAINER_TEMPLATE = '''\
+"""
+Agent: {slug}
+Built by Plia AgentBuilder on {timestamp}
+Task: Train an openWakeWord model for the wake phrase "{word}".
+Run standalone: python "{file_path}"
+"""
+
+import sys
+from pathlib import Path
+
+# Plia repo root is the parent of this agent's directory.
+THIS = Path(__file__).resolve()
+REPO_ROOT = THIS.parents[2]   # adjust if your layout differs
+sys.path.insert(0, str(REPO_ROOT))
+
+from core.wake_trainer import train_wake_word, WakeTrainerError
+
+
+WORD = "{word}"
+VARIANTS = {variants}
+
+
+def run(**kwargs) -> str:
+    """Entry point. Returns a human-readable status string."""
+    word = kwargs.get("word", WORD)
+    variants = int(kwargs.get("variants", VARIANTS))
+    try:
+        path = train_wake_word(
+            word, variants=variants,
+            on_progress=lambda pct, msg: print(f"[{{pct:5.1f}}%] {{msg}}"),
+        )
+        return f"Trained wake word {{word!r}} → {{path}}"
+    except WakeTrainerError as exc:
+        return f"Training failed: {{exc}}"
+
+
+if __name__ == "__main__":
+    print(run())
+'''
+
+
+_WAKE_TRAINER_INTENT_RE = re.compile(
+    r"\b(?:train|build|make)\s+(?:a\s+)?wake[- ]?word\s+"
+    r"(?:model\s+)?(?:for\s+|named\s+|called\s+)?[\"']?([A-Za-z0-9 ]+?)[\"']?\s*$",
+    re.IGNORECASE,
+)
+
+
 # ── Hardcoded search-and-download template ─────────────────────────────────
 # Used instead of asking the LLM when the intent is "search … and download to …"
 _SEARCH_DOWNLOAD_TEMPLATE = '''\
@@ -260,6 +313,23 @@ def detect_build_intent(text: str) -> Optional[dict]:
     """
     stripped = text.strip()
 
+    # ── Wake-word trainer fast path ──────────────────────────────────────
+    # Matched before the generic build patterns so "build a wake word for X"
+    # doesn't fall through to the LLM-driven path.
+    wt = _WAKE_TRAINER_INTENT_RE.search(stripped)
+    if wt:
+        word = wt.group(1).strip().rstrip(".!?,")
+        display_name = _title(f"wake word trainer {word}")
+        return {
+            "kind":            "wake_trainer",
+            "word":            word,
+            "task":            f"train a wake word for {word!r}",
+            "display_name":    display_name,
+            "search_download": False,
+            "topic":           word,
+            "dest_dir":        "",
+        }
+
     # ── Check for search-and-download intent first ─────────────────────
     sdm = re.search(
         r"(?:do\s+an?\s+)?(?:internet\s+)?search\s+(?:for\s+)?(.+?)(?:\s+(?:and\s+)?download.*|$)",
@@ -314,8 +384,22 @@ def build_agent(
     display_name = intent.get("display_name", _title(task))
     slug         = _slugify(display_name)
     is_sd        = intent.get("search_download", False)
+    kind         = intent.get("kind")
 
-    if is_sd:
+    if kind == "wake_trainer":
+        # ── Wake-word trainer: hardcoded template, no LLM call ───────────
+        word = intent.get("word") or intent.get("topic") or task
+        on_status(f"🎙️ Building wake-word trainer agent for: {word!r}")
+
+        agent_path_stub = AGENTS_DIR / f"{slug}.py"
+        src = _WAKE_TRAINER_TEMPLATE.format(
+            slug      = slug,
+            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            word      = word,
+            variants  = 5000,
+            file_path = str(agent_path_stub),
+        )
+    elif is_sd:
         # ── Search-and-download: use template, no LLM call needed ────────
         topic    = intent.get("topic", task)
         dest_dir = intent.get("dest_dir", str(Path.home() / "Downloads"))
