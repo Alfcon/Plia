@@ -1,32 +1,39 @@
 #!/usr/bin/env python3
-"""Pointer script — Plia trains custom wake words via openWakeWord's notebook.
+"""CLI shim around core.wake_trainer.train_wake_word.
 
-openWakeWord ≥ 0.6 does not expose a stable Python training API; the
-official path is the Jupyter / Colab notebook bundled in their repo:
-
-    https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb
-
-Steps:
-
-  1. Open the notebook in Google Colab (free GPU runtime) or run it
-     locally with Jupyter.
-  2. Set the target word (e.g. "plia"), run all cells.
-  3. Download the resulting ``<word>.onnx`` artifact.
-  4. Drop it into ``models/wake/bundled/`` (for built-ins) or
-     ``models/wake/custom/`` (for personal use), or upload it via
-     Plia → Settings → Voice & Audio → + Add Model….
-
-This script intentionally has no Python entry point — there is nothing
-sensible it could do locally that the notebook doesn't do better.
+For most users the in-app paths (Settings → Voice & Audio → + Train Model…,
+the chat tool ``tool_train_wake_word``, or the wake-word-trainer agent) are
+easier. This script exists for headless / scripted use.
 """
 from __future__ import annotations
 
+import argparse
 import sys
+from pathlib import Path
 
 
 def main() -> int:
-    print(__doc__, file=sys.stderr)
-    return 1
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--word", required=True)
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--variants", type=int, default=5000)
+    parser.add_argument("--epochs", type=int, default=100)
+    args = parser.parse_args()
+
+    from core.wake_trainer import train_wake_word, WakeTrainerError
+    try:
+        path = train_wake_word(
+            args.word,
+            variants=args.variants,
+            epochs=args.epochs,
+            output_dir=args.output,
+            on_progress=lambda pct, msg: print(f"[{pct:5.1f}%] {msg}"),
+        )
+    except WakeTrainerError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"wrote {path}")
+    return 0
 
 
 if __name__ == "__main__":

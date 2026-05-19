@@ -1,6 +1,0 @@
-# Training custom wake-word models happens off-machine via openWakeWord's
-# Colab/Jupyter notebook — see scripts/train_wake_word.py for the link.
-# No Python dependencies need to be installed locally for that flow.
-#
-# This file is kept as a marker so existing READMEs/PRs that reference it
-# still resolve, but it is intentionally empty.
