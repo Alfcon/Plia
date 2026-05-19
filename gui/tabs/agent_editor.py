@@ -517,7 +517,21 @@ class LiveAgentEditorDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle(f"Edit Live Agent — {state.display_name}")
         self._state = state
+        self._tools_layout = None
+        self._tool_checks = {}
+        self._plugins_conn = None
         self._build()
+        # Refresh the tool whitelist live when the user reloads plugins
+        # (e.g. via Agents tab → Reload Plugins or the voice intent). Without
+        # this, an open dialog stays pinned to whatever plugins existed at
+        # construction time. closeEvent() drops the connection.
+        try:
+            from core.plugins import registry as _plugins
+            self._plugins_conn = _plugins.plugins_changed.connect(
+                self._populate_tool_checks
+            )
+        except Exception:
+            pass
 
     def _build(self):
         from PySide6.QtWidgets import (
@@ -633,27 +647,8 @@ class LiveAgentEditorDialog(QDialog):
         # ── Tools ─────────────────────────────────────────────────────────
         root.addWidget(QLabel("Allowed tools (red = destructive, opt-in)"))
         tools_box = QWidget()
-        tools_layout = QVBoxLayout(tools_box)
-        from core.multi_agent import multi_agent_system
-        role = multi_agent_system.roles.get(self._state.role_id)
-        current_tools = set(role.tools) if role else set()
-        self._tool_checks = {}
-        # Built-in tools first, then user plugins (e.g. "my_plugin:do_thing").
-        try:
-            from core.plugins import registry as _plugins
-            plugin_tools = _plugins.names()
-        except Exception:
-            plugin_tools = []
-        all_tools = list(self.ALL_TOOLS) + plugin_tools
-        for tool in all_tools:
-            cb = QCheckBox(tool)
-            cb.setChecked(tool in current_tools)
-            if tool in self.DESTRUCTIVE:
-                cb.setStyleSheet("color:#ef5350;")
-            elif ":" in tool:
-                cb.setStyleSheet("color:#80d8ff;")  # plugin tools = cyan
-            tools_layout.addWidget(cb)
-            self._tool_checks[tool] = cb
+        self._tools_layout = QVBoxLayout(tools_box)
+        self._populate_tool_checks()
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setWidget(tools_box)
@@ -708,6 +703,65 @@ class LiveAgentEditorDialog(QDialog):
         btn_row.addWidget(cancel)
         btn_row.addWidget(save)
         root.addLayout(btn_row)
+
+    def _populate_tool_checks(self):
+        """(Re)build the tool checkboxes from current registry state.
+
+        Preserves any checks the user has already made — captures the in-
+        dialog state first, then falls back to the role's persisted tools
+        for newly-discovered tools. Safe to call multiple times: clears the
+        existing layout each time.
+        """
+        from PySide6.QtWidgets import QCheckBox
+
+        if self._tools_layout is None:
+            return  # _build hasn't run yet (defensive)
+
+        # Capture what the user has currently ticked + the role's saved set.
+        prev = {name: cb.isChecked() for name, cb in self._tool_checks.items()}
+        from core.multi_agent import multi_agent_system
+        role = multi_agent_system.roles.get(self._state.role_id)
+        role_tools = set(role.tools) if role else set()
+
+        # Tear down old checkboxes.
+        while self._tools_layout.count():
+            item = self._tools_layout.takeAt(0)
+            w = item.widget()
+            if w is not None:
+                w.deleteLater()
+        self._tool_checks = {}
+
+        # Re-read plugin tools (the whole point of the refresh).
+        try:
+            from core.plugins import registry as _plugins
+            plugin_tools = _plugins.names()
+        except Exception:
+            plugin_tools = []
+
+        # Built-in first, then user plugins (e.g. "my_plugin:do_thing").
+        for tool in list(self.ALL_TOOLS) + plugin_tools:
+            cb = QCheckBox(tool)
+            # Preserve the user's prior selection if present; otherwise use
+            # the role's persisted state.
+            cb.setChecked(prev[tool] if tool in prev else tool in role_tools)
+            if tool in self.DESTRUCTIVE:
+                cb.setStyleSheet("color:#ef5350;")
+            elif ":" in tool:
+                cb.setStyleSheet("color:#80d8ff;")  # plugin tools = cyan
+            self._tools_layout.addWidget(cb)
+            self._tool_checks[tool] = cb
+
+    def closeEvent(self, event):
+        """Drop the plugins_changed connection so late signals don't reach
+        a destroyed dialog."""
+        if self._plugins_conn is not None:
+            try:
+                from core.plugins import registry as _plugins
+                _plugins.plugins_changed.disconnect(self._populate_tool_checks)
+            except Exception:
+                pass
+            self._plugins_conn = None
+        super().closeEvent(event)
 
     def _save(self):
         from core.agent_runtime import get_runtime
