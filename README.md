@@ -401,17 +401,20 @@ Two paths:
 
 1. **Drop in a pretrained `.onnx`** via Settings → Voice & Audio → **+ Add Model…**
    (file is copied to `models/wake/custom/`).
-2. **Train your own** without leaving Plia:
-   - **GUI:** Settings → Voice & Audio → **+ Train Model…**, type the word,
-     click Train, wait ~20–40 min on CPU (or a few minutes on GPU). The new
-     model appears in the Wake Words list automatically.
-   - **Voice / chat:** say *"Plia, train a wake word for 'plia'"* — the
-     `tool_train_wake_word` plugin handles it and reports progress in chat.
-   - **Headless / scripted:** `python scripts/train_wake_word.py --word "plia"`.
+2. **Train your own** via openWakeWord's official Colab notebook:
+   [`automatic_model_training.ipynb`](https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb).
+   Open it in Google Colab (free T4 GPU is enough), set the target word,
+   `Runtime → Run all`, wait ~30 min, download the resulting `<word>.onnx`,
+   drop it into `models/wake/custom/`, and hit **↻ Reload** in the Wake
+   Words card.
 
-   First run downloads openWakeWord's negative-feature pack (~hundreds of
-   MB) and caches it in `~/.plia/wake_trainer/neg_features/`. Subsequent
-   trainings skip that step.
+   > **In-app trainer is currently paused.** The vendored trainer in
+   > `core/wake_trainer.py` (and its `+ Train Model…` / chat / voice / CLI
+   > entry points) is feature-flagged off — the pinned negative-features
+   > download URL is permanently 404 and the local pipeline is missing
+   > the RIR/noise augmentation the upstream notebook uses. Flip
+   > `WAKE_TRAINER_ENABLED = True` in `config.py` to re-enable once the
+   > pipeline has been ported.
 
 ---
 

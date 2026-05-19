@@ -19,15 +19,22 @@ import pytest
 
 pytest.importorskip("PySide6")
 
+from config import WAKE_TRAINER_ENABLED
+
 
 def _build_va(monkeypatch):
     from core import voice_assistant as va_mod
-    monkeypatch.setattr(va_mod.tts, "queue_sentence", lambda s: None)
-    return va_mod.VoiceAssistant(), va_mod
+    spoken: list[str] = []
+    monkeypatch.setattr(va_mod.tts, "queue_sentence", lambda s: spoken.append(s))
+    return va_mod.VoiceAssistant(), va_mod, spoken
 
 
+@pytest.mark.skipif(
+    not WAKE_TRAINER_ENABLED,
+    reason="in-app trainer paused — see config.WAKE_TRAINER_ENABLED",
+)
 def test_voice_train_wake_word_calls_build_agent(monkeypatch):
-    va, va_mod = _build_va(monkeypatch)
+    va, va_mod, _ = _build_va(monkeypatch)
     from core.agent_builder import BuildResult
 
     captured = {}
@@ -52,10 +59,27 @@ def test_voice_train_wake_word_calls_build_agent(monkeypatch):
     assert captured["intent"].get("word") == "plia"
 
 
+@pytest.mark.skipif(
+    WAKE_TRAINER_ENABLED,
+    reason="paused-behaviour guard; only runs while WAKE_TRAINER_ENABLED is False",
+)
+def test_voice_train_wake_word_speaks_paused_message_when_disabled(monkeypatch):
+    va, va_mod, spoken = _build_va(monkeypatch)
+
+    def boom(**kw):
+        raise AssertionError("build_agent must not be called while paused")
+    monkeypatch.setattr("core.agent_builder.build_agent", boom)
+
+    va._process_query("train a wake word for plia")
+
+    assert spoken, "voice path should speak a paused-message via TTS"
+    assert any("paus" in s.lower() for s in spoken), spoken
+
+
 def test_voice_generic_create_agent_does_not_short_circuit_to_build_agent(monkeypatch):
     """The wizard path must still win for generic 'create an agent that ...'
     phrases. Otherwise we'd silently break voice agent creation."""
-    va, va_mod = _build_va(monkeypatch)
+    va, va_mod, _ = _build_va(monkeypatch)
 
     build_calls = {"n": 0}
 

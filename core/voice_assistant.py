@@ -6,7 +6,8 @@ from typing import Optional
 from PySide6.QtCore import QObject, Signal
 
 from config import (
-    RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY, GRAY, RESET, CYAN, GREEN
+    RESPONDER_MODEL, OLLAMA_URL, MAX_HISTORY, GRAY, RESET, CYAN, GREEN,
+    WAKE_TRAINER_ENABLED,
 )
 from core.settings_store import settings as app_settings
 from core.stt import STTListener
@@ -255,7 +256,17 @@ class VoiceAssistant(QObject):
             from core.agent_builder import detect_build_intent
             _build_intent = detect_build_intent(user_text)
             if _build_intent and _build_intent.get("kind") == "wake_trainer":
-                self._handle_build_intent(_build_intent)
+                if WAKE_TRAINER_ENABLED:
+                    self._handle_build_intent(_build_intent)
+                else:
+                    tts.queue_sentence(
+                        "In-app wake-word training is paused. "
+                        "See the README for the Colab notebook path."
+                    )
+                    self.info_occurred.emit(
+                        "In-app wake-word trainer is paused — see README."
+                    )
+                    self.processing_finished.emit()
                 return
 
             # ── Create-agent intent — start the creation wizard ──────────

@@ -172,8 +172,24 @@ def test_pivot_remembers_last_tab_across_constructions(qapp):
     settings.set("ui.settings_last_tab", "core")
 
 
+@pytest.mark.skipif(
+    __import__("config").WAKE_TRAINER_ENABLED is False,
+    reason="in-app trainer paused — see config.WAKE_TRAINER_ENABLED",
+)
 def test_multi_wake_word_card_has_train_button(qapp):
     host, tab = _build_tab(qapp)
     card = tab.wake_words_card
-    assert hasattr(card, "train_btn"), "missing + Train Model… button"
+    assert card.train_btn is not None, "missing + Train Model… button"
     assert card.train_btn.text().startswith("+ Train"), card.train_btn.text()
+
+
+@pytest.mark.skipif(
+    __import__("config").WAKE_TRAINER_ENABLED is True,
+    reason="paused-behaviour guard; only runs while WAKE_TRAINER_ENABLED is False",
+)
+def test_multi_wake_word_card_train_button_hidden_when_paused(qapp):
+    host, tab = _build_tab(qapp)
+    card = tab.wake_words_card
+    assert card.train_btn is None, (
+        "+ Train Model… button must be hidden while WAKE_TRAINER_ENABLED is False"
+    )

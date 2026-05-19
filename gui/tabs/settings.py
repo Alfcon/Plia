@@ -2,7 +2,7 @@
 Comprehensive Settings Tab with model selection, connection settings, and preferences.
 """
 
-from config import LOCAL_ROUTER_PATH, RESPONDER_MODEL
+from config import LOCAL_ROUTER_PATH, RESPONDER_MODEL, WAKE_TRAINER_ENABLED
 
 from pathlib import Path
 
@@ -376,16 +376,20 @@ class MultiWakeWordCard(SettingCard):
 
         footer = QHBoxLayout()
         self.add_btn = QPushButton("+ Add Model…", self)
-        self.train_btn = QPushButton("+ Train Model…", self)
-        self.reload_btn = QPushButton("↻ Reload", self)
         footer.addWidget(self.add_btn)
-        footer.addWidget(self.train_btn)
+        # The in-app trainer is paused — see config.WAKE_TRAINER_ENABLED.
+        self.train_btn = None
+        if WAKE_TRAINER_ENABLED:
+            self.train_btn = QPushButton("+ Train Model…", self)
+            footer.addWidget(self.train_btn)
+        self.reload_btn = QPushButton("↻ Reload", self)
         footer.addWidget(self.reload_btn)
         footer.addStretch(1)
         self.vBoxLayout.addLayout(footer)
 
         self.add_btn.clicked.connect(self._on_add_model)
-        self.train_btn.clicked.connect(self._on_train_model)
+        if self.train_btn is not None:
+            self.train_btn.clicked.connect(self._on_train_model)
         self.reload_btn.clicked.connect(self._on_reload)
 
         self._rebuild_rows()  # also calls _resize_to_rows()

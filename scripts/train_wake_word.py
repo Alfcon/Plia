@@ -20,6 +20,18 @@ def main() -> int:
     parser.add_argument("--epochs", type=int, default=100)
     args = parser.parse_args()
 
+    from config import WAKE_TRAINER_ENABLED
+    if not WAKE_TRAINER_ENABLED:
+        print(
+            "In-app wake-word training is currently paused. Train via "
+            "openWakeWord's Colab notebook instead:\n"
+            "  https://github.com/dscripka/openWakeWord/blob/main/notebooks/"
+            "automatic_model_training.ipynb\n"
+            "Then drop the resulting .onnx into models/wake/custom/.",
+            file=sys.stderr,
+        )
+        return 1
+
     from core.wake_trainer import train_wake_word, WakeTrainerError
     try:
         path = train_wake_word(

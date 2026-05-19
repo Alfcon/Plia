@@ -55,6 +55,17 @@ VOICE_ASSISTANT_ENABLED = True
 QWEN_TIMEOUT_SECONDS = 300  # 5 minutes of inactivity before sleep
 QWEN_KEEP_ALIVE = "5m"  # Keep in memory for 5 minutes after last use
 
+# --- In-app wake-word trainer ---
+# The vendored trainer in core/wake_trainer.py is currently disabled: the
+# pinned negative-features URL is permanently 404 and the vendored pipeline
+# is missing RIR/noise augmentation that the upstream automatic_model_training
+# notebook uses. Until both are fixed, users should train via openWakeWord's
+# Colab notebook:
+#   https://github.com/dscripka/openWakeWord/blob/main/notebooks/automatic_model_training.ipynb
+# and drop the resulting .onnx into models/wake/{bundled,custom}/.
+# Flip this back to True once the trainer pipeline is fixed.
+WAKE_TRAINER_ENABLED = False
+
 # --- Router Keywords ---
 # REMOVED: ROUTER_KEYWORDS - All queries now go through Function Gemma router
 # The router handles all routing decisions, so keyword-based bypass is no longer needed

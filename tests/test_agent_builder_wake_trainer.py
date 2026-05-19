@@ -5,6 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from config import WAKE_TRAINER_ENABLED
+
 
 def _render(plia_root="/fake/plia"):
     from core.agent_builder import _WAKE_TRAINER_TEMPLATE
@@ -27,6 +31,33 @@ def test_detect_build_intent_matches_train_a_wake_word():
     intent = detect_build_intent("train a wake word for plia")
     assert intent is not None
     assert intent.get("kind") == "wake_trainer"
+
+
+@pytest.mark.skipif(
+    WAKE_TRAINER_ENABLED,
+    reason="paused-behaviour guard; only runs while WAKE_TRAINER_ENABLED is False",
+)
+def test_build_agent_returns_paused_result_for_wake_trainer_intent():
+    """While paused, build_agent must short-circuit on wake_trainer intents
+    and NOT write any agent file or touch the registry."""
+    from core.agent_builder import build_agent, detect_build_intent, AGENTS_DIR
+
+    intent = detect_build_intent("train a wake word for plia")
+    assert intent is not None and intent.get("kind") == "wake_trainer"
+
+    before = set(AGENTS_DIR.glob("*.py")) if AGENTS_DIR.exists() else set()
+    result = build_agent(
+        intent=intent,
+        ollama_url="http://localhost:11434",
+        model="qwen3:8b",
+        on_status=lambda s: None,
+    )
+    after = set(AGENTS_DIR.glob("*.py")) if AGENTS_DIR.exists() else set()
+
+    assert result.success is False
+    assert "paus" in result.error.lower()
+    assert "colab" in result.error.lower()
+    assert before == after, "no agent file should be written while paused"
 
 
 def test_wake_trainer_template_bakes_plia_root_into_source():

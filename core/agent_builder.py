@@ -39,6 +39,8 @@ from typing import Callable, Optional
 
 import requests
 
+from config import WAKE_TRAINER_ENABLED
+
 # ── Paths ──────────────────────────────────────────────────────────────────
 PLIA_DIR   = Path.home() / ".plia_ai"
 AGENTS_DIR = PLIA_DIR / "agents"
@@ -408,6 +410,16 @@ def build_agent(
     kind         = intent.get("kind")
 
     if kind == "wake_trainer":
+        if not WAKE_TRAINER_ENABLED:
+            return BuildResult(
+                success=False,
+                error=(
+                    "In-app wake-word training is currently paused. Train via "
+                    "openWakeWord's Colab notebook instead: "
+                    "https://github.com/dscripka/openWakeWord/blob/main/notebooks/"
+                    "automatic_model_training.ipynb"
+                ),
+            )
         # ── Wake-word trainer: hardcoded template, no LLM call ───────────
         word = intent.get("word") or intent.get("topic") or task
         on_status(f"🎙️ Building wake-word trainer agent for: {word!r}")
