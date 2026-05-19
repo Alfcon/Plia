@@ -85,10 +85,15 @@ class FunctionExecutor:
         except Exception as e:
             print(f"[FunctionExecutor] NewsManager init failed: {e}")
     
-    def execute(self, func_name: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def execute(self, func_name: str, params: Dict[str, Any],
+                *, _progress=None) -> Dict[str, Any]:
         """
         Execute a function and return structured result.
-        
+
+        ``_progress`` is an optional ``Callable[[str], None]`` invoked for
+        long-running tools that emit per-step updates (currently only
+        ``control_desktop``). Other tools ignore it.
+
         Returns:
             {
                 "success": bool,
@@ -110,7 +115,7 @@ class FunctionExecutor:
             elif func_name == "get_system_info":
                 return self._get_system_info()
             elif func_name == "control_desktop":
-                return self._control_desktop(params)
+                return self._control_desktop(params, progress_callback=_progress)
             elif func_name == "system_command":
                 return self._system_command(params)
             elif func_name == "manage_notes":
@@ -534,11 +539,14 @@ class FunctionExecutor:
 
     # === Desktop Agent ===
 
-    def _control_desktop(self, params: Dict) -> Dict:
+    def _control_desktop(self, params: Dict, *, progress_callback=None) -> Dict:
         """
         Run a natural language desktop task using the VLM desktop agent.
         For simple 'open X' commands the app is launched directly via subprocess
         without going through the VLM, which is faster and more reliable.
+
+        ``progress_callback(line: str)`` is forwarded to
+        ``DesktopAgent.run_task_sync`` so callers see live per-step updates.
         """
         task = params.get("task", "").strip()
         if not task:
@@ -553,7 +561,7 @@ class FunctionExecutor:
         try:
             from core.agent.desktop_agent import DesktopAgent
             agent = DesktopAgent()
-            return agent.run_task_sync(task)
+            return agent.run_task_sync(task, progress_callback=progress_callback)
         except ImportError as e:
             return {
                 "success": False,

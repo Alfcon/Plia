@@ -329,6 +329,7 @@ class MainWindow(FluentWindow):
         voice_assistant.search_maximise_requested.connect(self._on_voice_search_maximise)
         voice_assistant.search_help_minimise_requested.connect(self._on_voice_search_help_minimise)
         voice_assistant.desktop_task_started.connect(self._on_voice_desktop_started)
+        voice_assistant.desktop_task_progress.connect(self._on_voice_desktop_progress)
         voice_assistant.desktop_task_finished.connect(self._on_voice_desktop_finished)
         voice_assistant.refresh_agents_requested.connect(self._on_voice_refresh_agents)
         voice_assistant.help_requested.connect(self._on_voice_help_requested)
@@ -929,6 +930,17 @@ class MainWindow(FluentWindow):
     def _on_voice_desktop_started(self, task: str):
         """Show status bar message when the desktop agent begins a task."""
         self.set_status(f"Desktop agent: {task[:60]}…")
+
+    def _on_voice_desktop_progress(self, line: str):
+        """Surface each desktop-agent step (action, reasoning, terminate)
+        in the dashboard's communication log + status bar so the user can
+        watch the agent work instead of staring at silence."""
+        self.set_status(f"Desktop: {line[:80]}")
+        try:
+            if self.dashboard_view is not None:
+                self.dashboard_view.add_system_message(line, "agent")
+        except Exception:
+            pass
 
     def _on_voice_desktop_finished(self, result: str):
         """Show a toast notification when the desktop agent finishes."""

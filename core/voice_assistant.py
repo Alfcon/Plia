@@ -55,6 +55,7 @@ class VoiceAssistant(QObject):
     search_help_minimise_requested = Signal()  # collapse the Search Help panel
     # Desktop / Discord agent signals
     desktop_task_started = Signal(str)   # emits the task description
+    desktop_task_progress = Signal(str)  # per-step progress (action / reasoning lines)
     desktop_task_finished = Signal(str)  # emits the result summary
     # Active Agents tab — voice-triggered refresh
     refresh_agents_requested = Signal()  # emits to AgentsTab.refresh()
@@ -756,7 +757,14 @@ class VoiceAssistant(QObject):
         """Run a Windows desktop task via the desktop agent."""
         try:
             self.desktop_task_started.emit(task)
-            result = function_executor.execute("control_desktop", {"task": task})
+            # Plumb per-step progress (action lines, "Reprompting…", terminate
+            # status, etc.) up to the GUI via desktop_task_progress. The
+            # callback runs in the desktop agent's worker thread; Qt's
+            # auto-connection delivers to the main thread.
+            result = function_executor.execute(
+                "control_desktop", {"task": task},
+                _progress=lambda line: self.desktop_task_progress.emit(line),
+            )
             self.desktop_task_finished.emit(result.get("message", "Done."))
             self._generate_response_with_context("control_desktop", result, user_text)
         except Exception as e:
