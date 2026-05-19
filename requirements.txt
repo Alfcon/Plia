@@ -225,6 +225,19 @@ pandas>=2.0.0                  # CSV / XLSX tabular preview
 # -----------------------------------------------------
 # SQLite is included with Python — no additional packages needed
 
+# ── In-app wake-word trainer (lazy-loaded by core/wake_trainer.py) ──
+# Required for the in-app + Train Model… flow. All imports happen lazily
+# inside core/wake_trainer.py, so import-time cost is zero — but the
+# trainer raises a clear "missing dep" error if any are absent.
+speechbrain>=1.0.0
+audiomentations>=0.34.0
+torch-audiomentations>=0.11.0
+pronouncing>=0.2.0
+acoustics>=0.2.6
+mutagen>=1.47.0
+torchinfo>=1.8.0
+torchmetrics>=1.0.0
+
 # -----------------------------------------------------
 # Development (Optional)
 # -----------------------------------------------------

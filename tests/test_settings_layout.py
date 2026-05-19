@@ -170,3 +170,10 @@ def test_pivot_remembers_last_tab_across_constructions(qapp):
 
     # Reset for other tests so they don't get a stale default
     settings.set("ui.settings_last_tab", "core")
+
+
+def test_multi_wake_word_card_has_train_button(qapp):
+    host, tab = _build_tab(qapp)
+    card = tab.wake_words_card
+    assert hasattr(card, "train_btn"), "missing + Train Model… button"
+    assert card.train_btn.text().startswith("+ Train"), card.train_btn.text()

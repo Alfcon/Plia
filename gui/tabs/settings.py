@@ -376,13 +376,16 @@ class MultiWakeWordCard(SettingCard):
 
         footer = QHBoxLayout()
         self.add_btn = QPushButton("+ Add Model…", self)
+        self.train_btn = QPushButton("+ Train Model…", self)
         self.reload_btn = QPushButton("↻ Reload", self)
         footer.addWidget(self.add_btn)
+        footer.addWidget(self.train_btn)
         footer.addWidget(self.reload_btn)
         footer.addStretch(1)
         self.vBoxLayout.addLayout(footer)
 
         self.add_btn.clicked.connect(self._on_add_model)
+        self.train_btn.clicked.connect(self._on_train_model)
         self.reload_btn.clicked.connect(self._on_reload)
 
         self._rebuild_rows()  # also calls _resize_to_rows()
@@ -448,6 +451,13 @@ class MultiWakeWordCard(SettingCard):
     def _on_reload(self):
         self._rebuild_rows()
         self.models_changed.emit()
+
+    def _on_train_model(self):
+        from gui.components.train_wake_word_dialog import TrainWakeWordDialog
+        dlg = TrainWakeWordDialog(self)
+        dlg.trained.connect(lambda _path: self._rebuild_rows())
+        dlg.trained.connect(lambda _path: self.models_changed.emit())
+        dlg.exec()
 
     def _on_delete(self, model_id: str):
         from core.wake_models import models_dir
