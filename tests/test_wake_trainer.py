@@ -462,3 +462,28 @@ def test_cancellation_at_each_stage(monkeypatch, tmp_path, cancel_after):
 
     # No half-written .onnx left behind.
     assert not (out / "plia.onnx").exists()
+
+
+def test_failed_run_leaves_no_partial_files(monkeypatch, tmp_path):
+    from core import wake_trainer
+
+    out = tmp_path / "custom"
+    monkeypatch.setattr(wake_trainer, "_default_output_dir", lambda: out)
+    monkeypatch.setattr(
+        wake_trainer, "ensure_negative_features",
+        lambda on_progress=None: tmp_path / "neg",
+    )
+
+    def boom(**kw):
+        raise wake_trainer.WakeTrainerError("synthetic failure")
+    monkeypatch.setattr(wake_trainer, "synthesize_positives", boom)
+
+    with pytest.raises(wake_trainer.WakeTrainerError):
+        wake_trainer.train_wake_word("plia", variants=500)
+
+    assert not (out / "plia.onnx").exists()
+    import glob
+    import os
+    import tempfile
+    leftovers = glob.glob(os.path.join(tempfile.gettempdir(), "wake_trainer_plia_*"))
+    assert leftovers == [], f"orphan work dirs: {leftovers}"
