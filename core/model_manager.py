@@ -8,12 +8,6 @@ Public API (unchanged from the original — callers are not affected):
     get_running_models() -> list
     ensure_exclusive_qwen(target)
 
-New in this revision:
-    verify_model_downloaded(name) -> (bool, str)
-        Confirms a freshly-pulled model is actually visible to the daemon so
-        ``ollama list`` in a shell will show it. Call this *immediately after*
-        a successful ``POST /api/pull`` response in the Model Browser.
-
     get_ollama_api_url() -> str
         Returns the ``{host}/api`` URL the way the Ollama CLI resolves it,
         honouring ``OLLAMA_HOST``. Used internally so env changes take effect
@@ -23,15 +17,11 @@ New in this revision:
 from __future__ import annotations
 
 import threading
-from typing import Tuple
 
 import requests
 
 from config import OLLAMA_URL, GRAY, RESET
-from core.ollama_paths import (
-    resolve_ollama_host,
-    verify_model_visible,
-)
+from core.ollama_paths import resolve_ollama_host
 
 
 # ---------------------------------------------------------------------------
@@ -139,32 +129,3 @@ def ensure_exclusive_qwen(target_model: str) -> None:
         print(f"{GRAY}[ModelManager] Error in exclusion logic: {e}{RESET}")
 
 
-# ---------------------------------------------------------------------------
-# NEW: post-pull verification
-# ---------------------------------------------------------------------------
-def verify_model_downloaded(model_name: str) -> Tuple[bool, str]:
-    """
-    Confirm that ``model_name`` was registered with the running Ollama daemon.
-
-    Intended to be called *immediately after* a successful
-    ``POST /api/pull`` so the Model Browser can display a clear error if the
-    model will not show up in ``ollama list`` (typically a daemon-mismatch
-    problem rather than a pull failure).
-
-    Returns ``(ok, human_readable_message)``.
-
-    Example
-    -------
-    After ``OllamaDownloadThread`` emits ``finished_ok``::
-
-        ok, msg = verify_model_downloaded(name)
-        if not ok:
-            InfoBar.warning(title="Verification failed",
-                            content=msg, ...)
-
-    See :func:`core.ollama_paths.verify_model_visible` for details.
-    """
-    # Re-use the same base URL resolution the pull call uses so there is no
-    # chance of checking a different daemon than we just pulled to.
-    base = get_ollama_api_url().rsplit("/api", 1)[0]
-    return verify_model_visible(model_name, base_url=base, timeout=5.0)

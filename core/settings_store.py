@@ -5,8 +5,11 @@ Saves to ~/.plia/settings.json  (modular PySide6 app settings).
 Also exposes PLIA_DIR / PIPER_MODEL_DIR path constants used by
 tts.py and the standalone plia2.py launcher.
 
-Qt signals (setting_changed) are intact so all gui/ consumers work
-without modification.
+A Qt signal ``setting_changed(key_path, value)`` is emitted on every
+``set()`` call. No GUI consumer currently subscribes to it (cards bind
+their own keys at construction and persist on edit), but the signal is
+available for any future component that needs to react to settings
+changes from elsewhere in the app.
 """
 
 import json
