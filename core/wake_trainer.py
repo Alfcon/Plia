@@ -417,6 +417,11 @@ def _train_loop(
 # ships a new opset.
 _ONNX_OPSET = 17
 
+# Production-model dummy_input shape for ONNX tracing. The openwakeword DNN
+# from openwakeword.train.Model expects (batch, n_frames, 96). 16 frames is
+# the canonical bundled-model shape.
+_PRODUCTION_DUMMY_FRAMES = 16
+
 
 def _verify_onnx_loads(path: Path) -> tuple[bool, str]:
     """Try to load the freshly written ONNX through openwakeword's runtime.
@@ -462,6 +467,12 @@ def _export_onnx(model: "torch.nn.Module", path: Path, dummy_input: "torch.Tenso
         )
 
 
+def _default_output_dir() -> Path:
+    """Defers to core.wake_models so writes go where discovery reads."""
+    from core.wake_models import models_dir
+    return models_dir() / "custom"
+
+
 def train_wake_word(
     word: str,
     *,
@@ -472,7 +483,53 @@ def train_wake_word(
     should_cancel: CancelFn = lambda: False,
     epochs: int = 100,
 ) -> Path:
-    """End-to-end wake-word training. Fully implemented by Task 8."""
+    """End-to-end wake-word training. See module docstring."""
     word = word.strip() if isinstance(word, str) else word
-    _validate_inputs(word, variants, voices or [])
-    raise NotImplementedError("train_wake_word — see Task 8")
+    voices = voices or list(DEFAULT_VOICES)
+    _validate_inputs(word, variants, voices)
+    slug = _slugify(word)
+    output_dir = output_dir or _default_output_dir()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    onnx_path = output_dir / f"{slug}.onnx"
+
+    import tempfile
+    work = Path(tempfile.mkdtemp(prefix=f"wake_trainer_{slug}_"))
+    positives_dir = work / "positives"
+
+    try:
+        if should_cancel(): raise TrainCancelled("cancelled before start")
+        neg_features = ensure_negative_features(on_progress=on_progress)
+
+        if should_cancel(): raise TrainCancelled("cancelled after neg features")
+        synthesize_positives(
+            word=word, voices=voices, variants=variants,
+            out_dir=positives_dir,
+            on_progress=on_progress, should_cancel=should_cancel,
+        )
+
+        if should_cancel(): raise TrainCancelled("cancelled before training")
+        model = _train_loop(
+            positives_dir=positives_dir,
+            neg_features_dir=neg_features,
+            epochs=epochs,
+            on_progress=on_progress,
+            should_cancel=should_cancel,
+        )
+
+        if should_cancel(): raise TrainCancelled("cancelled before export")
+        import torch as _torch
+        dummy = _torch.zeros(1, _PRODUCTION_DUMMY_FRAMES, 96, dtype=_torch.float32)
+        _export_onnx(model, onnx_path, dummy)
+        on_progress(100.0, f"done: {onnx_path}")
+        return onnx_path
+    except TrainCancelled:
+        onnx_path.unlink(missing_ok=True)
+        raise
+    except WakeTrainerError:
+        onnx_path.unlink(missing_ok=True)
+        raise
+    except Exception as exc:
+        onnx_path.unlink(missing_ok=True)
+        raise WakeTrainerError(f"unexpected failure: {exc}") from exc
+    finally:
+        shutil.rmtree(work, ignore_errors=True)

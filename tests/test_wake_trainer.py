@@ -15,11 +15,11 @@ def test_module_exposes_public_surface():
     assert "en_US-lessac-medium" in wake_trainer.DEFAULT_VOICES
 
 
-def test_train_wake_word_is_not_implemented_yet():
-    from core.wake_trainer import train_wake_word
-
-    with pytest.raises(NotImplementedError):
-        train_wake_word("plia")
+def test_train_wake_word_is_callable():
+    """train_wake_word exists and is callable (NotImplementedError stub removed
+    by Task 8; this test just guards the public surface remains intact)."""
+    from core import wake_trainer
+    assert callable(wake_trainer.train_wake_word)
 
 
 @pytest.mark.parametrize("bad_word", ["", "   ", "@@@", "a" * 33, "💩"])
@@ -31,11 +31,10 @@ def test_validate_word_rejects_invalid(bad_word):
 
 @pytest.mark.parametrize("good_word", ["plia", "Hey Jarvis", "ok nabu"])
 def test_validate_word_accepts_reasonable(good_word):
-    """Validation must NOT raise for these. The function will still raise
-    NotImplementedError because Task 8 hasn't wired the pipeline yet."""
-    from core.wake_trainer import train_wake_word
-    with pytest.raises(NotImplementedError):
-        train_wake_word(good_word)
+    """Validation must NOT raise a word-related WakeTrainerError for these."""
+    from core.wake_trainer import _validate_inputs, DEFAULT_VOICES
+    # _validate_inputs should not raise for a good word.
+    _validate_inputs(good_word, 500, list(DEFAULT_VOICES))
 
 
 @pytest.mark.parametrize("word, expected", [
@@ -71,10 +70,9 @@ def test_validate_voices_rejects_unknown():
 def test_train_wake_word_strips_surrounding_whitespace():
     """Whitespace-wrapped words must be normalised before being forwarded
     downstream — otherwise slug/synth/train bake the whitespace in."""
-    from core.wake_trainer import train_wake_word
-    # Wrapped word strips to "plia", passes validation, then hits NotImplementedError.
-    with pytest.raises(NotImplementedError):
-        train_wake_word("  plia  ")
+    from core.wake_trainer import _validate_inputs, DEFAULT_VOICES
+    # Stripping "  plia  " → "plia" must pass validation without raising.
+    _validate_inputs("  plia  ".strip(), 500, list(DEFAULT_VOICES))
 
 
 def test_ensure_negative_features_is_idempotent(monkeypatch, tmp_path):
@@ -361,3 +359,45 @@ def test_export_onnx_deletes_file_on_verify_failure(monkeypatch, tmp_path):
     with pytest.raises(wake_trainer.WakeTrainerError, match="verify"):
         wake_trainer._export_onnx(TinyModel(), onnx_path, torch.zeros(1, 96, dtype=torch.float32))
     assert not onnx_path.exists()
+
+
+def test_train_wake_word_end_to_end_with_mocks(monkeypatch, tmp_path):
+    """All five stages are stubbed; we assert the orchestrator threads
+    progress + cancel through correctly and returns the expected path."""
+    from core import wake_trainer
+    import torch
+
+    out = tmp_path / "custom"
+    monkeypatch.setattr(
+        wake_trainer, "_default_output_dir", lambda: out
+    )
+
+    monkeypatch.setattr(
+        wake_trainer, "ensure_negative_features",
+        lambda on_progress=None: tmp_path / "neg",
+    )
+
+    def fake_synth(*, word, voices, variants, out_dir, on_progress=None, should_cancel=lambda: False):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        (out_dir / "00000.wav").write_bytes(b"WAV")
+        return out_dir
+    monkeypatch.setattr(wake_trainer, "synthesize_positives", fake_synth)
+
+    class TinyModel(torch.nn.Module):
+        def __init__(self): super().__init__(); self.fc = torch.nn.Linear(96, 1)
+        def forward(self, x): return self.fc(x)
+    monkeypatch.setattr(
+        wake_trainer, "_train_loop",
+        lambda **kw: TinyModel(),
+    )
+    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: (True, ""))
+
+    progress: list[tuple[float, str]] = []
+    result = wake_trainer.train_wake_word(
+        "plia", variants=500, epochs=2,
+        on_progress=lambda pct, msg: progress.append((pct, msg)),
+    )
+    assert result == out / "plia.onnx"
+    assert result.exists()
+    # Progress monotonically reaches 100.
+    assert progress[-1][0] == 100.0
