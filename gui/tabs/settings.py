@@ -221,6 +221,58 @@ class UrlInputCard(SettingCard):
         self.test_btn.setText("Test")
 
 
+class FloatSliderCard(SettingCard):
+    """Slider card backed by a float setting.
+
+    The slider itself is integer (Qt requirement); ``scale`` is the divisor
+    applied to convert slider position → persisted float. Display shows
+    either the float (``suffix=""``) or a friendly integer (e.g.
+    ``suffix="%"`` with the slider already in % units).
+    """
+
+    value_changed = Signal(float)
+
+    def __init__(self, icon, title, description, key_path: str,
+                 min_val: float, max_val: float, *, step: float = 0.01,
+                 default: float = 0.0, display_format: str = "{:.0f}%",
+                 display_scale: float = 100.0, parent=None):
+        super().__init__(icon, title, description, parent)
+        self.key_path = key_path
+        self._step = step
+        self._display_format = display_format
+        self._display_scale = display_scale
+
+        self.value_label = StrongBodyLabel(self)
+        self.value_label.setMinimumWidth(48)
+
+        self.slider = Slider(Qt.Horizontal, self)
+        self.slider.setMinimumWidth(150)
+        self._slider_min = int(round(min_val / step))
+        self._slider_max = int(round(max_val / step))
+        self.slider.setRange(self._slider_min, self._slider_max)
+
+        current = float(settings.get(key_path, default))
+        self.slider.setValue(int(round(current / step)))
+        self.value_label.setText(self._format(current))
+
+        self.slider.valueChanged.connect(self._on_changed)
+
+        self.hBoxLayout.addSpacing(8)
+        self.hBoxLayout.addWidget(self.slider, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(8)
+        self.hBoxLayout.addWidget(self.value_label, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+    def _format(self, value: float) -> str:
+        return self._display_format.format(value * self._display_scale)
+
+    def _on_changed(self, raw: int):
+        value = round(raw * self._step, 4)
+        self.value_label.setText(self._format(value))
+        settings.set(self.key_path, value)
+        self.value_changed.emit(value)
+
+
 class SliderCard(SettingCard):
     """Setting card with a slider and value label."""
 
@@ -1067,6 +1119,59 @@ class SettingsTab(ScrollArea):
             self.voice_group
         )
         self.voice_group.addSettingCard(self.tts_voice_card)
+
+        # ── TTS volume / speech length / mute ─────────────────────────────
+        # Live-applied to the singleton in core/tts.py so the next sentence
+        # picks up the change. core/tts.py:VoiceEngine.initialize() also
+        # reloads these on startup so the persisted values survive a restart.
+        self.tts_volume_card = FloatSliderCard(
+            FIF.VOLUME,
+            "TTS Volume",
+            "Loudness of the synthesised voice",
+            "tts.volume",
+            min_val=0.0, max_val=1.0, step=0.01, default=0.9,
+            display_format="{:.0f}%", display_scale=100.0,
+            parent=self.voice_group,
+        )
+        self.voice_group.addSettingCard(self.tts_volume_card)
+
+        # length_scale: 1.0 = normal, <1.0 = faster, >1.0 = slower.
+        # Display as "% of normal duration" so 100% is intuitive.
+        self.tts_length_scale_card = FloatSliderCard(
+            FIF.VOLUME,
+            "Speech length",
+            "Duration per syllable (100% = normal, 50% = double speed, 200% = half speed)",
+            "tts.length_scale",
+            min_val=0.5, max_val=2.0, step=0.05, default=1.0,
+            display_format="{:.0f}%", display_scale=100.0,
+            parent=self.voice_group,
+        )
+        self.voice_group.addSettingCard(self.tts_length_scale_card)
+
+        self.tts_mute_card = SwitchCard(
+            FIF.MUTE,
+            "Mute TTS",
+            "Silence spoken responses (signals still fire so the UI stays in sync)",
+            "tts.muted",
+            self.voice_group,
+        )
+        self.voice_group.addSettingCard(self.tts_mute_card)
+
+        # Live-apply to the running TTS singleton.
+        try:
+            from core.tts import tts as _tts
+            self.tts_volume_card.value_changed.connect(
+                lambda v: setattr(_tts, "volume", float(v))
+            )
+            self.tts_length_scale_card.value_changed.connect(
+                lambda v: setattr(_tts, "length_scale", float(v))
+            )
+            self.tts_mute_card.checked_changed.connect(
+                lambda b: setattr(_tts, "muted", bool(b))
+            )
+        except Exception:
+            pass  # TTS not available; persistence still works
+
         self.expandLayout.addWidget(self.voice_group)
 
         # ── Weather Location ─────────────────────────────────────────────────

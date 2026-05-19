@@ -308,6 +308,17 @@ class VoiceEngine:
         # to drive sounddevice concurrently, causing a PortAudio crash.
         if self._running and self._engine is not None:
             return True   # Already initialised — safe to call again.
+        # Honour the persisted Settings → Voice & Audio values before the
+        # worker thread starts. Without this, the constructor defaults
+        # (volume=0.9, length_scale=1.0, muted=False) win regardless of what
+        # the user saved.
+        try:
+            from core.settings_store import settings as _app_settings
+            self.volume = float(_app_settings.get("tts.volume", self.volume))
+            self.length_scale = float(_app_settings.get("tts.length_scale", self.length_scale))
+            self.muted = bool(_app_settings.get("tts.muted", self.muted))
+        except Exception:
+            pass  # settings store unavailable — keep constructor defaults
         if HAS_PIPER_LIB:
             return self._initialize_lib()
         if HAS_PIPER_EXE_DEPS:
