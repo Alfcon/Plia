@@ -116,3 +116,60 @@ def test_models_dir_resolves_under_project_root():
     assert p.name == "wake"
     assert p.parent.name == "models"
     assert p.is_absolute()
+
+
+# ── enabled_wake_word_phrase ─────────────────────────────────────────────
+
+
+def _enabled(*names, broken=()):
+    """Build a wake_models list with the given names enabled (+ optional broken set)."""
+    return [
+        {"id": n, "display": n.replace("_", " ").title(),
+         "path": f"bundled/{n}.onnx", "enabled": True, "sensitivity": 0.5,
+         "broken": n in broken}
+        for n in names
+    ]
+
+
+def test_phrase_empty_list_returns_generic():
+    assert wake_models.enabled_wake_word_phrase([]) == "a wake word"
+
+
+def test_phrase_no_enabled_returns_generic():
+    models = [{"id": "plia", "display": "Plia", "path": "bundled/plia.onnx",
+               "enabled": False, "sensitivity": 0.5}]
+    assert wake_models.enabled_wake_word_phrase(models) == "a wake word"
+
+
+def test_phrase_all_broken_returns_generic():
+    models = _enabled("plia", broken=("plia",))
+    assert wake_models.enabled_wake_word_phrase(models) == "a wake word"
+
+
+def test_phrase_single_quoted():
+    models = _enabled("plia")
+    assert wake_models.enabled_wake_word_phrase(models) == "'Plia'"
+
+
+def test_phrase_single_unquoted_for_speech():
+    models = _enabled("plia")
+    assert wake_models.enabled_wake_word_phrase(models, quote=False) == "Plia"
+
+
+def test_phrase_two_joined_with_or():
+    models = _enabled("plia", "hey_jarvis")
+    assert wake_models.enabled_wake_word_phrase(models) == "'Plia' or 'Hey Jarvis'"
+
+
+def test_phrase_three_oxford_comma_or():
+    models = _enabled("plia", "hey_jarvis", "alexa")
+    assert (
+        wake_models.enabled_wake_word_phrase(models)
+        == "'Plia', 'Hey Jarvis', or 'Alexa'"
+    )
+
+
+def test_phrase_skips_broken_in_mixed_list():
+    models = _enabled("plia", "hey_jarvis", broken=("hey_jarvis",))
+    assert wake_models.enabled_wake_word_phrase(models) == "'Plia'"
+

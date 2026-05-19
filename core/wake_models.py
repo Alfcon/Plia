@@ -63,6 +63,34 @@ def discover_wake_models(base: Path) -> list[dict]:
     return entries
 
 
+def enabled_wake_word_phrase(models: list[dict], *, quote: bool = True) -> str:
+    """Build a human-readable phrase listing the *enabled, non-broken* wake-
+    word display names from a ``voice.wake_models`` list.
+
+    - Empty / nothing enabled / all broken → ``"a wake word"`` (generic).
+    - One name        → ``"'Plia'"``
+    - Two names       → ``"'Plia' or 'Hey Jarvis'"``
+    - Three+ names    → Oxford-comma + "or":  ``"'A', 'B', or 'C'"``
+
+    Pass ``quote=False`` for TTS — straight quotes sound clunky spoken.
+    """
+    names = [
+        (m.get("display") or m.get("id") or "?")
+        for m in (models or [])
+        if m.get("enabled") and not m.get("broken")
+    ]
+    if not names:
+        return "a wake word"
+
+    fmt = (lambda n: f"'{n}'") if quote else (lambda n: n)
+    if len(names) == 1:
+        return fmt(names[0])
+    if len(names) == 2:
+        return f"{fmt(names[0])} or {fmt(names[1])}"
+    head = ", ".join(fmt(n) for n in names[:-1])
+    return f"{head}, or {fmt(names[-1])}"
+
+
 def reconcile_with_settings(existing: list[dict], base: Path) -> list[dict]:
     """Merge disk-discovered models with the settings list.
 

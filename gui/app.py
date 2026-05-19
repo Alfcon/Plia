@@ -356,22 +356,27 @@ class MainWindow(FluentWindow):
                 voice_assistant.start()
                 print(f"[App] Background thread: ✓ Voice assistant started — listening for wake word")
 
-                # Post confirmation to the Dashboard Communication Log (main-thread safe)
+                # Post confirmation to the Dashboard Communication Log (main-thread safe).
+                # Source the wake word(s) from the currently-enabled wake_models
+                # list, not the legacy voice.wake_word key (popped by the
+                # 2026-05-15 migration → would always fall back to "jarvis").
                 from PySide6.QtCore import QTimer
-                wake_display = app_settings.get("voice.wake_word", "jarvis").capitalize()
+                from core.wake_models import enabled_wake_word_phrase
+                _models = app_settings.get("voice.wake_models", []) or []
+                _phrase_text = enabled_wake_word_phrase(_models)
+                _phrase_speech = enabled_wake_word_phrase(_models, quote=False)
                 QTimer.singleShot(
                     0,
-                    lambda ww=wake_display: self.dashboard_view.add_system_message(
-                        f"Voice assistant started. Say '{ww}' to activate.", "plia"
+                    lambda p=_phrase_text: self.dashboard_view.add_system_message(
+                        f"Voice assistant started. Say {p} to activate.", "plia"
                     ),
                 )
 
                 # Speak a startup greeting so the user knows voice is active
                 if app_settings.get("voice.startup_greeting", True):
-                    wake = app_settings.get("voice.wake_word", "jarvis")
                     time.sleep(1.5)   # brief pause so TTS worker settles
                     tts.queue_sentence(
-                        f"Plia voice assistant is online. Say {wake} to activate."
+                        f"Plia voice assistant is online. Say {_phrase_speech} to activate."
                     )
             else:
                 print(f"[App] Background thread: ✗ Failed to initialize voice assistant")
