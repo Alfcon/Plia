@@ -44,6 +44,11 @@ PLIA_DIR   = Path.home() / ".plia_ai"
 AGENTS_DIR = PLIA_DIR / "agents"
 AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 
+# The Plia repo root, derived from this file's location (core/agent_builder.py).
+# Baked into generated agents so their `import core.wake_trainer` works
+# without manual sys.path edits.
+_PLIA_ROOT = Path(__file__).resolve().parents[1]
+
 # ── Intent patterns ────────────────────────────────────────────────────────
 # Matches phrases like:
 #   "create a programme that …"   "build me a tool to …"
@@ -77,6 +82,10 @@ _DOWNLOAD_PATH_RE = re.compile(
 # Emitted when the user says e.g. "train a wake word for 'plia'". The
 # generated agent is a thin wrapper around core.wake_trainer so users get a
 # repeatable, runnable artifact instead of a one-shot training run.
+#
+# The {plia_root} substitution bakes the absolute Plia repo path captured
+# at build_agent() time into the file. A runtime walk-up fallback handles
+# the case where the user moved the repo after the agent was generated.
 _WAKE_TRAINER_TEMPLATE = '''\
 """
 Agent: {slug}
@@ -88,10 +97,22 @@ Run standalone: python "{file_path}"
 import sys
 from pathlib import Path
 
-# Plia repo root is the parent of this agent's directory.
-THIS = Path(__file__).resolve()
-REPO_ROOT = THIS.parents[2]   # adjust if your layout differs
-sys.path.insert(0, str(REPO_ROOT))
+# Plia repo root, captured at build time. If the repo has since been
+# moved, fall back to walking up from this file looking for core/wake_trainer.py.
+PLIA_ROOT = Path(r"{plia_root}")
+if not (PLIA_ROOT / "core" / "wake_trainer.py").exists():
+    _here = Path(__file__).resolve()
+    for _candidate in [_here.parent, *_here.parents]:
+        if (_candidate / "core" / "wake_trainer.py").exists():
+            PLIA_ROOT = _candidate
+            break
+    else:
+        raise SystemExit(
+            f"Could not locate the Plia repo. Tried {{PLIA_ROOT}} and walked "
+            f"up from {{_here}}. Edit PLIA_ROOT at the top of this file to "
+            f"point at your Plia checkout."
+        )
+sys.path.insert(0, str(PLIA_ROOT))
 
 from core.wake_trainer import train_wake_word, WakeTrainerError
 
@@ -398,6 +419,7 @@ def build_agent(
             word      = word,
             variants  = 5000,
             file_path = str(agent_path_stub),
+            plia_root = str(_PLIA_ROOT),
         )
     elif is_sd:
         # ── Search-and-download: use template, no LLM call needed ────────
