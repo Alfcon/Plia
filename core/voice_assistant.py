@@ -12,7 +12,7 @@ from core.settings_store import settings as app_settings
 from core.stt import STTListener
 from core.wake_detector import WakeDetector
 from core.wake_models import models_dir, reconcile_with_settings
-from core.llm import route_query, should_bypass_router, http_session
+from core.llm import route_query, http_session
 from core.model_persistence import ensure_qwen_loaded, mark_qwen_used, unload_qwen
 from core.tts import tts, SentenceBuffer
 from core.function_executor import executor as function_executor
@@ -514,11 +514,7 @@ class VoiceAssistant(QObject):
             # "open the general channel" or "close the announcements channel".
 
             # Step 1: Route through Function Gemma
-            if should_bypass_router(user_text):
-                func_name = "nonthinking"
-                params = {"prompt": user_text}
-            else:
-                func_name, params = route_query(user_text)
+            func_name, params = route_query(user_text)
             
             print(f"{GRAY}[VoiceAssistant] Routed to: {func_name}{RESET}")
             

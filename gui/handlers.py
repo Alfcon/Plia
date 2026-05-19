@@ -7,7 +7,7 @@ from config import (
     MULTIHOP_DEFAULT_HOPS, MULTIHOP_RESULTS_PER_HOP, MULTIHOP_MAX_SOURCES,
     MULTIHOP_SNIPPET_CHARS, MULTIHOP_FINAL_CITATION_MAX_RETRIES,
 )
-from core.llm import route_query, should_bypass_router, http_session
+from core.llm import route_query, http_session
 from core.tts import tts, SentenceBuffer
 from core.history import history_manager
 from core.model_manager import ensure_exclusive_qwen
@@ -170,12 +170,8 @@ class ChatWorker(QObject):
                 self._run_multihop_research_with_citations()
                 return
 
-            if should_bypass_router(self.user_text):
-                func_name = "nonthinking"
-                params = {"prompt": self.user_text}
-            else:
-                self.status.emit("Routing...")
-                func_name, params = route_query(self.user_text)
+            self.status.emit("Routing...")
+            func_name, params = route_query(self.user_text)
             
             # Handle action functions
             if func_name in ACTION_FUNCTIONS:
