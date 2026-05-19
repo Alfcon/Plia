@@ -248,6 +248,16 @@ class VoiceAssistant(QObject):
                 self._reload_plugins_via_voice()
                 return
 
+            # ── Wake-trainer build intent (Priority 0) ───────────────────
+            # Narrowly gated on intent.kind == "wake_trainer" so the
+            # existing voice wizard still wins for generic
+            # "create an agent that …" phrases.
+            from core.agent_builder import detect_build_intent
+            _build_intent = detect_build_intent(user_text)
+            if _build_intent and _build_intent.get("kind") == "wake_trainer":
+                self._handle_build_intent(_build_intent)
+                return
+
             # ── Create-agent intent — start the creation wizard ──────────
             from core.agent_creator import parse_intent
             _agent_task = parse_intent(user_text)
@@ -555,6 +565,40 @@ class VoiceAssistant(QObject):
             self.error_occurred.emit(error_msg)
             self.processing_finished.emit()
     
+    def _handle_build_intent(self, intent: dict) -> None:
+        """Run AgentBuilder for a voice-triggered build request (currently
+        only fired for kind == "wake_trainer"). Mirrors the chat handler's
+        Priority-0 dispatch at gui/handlers.py:94 so voice and chat
+        produce the same artefact."""
+        from core.agent_builder import build_agent
+        display_name = intent.get("display_name", "agent")
+        self.info_occurred.emit(f"Building {display_name}…")
+        tts.queue_sentence(f"Building {display_name}. One moment.")
+        try:
+            result = build_agent(
+                intent=intent,
+                ollama_url=OLLAMA_URL,
+                model=RESPONDER_MODEL,
+                on_status=lambda s: self.info_occurred.emit(s),
+            )
+        except Exception as exc:
+            self.error_occurred.emit(f"Build failed: {exc}")
+            tts.queue_sentence("Sorry, I could not build the agent.")
+            self.processing_finished.emit()
+            return
+
+        if result.success:
+            self.info_occurred.emit(
+                f"Built {result.display_name} → {result.file_path}"
+            )
+            tts.queue_sentence(
+                f"Done. The {result.display_name} agent is ready."
+            )
+        else:
+            self.error_occurred.emit(f"Could not build agent: {result.error}")
+            tts.queue_sentence("Sorry, I could not build the agent.")
+        self.processing_finished.emit()
+
     def _reload_plugins_via_voice(self) -> None:
         """Voice-triggered re-scan of ~/.plia_ai/plugins/. Announces results
         through TTS so the user gets immediate feedback."""
