@@ -54,6 +54,7 @@ class NotesManager:
                 "INSERT INTO notes (id, title, body, tags, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
                 (note_id, title, body, tags_str, now, now),
             )
+            self._evict_overflow(cursor)
             conn.commit()
         finally:
             conn.close()
@@ -61,6 +62,31 @@ class NotesManager:
             "id": note_id, "title": title, "body": body,
             "tags": tags or [], "created_at": now, "updated_at": now,
         }
+
+    def _evict_overflow(self, cursor) -> None:
+        """Drop oldest notes if the total exceeds settings.notes.max_notes.
+
+        Called inside ``create()``'s transaction so the insert + eviction
+        are atomic. ``max_notes <= 0`` is treated as "no cap" so users can
+        opt out by setting it to 0.
+        """
+        try:
+            from core.settings_store import settings as _app_settings
+            max_notes = int(_app_settings.get("notes.max_notes", 500))
+        except Exception:
+            return
+        if max_notes <= 0:
+            return
+        cursor.execute("SELECT COUNT(*) FROM notes")
+        (total,) = cursor.fetchone()
+        excess = total - max_notes
+        if excess <= 0:
+            return
+        cursor.execute(
+            "DELETE FROM notes WHERE id IN "
+            "(SELECT id FROM notes ORDER BY updated_at ASC LIMIT ?)",
+            (excess,),
+        )
 
     def get(self, note_id: str) -> Optional[dict]:
         conn = sqlite3.connect(self.db_path)

@@ -99,3 +99,65 @@ def test_web_agent_param_edits_persist(qapp, save_settings):
     assert app_settings.get("web_agent_params.top_p") == pytest.approx(0.80, abs=0.01)
     assert app_settings.get("web_agent_params.top_k") == 40
     host.close()
+
+
+# ── Newly-wired dead keys (UI cards for backends just plumbed) ───────────
+
+
+@pytest.fixture
+def save_dead_key_settings():
+    from core.settings_store import settings as app_settings
+    keys = ["morning_digest.categories", "notes.max_notes", "finance.currency"]
+    saved = {k: app_settings.get(k) for k in keys}
+    yield
+    for k, v in saved.items():
+        app_settings.set(k, v if v is not None else "")
+
+
+def test_digest_categories_card_present_and_lists_rss_feeds(qapp, save_dead_key_settings):
+    from core.news import RSS_FEEDS
+    host, tab = _build_tab(qapp)
+    assert hasattr(tab, "digest_categories_card")
+    # All RSS_FEEDS keys are exposed as checkboxes.
+    for cat in RSS_FEEDS:
+        assert cat in tab.digest_categories_card._checks, (
+            f"category {cat!r} missing from categories card"
+        )
+    host.close()
+
+
+def test_digest_categories_persist_selected_subset(qapp, save_dead_key_settings):
+    from core.settings_store import settings as app_settings
+    from core.news import RSS_FEEDS
+    host, tab = _build_tab(qapp)
+    # Tick Science + World only.
+    for cat, cb in tab.digest_categories_card._checks.items():
+        cb.setChecked(cat in {"Science", "World"})
+    qapp.processEvents()
+    saved = app_settings.get("morning_digest.categories")
+    assert set(saved) == {"Science", "World"}, saved
+    # Stored in option order (RSS_FEEDS order) — Science before World since
+    # World comes after Science in RSS_FEEDS dict ordering.
+    rss_order = list(RSS_FEEDS.keys())
+    assert saved == [c for c in rss_order if c in {"Science", "World"}]
+    host.close()
+
+
+def test_notes_max_card_present_and_persists(qapp, save_dead_key_settings):
+    from core.settings_store import settings as app_settings
+    host, tab = _build_tab(qapp)
+    assert hasattr(tab, "notes_max_card")
+    tab.notes_max_card.slider.setValue(250)
+    qapp.processEvents()
+    assert app_settings.get("notes.max_notes") == 250
+    host.close()
+
+
+def test_finance_currency_card_present_and_persists(qapp, save_dead_key_settings):
+    from core.settings_store import settings as app_settings
+    host, tab = _build_tab(qapp)
+    assert hasattr(tab, "finance_currency_card")
+    tab.finance_currency_card.combo.setCurrentText("EUR")
+    qapp.processEvents()
+    assert app_settings.get("finance.currency") == "EUR"
+    host.close()

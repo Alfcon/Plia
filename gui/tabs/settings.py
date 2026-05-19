@@ -589,6 +589,48 @@ class TextInputCard(SettingCard):
             self.value_changed.emit(text)
 
 
+class MultiSelectCheckCard(SettingCard):
+    """Checkbox row in a single SettingCard — persists the *enabled subset*
+    of a fixed option set to a list-valued setting key.
+
+    The "value" stored is always a list of strings; checking/unchecking
+    rewrites the whole list in option order so the persisted value is
+    stable across reorderings.
+    """
+
+    selection_changed = Signal(list)
+
+    def __init__(self, icon, title, description, key_path: str,
+                 options: list[str], parent=None):
+        super().__init__(icon, title, description, parent)
+        self.key_path = key_path
+        self._options = list(options)
+
+        from PySide6.QtWidgets import QCheckBox, QWidget, QHBoxLayout
+        current = list(settings.get(key_path, []) or [])
+
+        host = QWidget(self)
+        row = QHBoxLayout(host)
+        row.setContentsMargins(0, 0, 0, 0)
+        row.setSpacing(12)
+        self._checks: dict[str, QCheckBox] = {}
+        for opt in self._options:
+            cb = QCheckBox(opt, host)
+            cb.setChecked(opt in current)
+            cb.toggled.connect(self._on_any_toggled)
+            row.addWidget(cb)
+            self._checks[opt] = cb
+        row.addStretch(1)
+
+        self.hBoxLayout.addWidget(host, 0, Qt.AlignRight)
+        self.hBoxLayout.addSpacing(16)
+
+    def _on_any_toggled(self, _checked: bool):
+        selected = [opt for opt in self._options if self._checks[opt].isChecked()]
+        settings.set(self.key_path, selected)
+        self.selection_changed.emit(selected)
+
+
 class PasswordInputCard(SettingCard):
     """Text input card that masks the value and persists it as a string.
 
@@ -1336,6 +1378,19 @@ class SettingsTab(ScrollArea):
         )
         self.general_group.addSettingCard(self.auto_news_card)
 
+        # Notes retention: cap the total persisted notes so a runaway
+        # capture loop can't fill the SQLite DB. Set to 0 in the JSON to
+        # disable the cap entirely; the UI doesn't expose 0.
+        self.notes_max_card = SliderCard(
+            FIF.QUICK_NOTE,
+            "Max Notes",
+            "Oldest notes are evicted once this cap is exceeded",
+            "notes.max_notes",
+            50, 5000,
+            self.general_group,
+        )
+        self.general_group.addSettingCard(self.notes_max_card)
+
         # ── Web Search ────────────────────────────────────────────────────
         self.search_group = SettingCardGroup("Web Search", self.scrollWidget)
 
@@ -1434,6 +1489,18 @@ class SettingsTab(ScrollArea):
             self.digest_group
         )
         self.digest_group.addSettingCard(self.digest_speak_card)
+
+        # Categories selector — drives core/news.py:get_briefing(categories=…).
+        # Options come from RSS_FEEDS so they always match what's fetchable.
+        from core.news import RSS_FEEDS as _RSS_FEEDS
+        self.digest_categories_card = MultiSelectCheckCard(
+            FIF.TAG, "Categories",
+            "Which RSS sections to include in the morning digest",
+            "morning_digest.categories",
+            list(_RSS_FEEDS.keys()),
+            self.digest_group,
+        )
+        self.digest_group.addSettingCard(self.digest_categories_card)
 
         self.expandLayout.addWidget(self.digest_group)
 
@@ -1644,6 +1711,20 @@ class SettingsTab(ScrollArea):
 
         self.expandLayout.addWidget(self.email_group)
 
+        # ── Finance defaults ─────────────────────────────────────────────────
+        # Consumed by core/finance.py:FinanceManager.crypto_price when the
+        # caller doesn't pass an explicit currency.
+        self.finance_group = SettingCardGroup("Finance", self.scrollWidget)
+        self.finance_currency_card = ComboBoxCard(
+            FIF.ALBUM, "Default Currency",
+            "Used for crypto prices when no explicit currency is requested",
+            ["USD", "EUR", "GBP", "AUD", "CAD", "JPY", "CNY", "INR", "CHF"],
+            "finance.currency",
+            self.finance_group,
+        )
+        self.finance_group.addSettingCard(self.finance_currency_card)
+        self.expandLayout.addWidget(self.finance_group)
+
         # ── Discord Integration ──────────────────────────────────────────────
         # core/discord_reader.py reads discord.bot_token. Get one at
         # https://discord.com/developers/applications → create app → Bot →
@@ -1779,8 +1860,9 @@ class SettingsTab(ScrollArea):
             ]),
             ("features", "Features", FIF.APPLICATION, [
                 self.general_group, self.search_group, self.privacy_group,
-                self.digest_group, self.news_group, self.calendar_group,
-                self.email_group, self.discord_group, self.desktop_group,
+                self.digest_group, self.news_group, self.finance_group,
+                self.calendar_group, self.email_group, self.discord_group,
+                self.desktop_group,
             ]),
             ("about",    "About", FIF.INFO, [self.about_group]),
         ]

@@ -62,9 +62,20 @@ class FinanceManager:
         return data
 
     @staticmethod
-    def crypto_price(coin: str = "bitcoin", currency: str = "usd") -> Optional[dict]:
-        """Get current cryptocurrency price."""
+    def crypto_price(coin: str = "bitcoin", currency: Optional[str] = None) -> Optional[dict]:
+        """Get current cryptocurrency price.
+
+        ``currency`` defaults to the configured ``finance.currency`` setting
+        (case-insensitive), falling back to ``"usd"`` if nothing is set.
+        Pass an explicit value to override the user preference.
+        """
         coin = coin.lower().strip()
+        if currency is None:
+            try:
+                from core.settings_store import settings as _app_settings
+                currency = str(_app_settings.get("finance.currency", "USD"))
+            except Exception:
+                currency = "USD"
         currency = currency.lower().strip()
         try:
             resp = requests.get(

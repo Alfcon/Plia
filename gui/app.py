@@ -692,6 +692,7 @@ class MainWindow(FluentWindow):
             time_str = app_settings.get("morning_digest.time", "08:00")
             use_ai = app_settings.get("morning_digest.use_ai", True)
             speak = app_settings.get("morning_digest.speak", True)
+            categories = app_settings.get("morning_digest.categories", None)
 
             # Parse HH:MM
             try:
@@ -719,7 +720,9 @@ class MainWindow(FluentWindow):
             self.set_status("Morning digest: fetching…")
 
             def _run_digest():
-                digest_items = news_manager.get_briefing(use_ai=use_ai)
+                digest_items = news_manager.get_briefing(
+                    use_ai=use_ai, categories=categories or None,
+                )
                 # Keep it short for TTS/log.
                 top = (digest_items or [])[:6]
 

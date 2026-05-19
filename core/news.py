@@ -78,14 +78,21 @@ class NewsManager:
         self.cache = {}
         self.cache_duration = datetime.timedelta(minutes=15)
 
-    def get_briefing(self, status_callback=None, use_ai: bool = True) -> list:
+    def get_briefing(self, status_callback=None, use_ai: bool = True,
+                     categories: list[str] | None = None) -> list:
         """
         Return a curated news briefing from RSS feeds.
         Optionally curates titles with the local LLM.
         Falls back to raw RSS data if AI curation fails or is disabled.
         Returns cached data if last fetch was within cache_duration.
+
+        If ``categories`` is provided, only RSS_FEEDS keys in that list are
+        fetched. Unknown categories are dropped silently. ``None`` fetches
+        every configured feed (default).
         """
         cache_key = "briefing_ai" if use_ai else "briefing_raw"
+        if categories:
+            cache_key = f"{cache_key}:{','.join(sorted(categories))}"
         cached = self._get_from_cache(cache_key)
         if cached:
             return cached
@@ -94,8 +101,14 @@ class NewsManager:
         if status_callback:
             status_callback("Fetching RSS feeds...")
 
+        wanted = set(categories) if categories else None
+        feed_items = (
+            (cat, feeds) for cat, feeds in RSS_FEEDS.items()
+            if wanted is None or cat in wanted
+        )
+
         raw_news = []
-        for category, feeds in RSS_FEEDS.items():
+        for category, feeds in feed_items:
             for url, source_name in feeds:
                 if status_callback:
                     status_callback(f"Reading {category}...")
