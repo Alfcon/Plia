@@ -426,11 +426,31 @@ class FunctionGemmaRouter:
         # CPU often doesn't support bfloat16 natively
         dtype = torch.bfloat16 if device == "cuda" else torch.float32
 
-        self.model = AutoModelForCausalLM.from_pretrained(
-            model_path,
-            torch_dtype=dtype,
-            device_map=device,
-        )
+        try:
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=dtype,
+                device_map=device,
+            )
+        except Exception as exc:
+            # CUDA OOM: another process (or qwen3:8b spilling back from
+            # CPU) is holding VRAM. Surface anything else as-is.
+            is_oom = isinstance(exc, getattr(torch.cuda, "OutOfMemoryError", ())) \
+                or "out of memory" in str(exc).lower()
+            if device != "cuda" or not is_oom:
+                raise
+            print(f"[Router] CUDA OOM during load ({exc}) — retrying on CPU…")
+            try:
+                torch.cuda.empty_cache()
+            except Exception:
+                pass
+            device = "cpu"
+            dtype = torch.float32
+            self.model = AutoModelForCausalLM.from_pretrained(
+                model_path,
+                torch_dtype=dtype,
+                device_map=device,
+            )
         self.model.eval()
 
         # Keep a local reference to torch for inference methods
