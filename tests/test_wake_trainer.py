@@ -401,3 +401,64 @@ def test_train_wake_word_end_to_end_with_mocks(monkeypatch, tmp_path):
     assert result.exists()
     # Progress monotonically reaches 100.
     assert progress[-1][0] == 100.0
+
+
+@pytest.mark.parametrize(
+    "cancel_after",
+    ["before_start", "after_neg", "before_train", "before_export"],
+)
+def test_cancellation_at_each_stage(monkeypatch, tmp_path, cancel_after):
+    from core import wake_trainer
+    import torch
+
+    out = tmp_path / "custom"
+    monkeypatch.setattr(wake_trainer, "_default_output_dir", lambda: out)
+
+    state = {"step": "before_start"}
+
+    def should_cancel():
+        return cancel_after == state["step"]
+
+    def with_step(step, ret):
+        def _(*a, **kw):
+            state["step"] = step
+            if should_cancel():
+                raise wake_trainer.TrainCancelled(step)
+            return ret
+        return _
+
+    monkeypatch.setattr(
+        wake_trainer, "ensure_negative_features",
+        with_step("after_neg", tmp_path / "neg"),
+    )
+
+    def synth_stub(*, word, voices, variants, out_dir, on_progress=None, should_cancel=lambda: False):
+        out_dir.mkdir(parents=True, exist_ok=True)
+        state["step"] = "before_train"
+        if should_cancel():
+            raise wake_trainer.TrainCancelled("synth")
+        return out_dir
+    monkeypatch.setattr(wake_trainer, "synthesize_positives", synth_stub)
+
+    class TinyModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fc = torch.nn.Linear(96, 1)
+
+        def forward(self, x):
+            return self.fc(x)
+
+    monkeypatch.setattr(
+        wake_trainer, "_train_loop",
+        with_step("before_export", TinyModel()),
+    )
+    monkeypatch.setattr(wake_trainer, "_verify_onnx_loads", lambda p: (True, ""))
+
+    with pytest.raises(wake_trainer.TrainCancelled):
+        wake_trainer.train_wake_word(
+            "plia", variants=500, epochs=2,
+            should_cancel=should_cancel,
+        )
+
+    # No half-written .onnx left behind.
+    assert not (out / "plia.onnx").exists()
